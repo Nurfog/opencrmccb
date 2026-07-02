@@ -1,0 +1,750 @@
+openapi: 3.0.3
+info:
+  title: OpenCRM API
+  description: |
+    Customer Relationship Management API built with Rust (Axum).
+    
+    ## Authentication
+    All endpoints except `/auth/login`, `/auth/register`, and `/health` require a Bearer token in the Authorization header.
+    
+    ## Rate Limiting
+    Auth endpoints are rate limited to 5 requests per minute per IP.
+    
+    ## Pagination
+    List endpoints support pagination via query parameters: `page`, `per_page`, `search`, `sort_by`, `sort_order`.
+  version: 1.0.0
+  contact:
+    name: OpenCRM Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Contacts
+    description: Contact management
+  - name: Companies
+    description: Company management
+  - name: Deals
+    description: Deal pipeline management
+  - name: Activities
+    description: Activity logging
+  - name: Health
+    description: Health check
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: Requires admin role. Rate limited to 5 req/min.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUser'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email already exists
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '429':
+          description: Rate limit exceeded
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and get JWT token
+      description: Rate limited to 5 req/min.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+        '422':
+          description: Validation error
+        '429':
+          description: Rate limit exceeded
+
+  /api/v1/contacts:
+    get:
+      tags: [Contacts]
+      summary: List contacts
+      description: Paginated list with search and sorting
+      operationId: listContacts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+      responses:
+        '200':
+          description: Paginated contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedContacts'
+        '401':
+          description: Unauthorized
+    post:
+      tags: [Contacts]
+      summary: Create a contact
+      operationId: createContact
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContact'
+      responses:
+        '201':
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+
+  /api/v1/contacts/bulk-delete:
+    post:
+      tags: [Contacts]
+      summary: Delete multiple contacts
+      operationId: bulkDeleteContacts
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Contacts deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+
+  /api/v1/contacts/export:
+    get:
+      tags: [Contacts]
+      summary: Export contacts as CSV
+      operationId: exportContacts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /api/v1/contacts/import:
+    post:
+      tags: [Contacts]
+      summary: Import contacts from CSV
+      operationId: importContacts
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+
+  /api/v1/contacts/{id}:
+    get:
+      tags: [Contacts]
+      summary: Get a contact by ID
+      operationId: getContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '404':
+          description: Contact not found
+    put:
+      tags: [Contacts]
+      summary: Update a contact
+      operationId: updateContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContact'
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '404':
+          description: Contact not found
+    delete:
+      tags: [Contacts]
+      summary: Delete a contact
+      operationId: deleteContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Contact deleted
+        '404':
+          description: Contact not found
+
+  /api/v1/companies:
+    get:
+      tags: [Companies]
+      summary: List companies
+      operationId: listCompanies
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Paginated companies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCompanies'
+    post:
+      tags: [Companies]
+      summary: Create a company
+      operationId: createCompany
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompany'
+      responses:
+        '201':
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+
+  /api/v1/deals:
+    get:
+      tags: [Deals]
+      summary: List deals
+      operationId: listDeals
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Paginated deals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDeals'
+    post:
+      tags: [Deals]
+      summary: Create a deal
+      operationId: createDeal
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeal'
+      responses:
+        '201':
+          description: Deal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+
+  /api/v1/activities:
+    get:
+      tags: [Activities]
+      summary: List activities
+      operationId: listActivities
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of activities
+    post:
+      tags: [Activities]
+      summary: Create an activity
+      operationId: createActivity
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Activity created
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    PerPage:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+    Search:
+      name: search
+      in: query
+      schema:
+        type: string
+    SortBy:
+      name: sort_by
+      in: query
+      schema:
+        type: string
+        enum: [name, email, phone, position, created_at]
+    SortOrder:
+      name: sort_order
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+
+  schemas:
+    CreateUser:
+      type: object
+      required: [email, password, first_name, last_name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        role:
+          type: string
+
+    CreateContact:
+      type: object
+      required: [first_name, last_name]
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          maxLength: 20
+        company_id:
+          type: string
+          format: uuid
+        position:
+          type: string
+          maxLength: 100
+        notes:
+          type: string
+          maxLength: 1000
+
+    UpdateContact:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        company_id:
+          type: string
+          format: uuid
+        position:
+          type: string
+        notes:
+          type: string
+
+    Contact:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        company_id:
+          type: string
+          format: uuid
+        position:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateCompany:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        industry:
+          type: string
+        website:
+          type: string
+          format: uri
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        notes:
+          type: string
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        industry:
+          type: string
+        website:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateDeal:
+      type: object
+      required: [title, value]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        value:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          maxLength: 3
+        stage:
+          type: string
+          enum: [lead, qualified, proposal, negotiation, closedwon, closedlost]
+        contact_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        expected_close_date:
+          type: string
+          format: date-time
+        notes:
+          type: string
+
+    Deal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        value:
+          type: number
+        currency:
+          type: string
+        stage:
+          type: string
+        contact_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        expected_close_date:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PaginatedContacts:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contact'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+
+    PaginatedCompanies:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Company'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+
+    PaginatedDeals:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Deal'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+
+    ValidationError:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    ImportResult:
+      type: object
+      properties:
+        imported:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string

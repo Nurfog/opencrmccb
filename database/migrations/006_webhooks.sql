@@ -1,0 +1,21 @@
+CREATE TYPE webhook_event AS ENUM (
+    'deal_created',
+    'deal_updated',
+    'deal_deleted',
+    'contact_created',
+    'contact_updated',
+    'contact_deleted'
+);
+
+CREATE TABLE webhooks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    url VARCHAR(500) NOT NULL,
+    event webhook_event NOT NULL,
+    secret VARCHAR(255),
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhooks_event ON webhooks(event);
+CREATE INDEX idx_webhooks_active ON webhooks(active);

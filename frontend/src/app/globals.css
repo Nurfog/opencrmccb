@@ -1,0 +1,442 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 210 100% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 100% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 122 40% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: 37 90% 51%;
+    --warning-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 210 100% 42%;
+    --radius: 0.25rem;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 20% 94%;
+    --card: 222 47% 13%;
+    --card-foreground: 210 20% 94%;
+    --popover: 222 47% 13%;
+    --popover-foreground: 210 20% 94%;
+    --primary: 210 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 20% 94%;
+    --muted: 215 25% 18%;
+    --muted-foreground: 215 20% 72%;
+    --accent: 210 50% 20%;
+    --accent-foreground: 210 20% 94%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 60% 48%;
+    --success-foreground: 0 0% 100%;
+    --warning: 37 85% 55%;
+    --warning-foreground: 0 0% 100%;
+    --border: 217 25% 24%;
+    --input: 217 25% 24%;
+    --ring: 210 100% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+  /* ===== Salesforce Page Header ===== */
+  .slds-header {
+    @apply bg-white dark:bg-card border-b px-6 py-4;
+    border-color: hsl(var(--border));
+  }
+
+  .slds-header__title {
+    @apply text-xl font-bold;
+    color: #032D60;
+  }
+
+  .dark .slds-header__title {
+    color: hsl(var(--foreground));
+  }
+
+  .slds-header__detail {
+    @apply text-sm;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ===== Salesforce Card ===== */
+  .slds-card {
+    @apply bg-white dark:bg-card rounded border;
+    border-color: hsl(var(--border));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .slds-card__header {
+    @apply flex items-center justify-between px-4 py-3 border-b;
+    border-color: hsl(var(--border));
+  }
+
+  .slds-card__title {
+    @apply font-semibold;
+    color: #032D60;
+  }
+
+  .dark .slds-card__title {
+    color: hsl(var(--foreground));
+  }
+
+  .slds-card__body {
+    @apply p-4;
+  }
+
+  /* ===== Salesforce Table ===== */
+  .slds-table {
+    @apply w-full text-sm;
+  }
+
+  .slds-table thead {
+    @apply text-white text-xs uppercase tracking-wider;
+    background-color: #032D60;
+  }
+
+  .dark .slds-table thead {
+    background-color: hsl(215 30% 16%);
+  }
+
+  .slds-table th {
+    @apply px-4 py-3 text-left font-semibold;
+  }
+
+  .slds-table td {
+    @apply px-4 py-3 border-b;
+    border-color: hsl(var(--border));
+  }
+
+  .slds-table tbody tr {
+    @apply transition-colors duration-150;
+  }
+
+  .slds-table tbody tr:hover {
+    background-color: #E5F5FE;
+  }
+
+  .dark .slds-table tbody tr:hover {
+    background-color: hsl(215 30% 18%);
+  }
+
+  .slds-table tbody tr:nth-child(even) {
+    @apply bg-gray-50;
+  }
+
+  .dark .slds-table tbody tr:nth-child(even) {
+    background-color: hsl(222 47% 10%);
+  }
+
+  .dark .slds-table tbody tr:nth-child(odd) {
+    background-color: hsl(var(--card));
+  }
+
+  /* ===== Salesforce Buttons ===== */
+  .slds-btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium rounded transition-all duration-150;
+    min-height: 2rem;
+  }
+
+  .slds-btn--brand {
+    @apply text-white;
+    background-color: #0176D3;
+  }
+
+  .slds-btn--brand:hover {
+    background-color: #032D60;
+  }
+
+  .slds-btn--neutral {
+    @apply bg-white dark:bg-card border;
+    color: #0176D3;
+    border-color: #0176D3;
+  }
+
+  .dark .slds-btn--neutral {
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+    background-color: hsl(var(--secondary));
+  }
+
+  .slds-btn--neutral:hover {
+    background-color: #E5F5FE;
+  }
+
+  .dark .slds-btn--neutral:hover {
+    background-color: hsl(var(--muted));
+  }
+
+  .slds-btn--destructive {
+    @apply text-white;
+    background-color: hsl(var(--destructive));
+  }
+
+  .slds-btn--destructive:hover {
+    @apply opacity-90;
+  }
+
+  /* ===== Salesforce Input ===== */
+  .slds-input {
+    @apply w-full px-3 py-2 text-sm border rounded bg-white dark:bg-background;
+    border-color: hsl(var(--input));
+    color: hsl(var(--foreground));
+    min-height: 2rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .slds-input:focus {
+    @apply outline-none ring-2;
+    --tw-ring-color: #0176D3;
+    border-color: #0176D3;
+  }
+
+  .slds-input::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ===== Salesforce Badge ===== */
+  .slds-badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded;
+  }
+
+  .slds-badge--success {
+    @apply bg-green-100 text-green-800;
+  }
+
+  .dark .slds-badge--success {
+    background-color: hsl(142 40% 18%);
+    color: hsl(142 40% 70%);
+  }
+
+  .slds-badge--warning {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+
+  .dark .slds-badge--warning {
+    background-color: hsl(37 80% 16%);
+    color: hsl(37 80% 70%);
+  }
+
+  .slds-badge--error {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .dark .slds-badge--error {
+    background-color: hsl(0 63% 18%);
+    color: hsl(0 63% 70%);
+  }
+
+  .slds-badge--info {
+    @apply bg-blue-100 text-blue-700;
+  }
+
+  .dark .slds-badge--info {
+    background-color: hsl(210 100% 14%);
+    color: hsl(210 100% 65%);
+  }
+
+  /* ===== Salesforce Sidebar ===== */
+  .slds-sidebar {
+    @apply w-64 flex flex-col h-screen flex-shrink-0;
+    background-color: #032D60;
+  }
+
+  .dark .slds-sidebar {
+    background-color: #032D60;
+  }
+
+  .slds-sidebar__item {
+    @apply flex items-center gap-3 px-4 py-3 text-sm text-white/80 hover:text-white transition-colors cursor-pointer;
+  }
+
+  .slds-sidebar__item:hover {
+    background-color: #0176D3;
+  }
+
+  .slds-sidebar__item--active {
+    @apply text-white border-l-4 border-white;
+    background-color: #0176D3;
+  }
+
+  /* ===== Salesforce Global Header ===== */
+  .slds-global-header {
+    @apply flex items-center justify-between px-4 py-2 text-white;
+    background-color: #032D60;
+  }
+
+  .dark .slds-global-header {
+    background-color: #032D60;
+  }
+
+  /* ===== Salesforce Kanban ===== */
+  .slds-kanban {
+    @apply flex gap-4 overflow-x-auto pb-4;
+  }
+
+  .slds-kanban__column {
+    @apply flex-shrink-0 w-72;
+  }
+
+  .slds-kanban__column-header {
+    @apply rounded-t p-3 border border-b-0;
+    background-color: hsl(var(--card));
+    border-color: hsl(var(--border));
+  }
+
+  .slds-kanban__column-body {
+    @apply rounded-b border p-2 space-y-2;
+    background-color: hsl(var(--muted));
+    border-color: hsl(var(--border));
+    min-height: 200px;
+  }
+
+  .slds-kanban__card {
+    @apply rounded border p-3 cursor-pointer transition-shadow;
+    background-color: hsl(var(--card));
+    border-color: hsl(var(--border));
+  }
+
+  .slds-kanban__card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+  }
+
+  /* ===== Salesforce Modal ===== */
+  .slds-modal-backdrop {
+    @apply fixed inset-0 z-50 flex items-center justify-center;
+    animation: fade-in 0.15s ease-out;
+  }
+
+  .slds-modal-backdrop::before {
+    content: "";
+    @apply absolute inset-0;
+    background-color: rgba(0,0,0,0.5);
+  }
+
+  .slds-modal-content {
+    @apply relative bg-white dark:bg-card rounded shadow-lg w-full max-w-lg mx-4;
+    animation: modal-in 0.2s ease-out;
+  }
+
+  .slds-modal__header {
+    @apply flex items-center justify-between px-6 py-4 border-b;
+    border-color: hsl(var(--border));
+  }
+
+  .slds-modal__title {
+    @apply text-lg font-semibold;
+    color: #032D60;
+  }
+
+  .dark .slds-modal__title {
+    color: hsl(var(--foreground));
+  }
+
+  .slds-modal__body {
+    @apply px-6 py-4 max-h-[70vh] overflow-y-auto;
+  }
+
+  .slds-modal__footer {
+    @apply flex justify-end gap-2 px-6 py-4 border-t;
+    border-color: hsl(var(--border));
+  }
+
+  /* ===== Salesforce Empty State ===== */
+  .slds-empty {
+    @apply flex flex-col items-center justify-center py-16 px-6 text-center;
+  }
+
+  .slds-empty__icon {
+    @apply w-16 h-16 rounded-full flex items-center justify-center mb-4;
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+  }
+
+  .slds-empty__title {
+    @apply text-lg font-semibold mb-1;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .slds-empty__description {
+    @apply text-sm max-w-sm mb-6;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ===== Animations ===== */
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes modal-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* FullCalendar event colors */
+.fc-event-calendar {
+  background-color: #e0e7ff !important;
+  border-color: #818cf8 !important;
+  color: #3730a3 !important;
+}
+
+.dark .fc-event-calendar {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  border-color: #818cf8 !important;
+  color: #a5b4fc !important;
+}
+
+.fc-event-completed {
+  opacity: 0.5;
+  text-decoration: line-through;
+}

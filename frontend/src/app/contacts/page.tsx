@@ -12,7 +12,6 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AdvancedFilters, ActiveFilters, type FilterField } from "@/components/ui/advanced-filters"
-import { exportContactsToPdf } from "@/lib/pdf"
 import { formatDate, getInitials, cn } from "@/lib/utils"
 
 type SortField = "first_name" | "last_name" | "email" | "phone" | "position"
@@ -188,8 +187,9 @@ export default function ContactsPage() {
     }
   }
 
-  const handlePdfExport = () => {
+  const handlePdfExport = async () => {
     if (data) {
+      const { exportContactsToPdf } = await import("@/lib/pdf")
       exportContactsToPdf(data.data)
     }
   }

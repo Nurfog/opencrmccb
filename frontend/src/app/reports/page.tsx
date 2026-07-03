@@ -161,7 +161,7 @@ export default function ReportsPage() {
                   return (
                     <div key={item.stage} className="space-y-1.5">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium capitalize">{t(`stages.${item.stage}` as any) || item.stage}</span>
+                        <span className="font-medium capitalize">{t(`stages.${item.stage}`) || item.stage}</span>
                         <span className="text-muted-foreground">{item.count} {t("deals.title")} / {formatCurrency(item.total_value)}</span>
                       </div>
                       <div className="h-2.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">

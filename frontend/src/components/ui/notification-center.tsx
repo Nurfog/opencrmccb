@@ -102,7 +102,7 @@ export function NotificationCenter() {
                   className="text-xs text-brand hover:underline flex items-center gap-1"
                 >
                   <CheckCheck className="h-3 w-3" />
-                  {t("settings.notifications")}
+                  {t("common.markAllRead")}
                 </button>
               )}
               <button
@@ -146,7 +146,7 @@ export function NotificationCenter() {
                         type="button"
                         onClick={() => handleMarkAsRead(notif.id)}
                         className="p-1 text-gray-400 hover:text-green-600"
-                        title="Mark as read"
+                        title={t("common.markAllRead")}
                       >
                         <Check className="h-4 w-4" />
                       </button>
@@ -155,7 +155,7 @@ export function NotificationCenter() {
                       type="button"
                       onClick={() => handleDelete(notif.id)}
                       className="p-1 text-gray-400 hover:text-red-600"
-                      title="Delete"
+                      title={t("common.delete")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

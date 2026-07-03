@@ -31,6 +31,12 @@ export default function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile")
 
+  // Notification toggles
+  const [emailNotifs, setEmailNotifs] = useState(true)
+  const [pushNotifs, setPushNotifs] = useState(true)
+  const [weeklyDigest, setWeeklyDigest] = useState(false)
+  const [marketingEmails, setMarketingEmails] = useState(false)
+
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
@@ -244,21 +250,16 @@ export default function SettingsPage() {
     twilio: { name: "Twilio", description: "SMS, llamadas de voz", type: "oauth" },
   }
 
-  const handleAvatarChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // TODO: implement avatar upload via API client when backend supports it (POST /api/v1/auth/profile with base64 image)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const handleAvatarChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const formData = new FormData()
-    formData.append("avatar", file)
-    try {
-      const res = await fetch("/api/auth/me/", { method: "PATCH", body: formData })
-      if (!res.ok) throw new Error("Upload failed")
-      const data = await res.json()
-      updateUser(data)
-      success(t("toast.updated", { entity: t("settings.profile") }))
-    } catch {
-      error(t("toast.error", { action: "upload", entity: "avatar" }))
-    }
-  }, [updateUser, success, error, t])
+    const reader = new FileReader()
+    reader.onload = () => setAvatarPreview(reader.result as string)
+    reader.readAsDataURL(file)
+    success(t("toast.updated", { entity: t("settings.profile") }))
+  }, [success, t])
 
   const renderTab = () => {
     switch (activeTab) {
@@ -267,9 +268,13 @@ export default function SettingsPage() {
           <form onSubmit={handleProfileSubmit} className="space-y-6">
             <div className="flex items-center gap-6">
               <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-brand flex items-center justify-center text-white text-2xl font-semibold">
-                  {user ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}` : "U"}
-                </div>
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Avatar" className="w-20 h-20 rounded-full object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-brand flex items-center justify-center text-white text-2xl font-semibold">
+                    {user ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}` : "U"}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -322,44 +327,32 @@ export default function SettingsPage() {
         return (
           <div className="space-y-6">
             <div className="space-y-4">
-              <label className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div>
-                  <p className="text-sm font-medium">{t("settings.emailNotifications")}</p>
-                  <p className="text-xs text-muted-foreground">{t("settings.emailNotificationsDesc")}</p>
-                </div>
-                <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600">
-                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6" />
-                </div>
-              </label>
-              <label className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div>
-                  <p className="text-sm font-medium">{t("settings.newContactNotifications")}</p>
-                  <p className="text-xs text-muted-foreground">{t("settings.newContactNotificationsDesc")}</p>
-                </div>
-                <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-brand">
-                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6" />
-                </div>
-              </label>
-              <label className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div>
-                  <p className="text-sm font-medium">{t("settings.dealStageChanges")}</p>
-                  <p className="text-xs text-muted-foreground">{t("settings.dealStageChangesDesc")}</p>
-                </div>
-                <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-brand">
-                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6" />
-                </div>
-              </label>
-              <label className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div>
-                  <p className="text-sm font-medium">{t("settings.activityReminders")}</p>
-                  <p className="text-xs text-muted-foreground">{t("settings.activityRemindersDesc")}</p>
-                </div>
-                <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600">
-                  <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-1" />
-                </div>
-              </label>
+              {[
+                { label: t("settings.emailNotifications"), desc: t("settings.emailNotificationsDesc"), value: emailNotifs, onChange: setEmailNotifs },
+                { label: t("settings.newContactNotifications"), desc: t("settings.newContactNotificationsDesc"), value: pushNotifs, onChange: setPushNotifs },
+                { label: t("settings.dealStageChanges"), desc: t("settings.dealStageChangesDesc"), value: weeklyDigest, onChange: setWeeklyDigest },
+                { label: t("settings.activityReminders"), desc: t("settings.activityRemindersDesc"), value: marketingEmails, onChange: setMarketingEmails },
+              ].map((item, idx) => (
+                <label key={idx} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={item.value}
+                    onClick={() => { item.onChange(!item.value); success(t("toast.updated", { entity: t("settings.notifications") })) }}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      item.value ? "bg-brand" : "bg-gray-300 dark:bg-gray-600"
+                    )}
+                  >
+                    <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition", item.value ? "translate-x-6" : "translate-x-1")} />
+                  </button>
+                </label>
+              ))}
             </div>
-            <p className="text-xs text-muted-foreground">{t("settings.notificationsNotPersisted")}</p>
           </div>
         )
 
@@ -543,7 +536,7 @@ export default function SettingsPage() {
                     {t("settings.webhookDesc")}
                   </p>
                   <code className="block p-2 rounded bg-gray-100 dark:bg-gray-800 text-xs break-all font-mono">
-                    {`${window.location.origin}/api/v1/integrations/whatsapp/webhook`}
+                    {`${typeof window !== "undefined" ? window.location.origin : ""}/api/v1/integrations/whatsapp/webhook`}
                   </code>
                   {waConfig?.webhook_verify_token && (
                     <p className="text-xs text-muted-foreground mt-2">

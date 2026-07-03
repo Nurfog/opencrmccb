@@ -1,13 +1,15 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { DollarSign, Users, Building2, TrendingUp, TrendingDown, Briefcase, BarChart3, Activity, Target, Plus, ArrowRight, Phone, Mail, Calendar, FileText } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useAuthStore } from "@/stores/auth-store"
 import { useToast } from "@/contexts/toast-context"
 import { dashboardApi, dealsApi, type DashboardStats, type PipelineStage, type TopDeal, type RecentActivity } from "@/lib/api"
-import { PipelineBarChart } from "@/components/charts/pipeline-bar-chart"
+
+const PipelineBarChart = dynamic(() => import("@/components/charts/pipeline-bar-chart").then((m) => m.PipelineBarChart), { ssr: false })
 import { DealForm } from "@/components/forms/deal-form"
 import { Modal } from "@/components/ui/modal"
 import { DashboardSkeleton } from "@/components/ui/skeleton"

@@ -79,7 +79,10 @@
     "update": "Update",
     "saving": "Saving...",
     "meta": "Meta",
-    "search": "Search..."
+    "search": "Search...",
+    "none": "None",
+    "markAllRead": "Mark all as read",
+    "apply": "Apply"
   },
   "auth": {
     "login": "Log In",
@@ -279,7 +282,9 @@
     "noDocumentsDescription": "Upload your first document to get started.",
     "dragDrop": "Drag and drop a file here",
     "clickToBrowse": "or click to browse",
-    "upload": "Upload"
+    "upload": "Upload",
+    "deleteDocument": "Delete document",
+    "deleteDocumentMessage": "Delete \"{name}\"?"
   },
   "settings": {
     "title": "Settings",
@@ -641,6 +646,9 @@
       "november": "November",
       "december": "December"
     }
+  },
+  "tags": {
+    "placeholder": "Add tags..."
   },
   "toast": {
     "created": "{entity} created successfully",

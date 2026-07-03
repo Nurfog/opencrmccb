@@ -2,6 +2,7 @@
 
 import { Modal } from "./modal"
 import { AlertTriangle, Trash2 } from "lucide-react"
+import { useI18n } from "@/contexts/i18n-context"
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -22,6 +23,7 @@ export function ConfirmDialog({
   confirmLabel = "Delete",
   variant = "danger",
 }: ConfirmDialogProps) {
+  const { t } = useI18n()
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
       <div className="flex items-start gap-3">
@@ -44,7 +46,7 @@ export function ConfirmDialog({
       </div>
       <div className="slds-modal__footer">
         <button type="button" onClick={onClose} className="slds-btn slds-btn--neutral">
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="button"

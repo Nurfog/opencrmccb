@@ -322,7 +322,7 @@ export default function CompanyDetailPage() {
                             deal.stage === "closed_lost" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
                             "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
                           )}>
-                            {t(`stages.${deal.stage}` as any) || deal.stage}
+                            {t(`stages.${deal.stage}`) || deal.stage}
                           </span>
                         </td>
                         <td>{deal.expected_close_date ? formatDate(deal.expected_close_date) : "-"}</td>

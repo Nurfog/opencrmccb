@@ -79,7 +79,10 @@
     "loading": "Cargando...",
     "error": "Error",
     "saving": "Guardando...",
-    "meta": "Meta"
+    "meta": "Meta",
+    "none": "Ninguno",
+    "markAllRead": "Marcar todo como leído",
+    "apply": "Aplicar"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -279,7 +282,9 @@
     "noDocumentsDescription": "Sube tu primer documento para comenzar.",
     "dragDrop": "Arrastra un archivo aquí",
     "clickToBrowse": "o haz clic para buscar",
-    "upload": "Subir"
+    "upload": "Subir",
+    "deleteDocument": "Eliminar documento",
+    "deleteDocumentMessage": "¿Eliminar \"{name}\"?"
   },
   "settings": {
     "title": "Configuración",
@@ -641,6 +646,9 @@
       "november": "Noviembre",
       "december": "Diciembre"
     }
+  },
+  "tags": {
+    "placeholder": "Agregar etiquetas..."
   },
   "toast": {
     "created": "{entity} creado exitosamente",

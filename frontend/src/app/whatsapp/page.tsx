@@ -5,7 +5,7 @@ import { MessageCircle, Send, Search, Phone, Video, MoreVertical, Check, CheckCh
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
-import { whatsAppApi, aiApi, type WhatsAppConversation, type WhatsAppMessage, type LeadExtraction } from "@/lib/api"
+import { whatsAppApi, aiApi, contactsApi, type WhatsAppConversation, type WhatsAppMessage, type LeadExtraction } from "@/lib/api"
 import { Modal } from "@/components/ui/modal"
 import { EmptyState } from "@/components/ui/empty-state"
 import { formatDate, cn, formatDateTime } from "@/lib/utils"
@@ -46,8 +46,23 @@ export default function WhatsAppPage() {
 
   const handleSaveExtractedContact = async () => {
     if (!extractionResult) return
-    success(t("whatsapp.saveLeadSuccess"))
-    setExtractionOpen(false)
+    try {
+      const d = editableData as Record<string, string>
+      await contactsApi.create({
+        first_name: d.first_name ?? "",
+        last_name: d.last_name ?? "",
+        email: d.email || undefined,
+        phone: d.phone || extractionResult.phone_number,
+        company_id: undefined,
+        position: d.position || undefined,
+        notes: d.notes || undefined,
+      })
+      success(t("whatsapp.saveLeadSuccess"))
+      setExtractionOpen(false)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t("whatsapp.saveLeadError")
+      error(msg)
+    }
   }
 
   const fetchConversations = useCallback(async () => {
@@ -272,41 +287,44 @@ export default function WhatsAppPage() {
                     </div>
                   </div>
                 ) : (
-                  [...messages].reverse().map((msg, i) => {
-                    const isOut = msg.direction === "outbound"
-                    const showDate = i === 0 || formatMsgTime([...messages].reverse()[i - 1]?.created_at ?? "") !== formatMsgTime(msg.created_at)
-                    return (
-                      <div key={msg.id}>
-                        {showDate && (
-                          <div className="flex justify-center my-3">
-                            <span className="text-[11px] text-muted-foreground bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
-                              {formatDate(msg.created_at)}
-                            </span>
-                          </div>
-                        )}
-                        <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
-                          <div
-                            className={cn(
-                              "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm",
-                              isOut
-                                ? "bg-blue-600 text-white rounded-br-md"
-                                : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-bl-md"
-                            )}
-                          >
-                            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                            <div className={cn("flex items-center justify-end gap-1 mt-1", isOut ? "text-blue-200" : "text-muted-foreground")}>
-                              <span className="text-[11px]">{formatMsgTime(msg.created_at)}</span>
-                              {isOut && (
-                                msg.status === "sent"
-                                  ? <CheckCheck className="h-3.5 w-3.5" />
-                                  : <Clock className="h-3 w-3" />
+                  (() => {
+                    const reversed = [...messages].reverse()
+                    return reversed.map((msg, i) => {
+                      const isOut = msg.direction === "outbound"
+                      const showDate = i === 0 || formatMsgTime(reversed[i - 1]?.created_at ?? "") !== formatMsgTime(msg.created_at)
+                      return (
+                        <div key={msg.id}>
+                          {showDate && (
+                            <div className="flex justify-center my-3">
+                              <span className="text-[11px] text-muted-foreground bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
+                                {formatDate(msg.created_at)}
+                              </span>
+                            </div>
+                          )}
+                          <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
+                            <div
+                              className={cn(
+                                "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm",
+                                isOut
+                                  ? "bg-blue-600 text-white rounded-br-md"
+                                  : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-bl-md"
                               )}
+                            >
+                              <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                              <div className={cn("flex items-center justify-end gap-1 mt-1", isOut ? "text-blue-200" : "text-muted-foreground")}>
+                                <span className="text-[11px]">{formatMsgTime(msg.created_at)}</span>
+                                {isOut && (
+                                  msg.status === "sent"
+                                    ? <CheckCheck className="h-3.5 w-3.5" />
+                                    : <Clock className="h-3 w-3" />
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })
+                      )
+                    })
+                  })()
                 )}
                 <div ref={messagesEndRef} />
               </div>

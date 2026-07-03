@@ -36,7 +36,7 @@ export default function AdminPage() {
   const [pipeSlug, setPipeSlug] = useState("")
   const [pipeDesc, setPipeDesc] = useState("")
   const [pipeType, setPipeType] = useState("person")
-  const [newStageName, setNewStageName] = useState("")
+  const [newStageNames, setNewStageNames] = useState<Record<string, string>>({})
 
   const fetchPipelines = useCallback(async () => {
     try {
@@ -84,10 +84,11 @@ export default function AdminPage() {
   }
 
   const handleAddStage = async (pipelineId: string, stages: PipelineStage[]) => {
-    if (!newStageName.trim()) return
+    const name = newStageNames[pipelineId] ?? ""
+    if (!name.trim()) return
     try {
-      await adminApi.createStage(pipelineId, { name: newStageName, position: stages.length })
-      setNewStageName("")
+      await adminApi.createStage(pipelineId, { name, position: stages.length })
+      setNewStageNames(prev => ({ ...prev, [pipelineId]: "" }))
       fetchPipelines()
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : "Error")
@@ -309,7 +310,7 @@ export default function AdminPage() {
                       ))}
                       <div className="flex items-center gap-1">
                         <input className="w-28 px-2 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 text-xs bg-transparent"
-                          value={newStageName} onChange={(e) => setNewStageName(e.target.value)}
+                          value={newStageNames[pw.pipeline.id] ?? ""} onChange={(e) => setNewStageNames(prev => ({ ...prev, [pw.pipeline.id]: e.target.value }))}
                           placeholder={t("admin.addStage")} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddStage(pw.pipeline.id, pw.stages) } }} />
                       </div>
                     </div>

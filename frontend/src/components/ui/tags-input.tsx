@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { X, Plus, Tag as TagIcon } from "lucide-react"
 import { tagsApi, type Tag } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { useI18n } from "@/contexts/i18n-context"
 
 interface TagsInputProps {
   entityType: string
@@ -19,6 +20,7 @@ export function TagsInput({ entityType, entityId, onChange }: TagsInputProps) {
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { t } = useI18n()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -126,7 +128,7 @@ export function TagsInput({ entityType, entityId, onChange }: TagsInputProps) {
               }
             }
           }}
-          placeholder={tags.length === 0 ? "Add tags..." : ""}
+          placeholder={tags.length === 0 ? t("tags.placeholder") : ""}
           className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-sm px-1"
         />
       </div>

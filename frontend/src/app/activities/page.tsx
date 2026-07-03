@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { Plus, Calendar, Phone, Mail, FileText, X, Edit, Trash2, CheckCircle } from "lucide-react"
-import FullCalendar from "@fullcalendar/react"
+
+const FullCalendar = dynamic(() => import("@fullcalendar/react"), { ssr: false })
 import dayGridPlugin from "@fullcalendar/daygrid"
 import timeGridPlugin from "@fullcalendar/timegrid"
 import interactionPlugin from "@fullcalendar/interaction"

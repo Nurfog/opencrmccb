@@ -314,14 +314,14 @@
 > ~12 commits.
 
 ## 3.1 React error boundary + skeleton en ProtectedRoute
-- [ ] Crear `frontend/src/app/error.tsx` (Next.js error boundary global):
+- [x] Crear `frontend/src/app/error.tsx` (Next.js error boundary global):
   - Client component, recibe `error`/`reset`, muestra fallback + boton retry.
-- [ ] `frontend/src/components/auth/protected-route.tsx`:
+- [x] `frontend/src/components/auth/protected-route.tsx`:
   - Mientras `!mounted` renderizar `<Skeleton>` o spinner en lugar de `null`.
-- [ ] Commit: `feat(frontend): add root error boundary and skeleton gating`
+- [x] Commit: `feat(frontend): add root error boundary and skeleton gating`
 
 ## 3.2 Reparar logica de permisos en ProtectedRoute
-- [ ] `protected-route.tsx:19`:
+- [x] `protected-route.tsx:19`:
   - `permissionsLoaded` debe ser siempre boolean: `const permissionsLoaded = !!user && !!user.permissions?.length`.
   - Logica de redirect:
     ```ts
@@ -332,43 +332,43 @@
     }, [mounted, isAuthenticated, requiredPermission, permissionsLoaded, hasPermission, router]);
     ```
   - Si `isAuthenticated && requiredPermission && !permissionsLoaded`, lanzar `loadUser()`.
-- [ ] Test: non-admin entra a `/admin` → redirect a `/`, no blank page.
-- [ ] Commit: `fix(protected-route): correct permission loading and redirect`
+- [x] Test: non-admin entra a `/admin` → redirect a `/`, no blank page.
+- [x] Commit: `fix(protected-route): correct permission loading and redirect`
 
 ## 3.3 Admin: input de nuevo stage por pipeline
-- [ ] `frontend/src/app/admin/page.tsx:313`:
+- [x] `frontend/src/app/admin/page.tsx:313`:
   - Reemplazar `const [newStageName, setNewStageName] = useState("")` por `Record<string, string>` (por pipeline id).
   - En el input, `value={newStageNameByPipeline[pipeline.id] ?? ""}` y `onChange` actualiza el map.
   - `handleAddStage(pipeline.id)` toma el valor del map y limpia ese key.
-- [ ] Commit: `fix(admin): per-pipeline stage name input state`
+- [x] Commit: `fix(admin): per-pipeline stage name input state`
 
 ## 3.4 Settings: upload de avatar via API client
-- [ ] `frontend/src/app/settings/page.tsx:247-261`:
+- [x] `frontend/src/app/settings/page.tsx:247-261`:
   - Eliminar `fetch("/api/auth/me/", ...)` hardcoded.
   - Agregar `authApi.uploadAvatar(file: File)` en `lib/api.ts` que use FormData + `credentials: "include"` + base URL correcta.
   - El backend debe tener `POST /api/v1/auth/avatar` multipart — si no existe, agregar endpoint o usar `PATCH /api/v1/auth/profile` con base64.
-- [ ] Commit: `fix(settings): upload avatar through API client with auth`
+- [x] Commit: `fix(settings): upload avatar through API client with auth`
 
 ## 3.5 Settings: toggles de notificaciones funcionales
-- [ ] `frontend/src/app/settings/page.tsx:322-360`:
+- [x] `frontend/src/app/settings/page.tsx:322-360`:
   - Agregar `useState` por toggle (4 toggles).
   - Persistir via `PATCH /api/v1/notifications/preferences` (backend ya tiene ruta; ver Fase 2.10 para implementar persistencia).
   - Si backend no esta listo, al menos reflejar estado local con toast "feature coming".
-- [ ] Eliminar el texto enganoso `t("settings.notificationsNotPersisted")` si ahora persiste.
-- [ ] Commit: `fix(settings): functional notification toggle persistence`
+- [x] Eliminar el texto enganoso `t("settings.notificationsNotPersisted")` si ahora persiste.
+- [x] Commit: `fix(settings): functional notification toggle persistence`
 
 ## 3.6 WhatsApp: implementar save-as-contact + arreglar O(n^2)
-- [ ] `frontend/src/app/whatsapp/page.tsx:47-51`:
+- [x] `frontend/src/app/whatsapp/page.tsx:47-51`:
   - Implementar `handleSaveExtractedContact` que llame `contactsApi.create({...})` con los datos extraidos.
   - Toast despues de exito real, no antes.
-- [ ] Linea 275, 277:
+- [x] Linea 275, 277:
   - Pre-computar `const reversed = [...messages].reverse();` una vez antes del `.map`.
   - Usar `reversed[i-1]` en lugar de reverse en cada iteracion.
   - Guard `if (i === 0) showDate = true` evitando `[...messages].reverse()[-1]`.
-- [ ] Commit: `fix(whatsapp): implement save-as-contact and O(1) message reverse`
+- [x] Commit: `fix(whatsapp): implement save-as-contact and O(1) message reverse`
 
 ## 3.7 i18n: anadir claves faltantes
-- [ ] `frontend/src/lib/i18n/en.json` y `es.json`:
+- [x] `frontend/src/lib/i18n/en.json` y `es.json`:
   - `documents.deleteDocument`: "Delete document" / "Eliminar documento".
   - `documents.deleteDocumentMessage`: "Delete \"{name}\"?" / "¿Eliminar \"{name}\"?".
   - `common.none`: "None" / "Ninguno".
@@ -376,53 +376,53 @@
   - `common.cancel`: "Cancel" / "Cancelar" (si no existe).
   - `common.apply`: "Apply" / "Aplicar".
   - `toast.deleted`: "Deleted {entity}" / "{entity} eliminado".
-- [ ] Commit: `fix(i18n): add missing keys for documents, common, notifications`
+- [x] Commit: `fix(i18n): add missing keys for documents, common, notifications`
 
 ## 3.8 i18n: traducir strings hardcoded
-- [ ] `frontend/src/components/ui/phone-link.tsx`: envolver todos los strings espanoles en `t(...)` (necesita `useI18n`).
-- [ ] `frontend/src/app/calendar/page.tsx:380-449`: modal custom → usar `<Modal>` (que respete a11y) y traducir labels.
-- [ ] `frontend/src/components/ui/confirm-dialog.tsx:47`: "Cancel" → `t("common.cancel")` (convertir a client component con `useI18n`).
-- [ ] `frontend/src/components/ui/notification-center.tsx:105,149,159`: marcar todo como leido + titulos "Mark as read"/"Delete".
-- [ ] `frontend/src/app/activities/page.tsx:303-344`: opciones del select → `t("activities.task")` etc.
-- [ ] `frontend/src/components/ui/tags-input.tsx:129`: "Add tags..." → `t("tags.placeholder")`.
-- [ ] `frontend/src/app/whatsapp/page.tsx:378-388`: labels de campos extraidos.
-- [ ] Commit: `fix(i18n): translate hardcoded strings across components`
+- [x] `frontend/src/components/ui/phone-link.tsx`: envolver todos los strings espanoles en `t(...)` (necesita `useI18n`).
+- [x] `frontend/src/app/calendar/page.tsx:380-449`: modal custom → usar `<Modal>` (que respete a11y) y traducir labels.
+- [x] `frontend/src/components/ui/confirm-dialog.tsx:47`: "Cancel" → `t("common.cancel")` (convertir a client component con `useI18n`).
+- [x] `frontend/src/components/ui/notification-center.tsx:105,149,159`: marcar todo como leido + titulos "Mark as read"/"Delete".
+- [x] `frontend/src/app/activities/page.tsx:303-344`: opciones del select → `t("activities.task")` etc.
+- [x] `frontend/src/components/ui/tags-input.tsx:129`: "Add tags..." → `t("tags.placeholder")`.
+- [x] `frontend/src/app/whatsapp/page.tsx:378-388`: labels de campos extraidos.
+- [x] Commit: `fix(i18n): translate hardcoded strings across components`
 
 ## 3.9 Settings: guard `window` + eliminar casts `as any`
-- [ ] `frontend/src/app/settings/page.tsx:546`:
+- [x] `frontend/src/app/settings/page.tsx:546`:
   ```tsx
   const webhookUrl = typeof window !== "undefined" ? `${window.location.origin}/api/v1/integrations/whatsapp/webhook` : "";
   ```
-- [ ] `frontend/src/app/contacts/[id]/page.tsx:270`, `companies/[id]/page.tsx:325`, `reports/page.tsx:164`:
+- [x] `frontend/src/app/contacts/[id]/page.tsx:270`, `companies/[id]/page.tsx:325`, `reports/page.tsx:164`:
   - Eliminar `as any` en `t(...)`. Si TS se queja, castear el key como `string` (el tipo de `t` ya acepta string).
-- [ ] Commit: `fix(frontend): guard window access and remove unsafe casts`
+- [x] Commit: `fix(frontend): guard window access and remove unsafe casts`
 
 ## 3.10 Perf: dynamic-import FullCalendar, recharts, jspdf
-- [ ] `frontend/src/app/activities/page.tsx` + `dashboard/page.tsx` + `contacts/page.tsx`:
+- [x] `frontend/src/app/activities/page.tsx` + `dashboard/page.tsx` + `contacts/page.tsx`:
   - Convertir imports de `@fullcalendar/*`, `recharts`, `jspdf` a:
     ```tsx
     const FullCalendar = dynamic(() => import("@fullcalendar/react"), { ssr: false });
     ```
   - Para `jspdf` en `pdf.ts`, exportar funciones async que importen jspdf dinamicamente.
-- [ ] Verificar que `npm run build` no rompa y que el bundle inicial baje significativamente (comparar `.next/static`).
-- [ ] Commit: `perf(frontend): lazy-load heavy libraries with next/dynamic`
+- [x] Verificar que `npm run build` no rompa y que el bundle inicial baje significativamente (comparar `.next/static`).
+- [x] Commit: `perf(frontend): lazy-load heavy libraries with next/dynamic`
 
 ## 3.11 ESLint flat config para CI
-- [ ] Crear `frontend/eslint.config.mjs`:
+- [x] Crear `frontend/eslint.config.mjs`:
   ```js
   import next from "eslint-config-next";
   export default [ ...next, { rules: { "react/no-unescaped-entities": "off" } } ];
   ```
   (O extender `next/core-web-vitals` con dependencia `eslint-config-next` agregada a package.json devDeps.)
-- [ ] Verificar `npm run lint` no abre prompt y pasa en CI.
-- [ ] Commit: `chore(frontend): add eslint flat config for non-interactive CI lint`
+- [x] Verificar `npm run lint` no abre prompt y pasa en CI.
+- [x] Commit: `chore(frontend): add eslint flat config for non-interactive CI lint`
 
 ## 3.12 Layout: `<html lang>` dinamico + skeleton i18n
-- [ ] `frontend/src/app/layout.tsx:17`:
+- [x] `frontend/src/app/layout.tsx:17`:
   - Convertir `<html lang="es">` a un cliente wrapper que lea `useI18n().locale`, o usar `export const dynamic = "force-dynamic"` y leer locale de cookies.
   - Mientras i18n este `isLoading`, renderizar children dentro de un skeleton que oculte strings crudos.
-- [ ] Comprometer traduccion por defecto es (preservar comportamiento actual de default).
-- [ ] Commit: `fix(layout): dynamic html lang and i18n loading skeleton`
+- [x] Comprometer traduccion por defecto es (preservar comportamiento actual de default).
+- [x] Commit: `fix(layout): dynamic html lang and i18n loading skeleton`
 
 ---
 

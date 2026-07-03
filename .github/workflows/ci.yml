@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, develop]
@@ -71,6 +74,9 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --check
 
+      - name: Security audit (Rust)
+        run: cargo install cargo-audit && cargo audit
+
   frontend-test:
     name: Frontend Build
     runs-on: ubuntu-latest
@@ -96,6 +102,10 @@ jobs:
       - name: Lint
         working-directory: frontend
         run: npm run lint
+
+      - name: Security audit (frontend)
+        working-directory: frontend
+        run: npm audit --audit-level=moderate || true
 
   docker-build:
     name: Docker Build

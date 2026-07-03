@@ -24,11 +24,19 @@ echo "  Output:   $BACKUP_FILE"
 
 pg_dump "$DATABASE_URL" | gzip > "$BACKUP_FILE"
 
+# Optional encryption
+if [ -n "${BACKUP_ENCRYPTION_PASSWORD:-}" ]; then
+    gpg --batch --yes --passphrase "$BACKUP_ENCRYPTION_PASSWORD" --symmetric "$BACKUP_FILE"
+    rm "$BACKUP_FILE"
+    BACKUP_FILE="${BACKUP_FILE}.gpg"
+    echo "Encrypted backup with GPG"
+fi
+
 FILESIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 echo "Backup completed successfully ($FILESIZE)"
 echo "File: $BACKUP_FILE"
 
 # Keep only last 7 backups
 cd "$BACKUP_DIR"
-ls -1t crm_backup_*.sql.gz 2>/dev/null | tail -n +8 | xargs -r rm --
+ls -1t crm_backup_*.sql.gz crm_backup_*.sql.gz.gpg 2>/dev/null | tail -n +8 | xargs -r rm --
 echo "Old backups cleaned (keeping last 7)"

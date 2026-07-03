@@ -10,7 +10,7 @@
 - [x] Proyecto Rust con edición 2024, compilación clean con clippy -D warnings
 - [x] Framework web Axum 0.8 con tower middleware
 - [x] Conexión a PostgreSQL 17 con pool de conexiones SQLx
-- [x] 6 migraciones de base de datos (users, companies, contacts, deals, activities, documents, audit_log, webhooks)
+- [x] 21 migraciones de base de datos (users, companies, contacts, deals, activities, documents, audit_log, webhooks)
 - [x] Endpoints REST API:
   - **Auth:** register, login, refresh (rate limited), logout, profile, change password
   - **Contacts:** CRUD, bulk delete, CSV export/import
@@ -146,7 +146,7 @@
 
 - [x] Recuperación de contraseña (forgot/reset endpoints)
 - [ ] Notificaciones persistentes en base de datos
-- [ ] Pruebas de integración con docker-compose.test.yml
+- [x] Pruebas de integración con docker-compose.test.yml
 - [ ] Webhook delivery system (disparar eventos reales)
 
 ---
@@ -178,7 +178,7 @@
 - [ ] Avatar upload para usuarios
 - [ ] Actividades recurrentes
 - [ ] Email templates editables
-- [ ] Export PDF real con jspdf
+- [x] Export PDF real con jspdf
 - [ ] Modo oscuro automático según horario
 - [ ] Atajos de teclado adicionales (Ctrl+E editar, Ctrl+D eliminar)
 - [ ] Página 404 personalizada
@@ -186,7 +186,6 @@
 - [ ] Breadcrumbs dinámicos
 
 ### Técnico / Deuda
-- [ ] Eliminar jspdf de dependencias (no se usa)
 - [ ] Eliminar pgvector del schema si no se usa
 - [ ] Migrar de `version: '3.8'` en docker-compose (obsoleto)
 - [ ] Agregar graceful shutdown al backend

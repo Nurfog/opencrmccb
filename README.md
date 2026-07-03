@@ -88,7 +88,7 @@ A full-featured CRM system built with Rust (Axum), Next.js 15, PostgreSQL with p
 1. Navigate to the project directory:
 
 ```bash
-cd /home/juan/dev/opencmrccb
+cd opencmrccb
 ```
 
 2. Start all services:
@@ -135,7 +135,6 @@ docker compose up -d
 - `POST /api/v1/auth/logout` - Revoke all refresh tokens
 - `GET /api/v1/auth/me` - Get current user profile
 - `PUT /api/v1/auth/profile` - Update profile
-- `PUT /api/v1/auth/password` - Change password (revokes all refresh tokens)
 - `PUT /api/v1/auth/password` - Change password (revokes all refresh tokens)
 
 ### Integrations (authenticated)
@@ -237,7 +236,7 @@ opencmrccb/
 │   ├── package.json
 │   └── Dockerfile
 ├── database/
-│   └── migrations/            # 6 SQL migrations
+│   └── migrations/            # 24 SQL migrations
 ├── monitoring/
 │   ├── prometheus.yml
 │   ├── promtail-config.yml

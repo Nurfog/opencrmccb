@@ -31,3 +31,7 @@ Thumbs.db
 
 # Rust
 target/
+
+# User data
+backups/
+uploads/

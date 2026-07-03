@@ -39,6 +39,6 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-gunzip -c "$BACKUP_FILE" | psql "$DATABASE_URL" --quiet
+gunzip -c "$BACKUP_FILE" | psql "$DATABASE_URL" --quiet --set ON_ERROR_STOP=on --single-transaction
 
 echo "Restore completed successfully."

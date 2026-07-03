@@ -58,11 +58,12 @@ UPDATE users SET profile_id = (
 )
 WHERE role = 'user' AND profile_id IS NULL;
 
--- Usuarios sin role asignado → perfil Vendedor
+-- Usuarios sin role ni profile → perfil Vendedor (solo si no tienen profile)
 UPDATE users SET profile_id = (
   SELECT id FROM profiles WHERE name = 'Vendedor' LIMIT 1
 )
-WHERE profile_id IS NULL;
+WHERE profile_id IS NULL AND (role IS NULL OR role = '');
 
--- ─── Eliminar columna role ─────────────────────────────────────
-ALTER TABLE users DROP COLUMN role;
+-- ─── Mantener columna role para backward compat ────────────────
+-- La columna se mantiene pero se hace nullable para nuevos usuarios.
+ALTER TABLE users ALTER COLUMN role DROP NOT NULL;

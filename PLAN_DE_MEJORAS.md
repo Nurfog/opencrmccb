@@ -431,40 +431,40 @@
 > ~20 commits.
 
 ## 4.1 Redactar PII en logs
-- [ ] `backend/src/handlers/auth.rs:219-237`: reemplazar `input.email` por hash/truncated en logs de login.
-- [ ] `backend/src/services/email.rs:56-60`: demote `info!(subject)` a `debug!` o truncar.
-- [ ] Commit: `fix(auth): redact emails and email subjects in logs`
+- [x] `backend/src/handlers/auth.rs:219-237`: reemplazar `input.email` por hash/truncated en logs de login.
+- [x] `backend/src/services/email.rs:56-60`: demote `info!(subject)` a `debug!` o truncar.
+- [x] Commit: `fix(auth): redact emails and email subjects in logs`
 
 ## 4.2 No filtrar mensajes internos al cliente (io::Error)
-- [ ] `backend/src/error.rs:60-64`: `From<std::io::Error>` mapear a `AppError::Internal("Internal server error".into())` y loguear el detalle con `tracing::error!`.
-- [ ] Auditar otros `AppError::Internal(e.to_string())` que expongan internals (password_hash, serde_json) — mapearlos a generic + log.
-- [ ] Commit: `fix(error): never leak internal error messages to clients`
+- [x] `backend/src/error.rs:60-64`: `From<std::io::Error>` mapear a `AppError::Internal("Internal server error".into())` y loguear el detalle con `tracing::error!`.
+- [x] Auditar otros `AppError::Internal(e.to_string())` que expongan internals (password_hash, serde_json) — mapearlos a generic + log.
+- [x] Commit: `fix(error): never leak internal error messages to clients`
 
 ## 4.3 Eliminar N+1 en list_users / list_profiles / list_pipelines
-- [ ] `handlers/auth.rs:643-675` `list_users`: una sola query con `LEFT JOIN profile_permissions ... GROUP BY users.id, array_agg(profile_permissions.permission)`.
-- [ ] `handlers/admin.rs:222-251` `list_profiles`: mismo JOIN + array_agg.
-- [ ] `handlers/admin.rs:57-84` `list_pipelines`: JOIN con `pipeline_stages` + `array_agg` o json_agg.
-- [ ] Comparar num queries con logs en dev.
-- [ ] Commit: `perf(auth,admin): remove N+1 in list endpoints with array_agg`
+- [x] `handlers/auth.rs:643-675` `list_users`: una sola query con `LEFT JOIN profile_permissions ... GROUP BY users.id, array_agg(profile_permissions.permission)`.
+- [x] `handlers/admin.rs:222-251` `list_profiles`: mismo JOIN + array_agg.
+- [x] `handlers/admin.rs:57-84` `list_pipelines`: JOIN con `pipeline_stages` + `array_agg` o json_agg.
+- [x] Comparar num queries con logs en dev.
+- [x] Commit: `perf(auth,admin): remove N+1 in list endpoints with array_agg`
 
 ## 4.4 Validacion de DTOs admin
-- [ ] Agregar `#[validate(...)]` attrs en:
+- [x] Agregar `#[validate(...)]` attrs en:
   - `handlers/admin.rs::PipelineInput`, `StageInput`, `ProfileInput`, `BrandingInput`.
   - `handlers/ai.rs::AIConfigInput`.
   - `handlers/whatsapp.rs::WhatsAppConfigInput`, `LeadAssignmentInput`, `AssignLeadInput`.
   - `handlers/email.rs::SendEmail` (cc/bcc length cap).
-- [ ] Commit: `feat(validation): validate admin and integration DTOs`
+- [x] Commit: `feat(validation): validate admin and integration DTOs`
 
 ## 4.5 Rate-limit IP confiable (no confiar X-Forwarded-For a ciegas)
-- [ ] `backend/src/middleware/rate_limit.rs:137-154`:
+- [x] `backend/src/middleware/rate_limit.rs:137-154`:
   - Agregar config `TRUSTED_PROXY_HOPS: u32` (default 0 en `network_mode: host`).
   - Si hops=0 → usar `ConnectInfo<SocketAddr>` peer addr.
   - Si hops>0 → split X-F-F y tomar el hop `n - hops`.
   - Fallback a 127.0.0.1 solo si socket no disponible.
-- [ ] Commit: `fix(rate-limit): configurable trusted proxy hops for client IP`
+- [x] Commit: `fix(rate-limit): configurable trusted proxy hops for client IP`
 
 ## 4.6 Indexes faltantes (migration 024)
-- [ ] `database/migrations/024_add_indexes.sql`:
+- [x] `database/migrations/024_add_indexes.sql`:
   ```sql
   CREATE INDEX IF NOT EXISTS idx_deals_pipeline_stage ON deals(pipeline_stage_id);
   CREATE INDEX IF NOT EXISTS idx_deals_pipeline ON deals(pipeline_id);
@@ -474,10 +474,10 @@
   CREATE INDEX IF NOT EXISTS idx_lead_extractions_status ON lead_extractions(status);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_external ON calendar_events(external_id);
   ```
-- [ ] Commit: `perf(db): add missing indexes on FK and filtered columns`
+- [x] Commit: `perf(db): add missing indexes on FK and filtered columns`
 
 ## 4.7 Constraints faltantes (migration 025)
-- [ ] `database/migrations/025_add_constraints.sql`:
+- [x] `database/migrations/025_add_constraints.sql`:
   ```sql
   ALTER TABLE password_reset_tokens ADD CONSTRAINT uq_reset_token_hash UNIQUE (token_hash);
   CREATE UNIQUE INDEX IF NOT EXISTS uq_pipeline_default ON pipelines(entity_type) WHERE is_default = true;
@@ -485,47 +485,47 @@
   CREATE UNIQUE INDEX IF NOT EXISTS uq_stage_position ON pipeline_stages(pipeline_id, position);
   ALTER TABLE documents ALTER COLUMN mime_type SET DEFAULT 'application/octet-stream';
   ```
-- [ ] Commit: `fix(db): add unique constraints and defaults`
+- [x] Commit: `fix(db): add unique constraints and defaults`
 
 ## 4.8 Migraciones idempotentes + framework sqlx-migrate
-- [ ] Auditar migraciones 001-018: agregar `IF NOT EXISTS` a `CREATE TABLE`/`CREATE INDEX`.
-- [ ] Migration 010 seed inserts: agregar `ON CONFLICT (slug DO NOTHING` en pipelines, `ON CONFLICT (name) DO NOTHING` en profiles.
-- [ ] Reemplazar el loop shell `for f in database/migrations/*.sql` (AGENTS.md) por:
+- [x] Auditar migraciones 001-018: agregar `IF NOT EXISTS` a `CREATE TABLE`/`CREATE INDEX`.
+- [x] Migration 010 seed inserts: agregar `ON CONFLICT (slug DO NOTHING` en pipelines, `ON CONFLICT (name) DO NOTHING` en profiles.
+- [x] Reemplazar el loop shell `for f in database/migrations/*.sql` (AGENTS.md) por:
   - `sqlx migrate run` desde el backend al arranque (agregar feature `migrate` a sqlx en Cargo.toml) — proteger con flag `RUN_MIGRATIONS=true`.
-- [ ] Actualizar AGENTS.md "Database" section.
-- [ ] Commit: `chore(db): make migrations idempotent and adopt sqlx migrate`
+- [x] Actualizar AGENTS.md "Database" section.
+- [x] Commit: `chore(db): make migrations idempotent and adopt sqlx migrate`
 
 ## 4.9 Poblar ip_address / sent_by / created_by en auditoria
-- [ ] `backend/src/handlers/audit.rs::insert_audit_log`: agregar parametro `ip_address: Option<IpAddr>` extraido del request.
-- [ ] Audit middleware or helper que extraiga IP (usar misma logica que rate_limit 4.5).
-- [ ] `handlers/email.rs::send_email` (linea 52-70) y `send_template`: bind `sent_by = Some(claims.sub)` en INSERT email_logs.
-- [ ] `handlers/email.rs::create_template`: bind `created_by = claims.sub`.
-- [ ] Commit: `feat(audit): populate ip_address, sent_by, created_by fields`
+- [x] `backend/src/handlers/audit.rs::insert_audit_log`: agregar parametro `ip_address: Option<IpAddr>` extraido del request.
+- [x] Audit middleware or helper que extraiga IP (usar misma logica que rate_limit 4.5).
+- [x] `handlers/email.rs::send_email` (linea 52-70) y `send_template`: bind `sent_by = Some(claims.sub)` en INSERT email_logs.
+- [x] `handlers/email.rs::create_template`: bind `created_by = claims.sub`.
+- [x] Commit: `feat(audit): populate ip_address, sent_by, created_by fields`
 
 ## 4.10 Refactor: extraer `fetch_user_permissions` helper + borrar `ValidationError`
-- [ ] `backend/src/handlers/auth.rs`: crear `fn fetch_user_permissions(pool, user_id) -> Vec<String>` y reusar en los ~7 sitios.
-- [ ] `backend/src/models/validation.rs`: borrar struct `ValidationError` si no se usa (verificar grep).
-- [ ] Commit: `refactor(auth): extract permissions helper and drop dead ValidationError`
+- [x] `backend/src/handlers/auth.rs`: crear `fn fetch_user_permissions(pool, user_id) -> Vec<String>` y reusar en los ~7 sitios.
+- [x] `backend/src/models/validation.rs`: borrar struct `ValidationError` si no se usa (verificar grep).
+- [x] Commit: `refactor(auth): extract permissions helper and drop dead ValidationError`
 
 ## 4.11 Limpiar deps muertas
-- [ ] `backend/Cargo.toml`: eliminar `anyhow = "1"` (linea 40), `axum-extra` (linea 9) despues de confirmar grep 0 hits.
-- [ ] Verificar que `multer = "2"` no se use directamente (grep `multer::`); si no, dejar que axum lo traiga transitivamente.
-- [ ] `frontend/package.json`: confirmar si `@tailwindcss/typography` esta usado; si no, eliminar de devDeps.
-- [ ] Correr `cargo clippy` y `cargo build` sin warnings.
-- [ ] Commit: `chore(deps): remove unused anyhow, axum-extra, typography`
+- [x] `backend/Cargo.toml`: eliminar `anyhow = "1"` (linea 40), `axum-extra` (linea 9) despues de confirmar grep 0 hits.
+- [x] Verificar que `multer = "2"` no se use directamente (grep `multer::`); si no, dejar que axum lo traiga transitivamente.
+- [x] `frontend/package.json`: confirmar si `@tailwindcss/typography` esta usado; si no, eliminar de devDeps.
+- [x] Correr `cargo clippy` y `cargo build` sin warnings.
+- [x] Commit: `chore(deps): remove unused anyhow, axum-extra, typography`
 
 ## 4.12 OAuth state store persistente con TTL
-- [ ] `backend/src/lib.rs` `OAuthConfig.state_store`:
+- [x] `backend/src/lib.rs` `OAuthConfig.state_store`:
   - Cambiar `Arc<RwLock<HashMap<...>>>` por tabla DB `oauth_states` (migration 026):
     ```sql
     CREATE TABLE oauth_states ( state TEXT PK, user_id UUID, provider TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), expires_at TIMESTAMPTZ );
     ```
   - Insertar al generar; eliminar o ignorar despues de `expires_at`.
   - Opcional: limpiar con task periodica, pero TTL en SELECT es suficiente.
-- [ ] Commit: `fix(oauth): persistent state store with TTL`
+- [x] Commit: `fix(oauth): persistent state store with TTL`
 
 ## 4.13 Pool DB: timeouts y min_connections
-- [ ] `backend/src/db.rs:11`:
+- [x] `backend/src/db.rs:11`:
   ```rust
   PgPoolOptions::new()
     .max_connections(10)
@@ -534,76 +534,76 @@
     .idle_timeout(Duration::from_secs(600))
     .max_lifetime(Duration::from_secs(1800))
   ```
-- [ ] Commit: `fix(db): configure pool timeouts and min connections`
+- [x] Commit: `fix(db): configure pool timeouts and min connections`
 
 ## 4.14 Unificar filtros de paginacion
-- [ ] Eliminar `ActivityFilter` duplicado (`handlers/activities.rs:13-21`); usar `PaginationParams` + struct separado `ActivityFilter` solo con campos de negocio.
-- [ ] `AuditFilter` usar `PaginationParams` embebido.
-- [ ] `DocumentFilter` agregar `PaginationParams`.
-- [ ] `LeadQuery` alinear tipos con `PaginationParams` (u32, no i64).
-- [ ] Commit: `refactor(api): unify pagination and filter types`
+- [x] Eliminar `ActivityFilter` duplicado (`handlers/activities.rs:13-21`); usar `PaginationParams` + struct separado `ActivityFilter` solo con campos de negocio.
+- [x] `AuditFilter` usar `PaginationParams` embebido.
+- [x] `DocumentFilter` agregar `PaginationParams`.
+- [x] `LeadQuery` alinear tipos con `PaginationParams` (u32, no i64).
+- [x] Commit: `refactor(api): unify pagination and filter types`
 
 ## 4.15 WhatsApp webhook: dedup por message_id
-- [ ] `database/migrations/027_whatsapp_msg_unique.sql`:
+- [x] `database/migrations/027_whatsapp_msg_unique.sql`:
   ```sql
   ALTER TABLE whatsapp_messages ADD CONSTRAINT uq_msg_id UNIQUE (message_id);
   ```
-- [ ] `handlers/whatsapp.rs::webhook_receive`: insert con `ON CONFLICT (message_id) DO NOTHING` y devolver 200 igual (idempotente).
-- [ ] Commit: `fix(whatsapp): dedupe webhook messages via unique constraint`
+- [x] `handlers/whatsapp.rs::webhook_receive`: insert con `ON CONFLICT (message_id) DO NOTHING` y devolver 200 igual (idempotente).
+- [x] Commit: `fix(whatsapp): dedupe webhook messages via unique constraint`
 
 ## 4.16 OAuth: extraccion de permisos cacheada, no substring CASCO
-- [ ] Revisar `oauth.rs::IntegrationStatus`: eliminar config de providers telegram/twilio si no implementados (dead paths).
-- [ ] Commit: `chore(oauth): remove dead provider integrations`
+- [x] Revisar `oauth.rs::IntegrationStatus`: eliminar config de providers telegram/twilio si no implementados (dead paths).
+- [x] Commit: `chore(oauth): remove dead provider integrations`
 
 ## 4.17 CSP nonce-based en nginx
-- [ ] `nginx/nginx.conf:29`: reemplazar `'unsafe-inline' 'unsafe-eval'` por nonce o hash-based CSP, con middleware de Next.js que genere nonces.
-- [ ] Verificar que FullCalendar y recharts funcionen (pueden requerir `'unsafe-eval'` para algunos casos — evaluar).
-- [ ] Commit: `fix(nginx): tighten CSP with nonce-based policy`
+- [x] `nginx/nginx.conf:29`: reemplazar `'unsafe-inline' 'unsafe-eval'` por nonce o hash-based CSP, con middleware de Next.js que genere nonces.
+- [x] Verificar que FullCalendar y recharts funcionen (pueden requerir `'unsafe-eval'` para algunos casos — evaluar).
+- [x] Commit: `fix(nginx): tighten CSP with nonce-based policy`
 
 ## 4.18 Scripts: backup cifrado + restore en tx
-- [ ] `scripts/backup-db.sh`: despues de `gzip`, cifrar con `age` o `gpg --symmetric --passphrase-file`. Documentar passphrase en `.env`.
-- [ ] `scripts/restore-db.sh:42`: `psql ... --set ON_ERROR_STOP=on --single-transaction`.
-- [ ] Agregar backup pre-restore: `pg_dump` antes de pisar.
-- [ ] `.gitignore`: agregar `backups/` y `uploads/`.
-- [ ] Commit: `fix(scripts): encrypt backups and restore within transaction`
+- [x] `scripts/backup-db.sh`: despues de `gzip`, cifrar con `age` o `gpg --symmetric --passphrase-file`. Documentar passphrase en `.env`.
+- [x] `scripts/restore-db.sh:42`: `psql ... --set ON_ERROR_STOP=on --single-transaction`.
+- [x] Agregar backup pre-restore: `pg_dump` antes de pisar.
+- [x] `.gitignore`: agregar `backups/` y `uploads/`.
+- [x] Commit: `fix(scripts): encrypt backups and restore within transaction`
 
 ## 4.19 CI: cargo audit + npm audit + trivy + permissions
-- [ ] `.github/workflows/ci.yml`:
+- [x] `.github/workflows/ci.yml`:
   - Agregar step `cargo install cargo-audit && cargo audit` despues de build.
   - Agregar step `npm audit --audit-level=moderate` (o `high`).
   - Agregar step `trivy image opencrm-backend:latest`.
   - Agregar `permissions: contents: read` en top del workflow.
   - Pin actions a SHAs (`actions/checkout@<sha>` etc.).
   - Fix cache path: `backend/target` en lugar de `target`.
-- [ ] Commit: `ci: add security audits and tighten permissions`
+- [x] Commit: `ci: add security audits and tighten permissions`
 
 ## 4.20 Docs + OpenAPI + ROADMAP + AGENTS.md + tests nuevos
-- [ ] `README.md`:
+- [x] `README.md`:
   - Linea 13, 240: "6 migraciones" → "27 migraciones" (o numero actual despues de Fases 1-4).
   - Linea 138-139: eliminar duplicate PUT /auth/password.
   - Linea 91: eliminar/ruta absoluta personal /home/juan.
   - Linea 222-225: actualizar a 22 handlers / 19 models / migraciones reales.
   - Linea 129: "All routes under /api/v1/" → nota sobre `/` y `/metrics`.
-- [ ] `AGENTS.md`:
+- [x] `AGENTS.md`:
   - "18 numbered migrations" → numero actual.
   - Auth/RBAC: "admin_only_middleware (role == admin)" → "admin_only checks admin.access permission via profile_permissions".
   - Eliminar nota "jspdf dead dependency" (es falso).
-- [ ] `ROADMAP.md`:
+- [x] `ROADMAP.md`:
   - Linea 149: marcar docker-compose.test.yml integration tests como `[x]`.
   - Linea 159-161: marcar detail views contacts/companies como `[x]`.
   - Linea 181: marcar "Export PDF real con jspdf" como `[x]`.
   - Linea 189: eliminar "Eliminar jspdf (no se usa)" o reescribir como mantencion.
   - Linea 164: marcar Playwright E2E como pendiente (ver 4.20-tests).
-- [ ] `docs/pendientes.md`: actualizar status por item (incluida la distincion backend/frontend).
-- [ ] `docs/salesforce-like-crm-plan.md:72`: confirmar `npm run lint` ya no abre prompt (post-3.11) y actualizar nota.
-- [ ] `.github/copilot-instructions.md`: regenerar (3 Dockerfiles, 19+ migraciones, RBAC capability-based).
-- [ ] `docs/openapi.yaml`: regenerar completa con todos los recursos (Leads, Tags, Notifications, Email, Calendar, Documents, Reports, Audit, Dashboard, Search, Users, Webhooks, Pipelines, Integrations, AI, WhatsApp, Monitoring, Auth completo). Agregar `redocly lint` a CI.
-- [ ] `backend/tests/auth_tests.rs` (nuevo): login ok/fail, refresh rotation (con y sin reuse), logout revoca, change password revoca todos.
-- [ ] `backend/tests/rbac_tests.rs` (nuevo): admin accede admin_routes; non-admin 403; permisos especificos por perfil.
-- [ ] `backend/tests/handler_tests.rs` (nuevo): POST /activities (regresion 1.6), PATCH /deals/{id}/stage, CSV import contacts/companies (extender csv_tests).
-- [ ] `frontend/playwright.config.ts` + tests E2E smoke: login → dashboard render, navigation a /leads, /admin (admin + non-admin).
-- [ ] Commit docs: `docs: sync README, AGENTS, ROADMAP, copilot-instructions, openapi spec`
-- [ ] Commit tests: `test: add auth, rbac, handler tests and Playwright smoke`
+- [x] `docs/pendientes.md`: actualizar status por item (incluida la distincion backend/frontend).
+- [x] `docs/salesforce-like-crm-plan.md:72`: confirmar `npm run lint` ya no abre prompt (post-3.11) y actualizar nota.
+- [x] `.github/copilot-instructions.md`: regenerar (3 Dockerfiles, 19+ migraciones, RBAC capability-based).
+- [x] `docs/openapi.yaml`: regenerar completa con todos los recursos (Leads, Tags, Notifications, Email, Calendar, Documents, Reports, Audit, Dashboard, Search, Users, Webhooks, Pipelines, Integrations, AI, WhatsApp, Monitoring, Auth completo). Agregar `redocly lint` a CI.
+- [x] `backend/tests/auth_tests.rs` (nuevo): login ok/fail, refresh rotation (con y sin reuse), logout revoca, change password revoca todos.
+- [x] `backend/tests/rbac_tests.rs` (nuevo): admin accede admin_routes; non-admin 403; permisos especificos por perfil.
+- [x] `backend/tests/handler_tests.rs` (nuevo): POST /activities (regresion 1.6), PATCH /deals/{id}/stage, CSV import contacts/companies (extender csv_tests).
+- [x] `frontend/playwright.config.ts` + tests E2E smoke: login → dashboard render, navigation a /leads, /admin (admin + non-admin).
+- [x] Commit docs: `docs: sync README, AGENTS, ROADMAP, copilot-instructions, openapi spec`
+- [x] Commit tests: `test: add auth, rbac, handler tests and Playwright smoke`
 
 ---
 

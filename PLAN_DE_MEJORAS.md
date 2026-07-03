@@ -167,134 +167,134 @@
 > ~14 commits. Sistema consistente y transaccional.
 
 ## 2.1 `convert_lead` envuelto en transaccion
-- [ ] `backend/src/handlers/leads.rs:324-466`:
+- [x] `backend/src/handlers/leads.rs:324-466`:
   - `let mut tx = state.db.begin().await?;`
   - Reemplazar `state.db` por `&tx` en INSERT company, INSERT contact, INSERT deal, UPDATE lead converted.
   - `tx.commit().await?;` al final.
   - Propagar errores con `tx.rollback().await.ok();` antes de return AppError.
-- [ ] Verificar con test que fuerza un fallo en el ultimo INSERT → DB queda sin registros huerfanos.
-- [ ] Commit: `fix(leads): wrap convert_lead in transaction`
+- [x] Verificar con test que fuerza un fallo en el ultimo INSERT → DB queda sin registros huerfanos.
+- [x] Commit: `fix(leads): wrap convert_lead in transaction`
 
 ## 2.2 Refresh rotation: tx + reuse-detection cascade
-- [ ] `backend/src/handlers/auth.rs:334-377`:
+- [x] `backend/src/handlers/auth.rs:334-377`:
   - Envolver `revoke_refresh_token` + `store_refresh_token` en `state.db.begin()`.
   - Cuando se detecte un token **revoked** presentado (linea 343-349), ademas de 401 ejecutar:
     ```sql
     UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1;
     ```
     (revoca toda la familia).
-- [ ] Test nuevo: dos usos del mismo refresh → segundo invalida todos los demas.
-- [ ] Commit: `fix(auth): wrap refresh rotation in tx with reuse-detection cascade`
+- [x] Test nuevo: dos usos del mismo refresh → segundo invalida todos los demas.
+- [x] Commit: `fix(auth): wrap refresh rotation in tx with reuse-detection cascade`
 
 ## 2.3 `reset_password` envuelto en transaccion
-- [ ] `backend/src/handlers/auth.rs:816-863`:
+- [x] `backend/src/handlers/auth.rs:816-863`:
   - Envolver UPDATE users.password_hash, UPDATE password_reset_tokens.used, UPDATE refresh_tokens.revoked en tx.
-- [ ] Commit: `fix(auth): wrap reset_password in transaction`
+- [x] Commit: `fix(auth): wrap reset_password in transaction`
 
 ## 2.4 Singletons WhatsApp/Lead-assignment: bind id para ON CONFLICT real
-- [ ] `backend/src/handlers/whatsapp.rs:167-196` `update_whatsapp_config`:
+- [x] `backend/src/handlers/whatsapp.rs:167-196` `update_whatsapp_config`:
   - Bindear `id` a un UUID fijo singleton (ej. `Uuid::from_str("00000000-0000-0000-0000-000000000001")`) en el INSERT, o reescribir como SELECT-then-UPDATE.
   - Ver migracion 008 para confirmar que `whatsapp_config.id` es UUID PK.
-- [ ] `whatsapp.rs:536-568` `update_lead_assignment_config`: mismo fix.
-- [ ] Commit: `fix(whatsapp): bind singleton id so ON CONFLICT updates instead of insert`
+- [x] `whatsapp.rs:536-568` `update_lead_assignment_config`: mismo fix.
+- [x] Commit: `fix(whatsapp): bind singleton id so ON CONFLICT updates instead of insert`
 
 ## 2.5 Registro atomico (primer usuario admin)
-- [ ] `backend/src/handlers/auth.rs:104-111`:
+- [x] `backend/src/handlers/auth.rs:104-111`:
   - Reemplazar `SELECT COUNT(*)` + INSERT por:
     ```sql
     INSERT INTO users (...) VALUES (...) ON CONFLICT DO NOTHING RETURNING id;
     ```
     y control de "primer user = admin" con `SELECT 1 FROM users LIMIT 1` dentro del mismo tx.
   - Alternativa: advisory lock `pg_try_advisory_xact_lock(hash)`.
-- [ ] `database/migrations/021_first_user_admin_guard.sql` (si requiere constraint a nivel DB).
-- [ ] Test de concurrencia simulando dos registers simultaneos.
-- [ ] Commit: `fix(auth): atomic register for first-user-admin invariant`
+- [x] `database/migrations/021_first_user_admin_guard.sql` (si requiere constraint a nivel DB).
+- [x] Test de concurrencia simulando dos registers simultaneos.
+- [x] Commit: `fix(auth): atomic register for first-user-admin invariant`
 
 ## 2.6 CSV exports con streaming (COPY TO) en vez de cargar todo
-- [ ] `handlers/contacts.rs:254-305`, `companies.rs:254-307`, `deals.rs:270-326`:
+- [x] `handlers/contacts.rs:254-305`, `companies.rs:254-307`, `deals.rs:270-326`:
   - Reemplazar `query_as` + builder String por `sqlx::query("COPY (...) TO STDOUT WITH CSV HEADER")` usando `PgCopyOut` o `query_as` paginado con cursor.
   - Alternativa simple: paginar con `LIMIT 1000 OFFSET N` en loop y escribir en `Response::stream`.
-- [ ] Cap duro: limite maximo de filas configurable (`EXPORT_MAX_ROWS=100000`).
-- [ ] Commit: `fix(exports): stream CSV to avoid OOM on large datasets`
+- [x] Cap duro: limite maximo de filas configurable (`EXPORT_MAX_ROWS=100000`).
+- [x] Commit: `fix(exports): stream CSV to avoid OOM on large datasets`
 
 ## 2.7 Paginacion: i64 + clamp seguro
-- [ ] `backend/src/models/pagination.rs:27-29`:
+- [x] `backend/src/models/pagination.rs:27-29`:
   - `offset()`: cambiar u32 por i64; clamp `page.max(1).min(10000)` y `per_page.max(1).min(200)`.
   - `total_pages()` (60-69): usar i64.
-- [ ] `handlers/leads.rs:36-38`: sustituir i64 con `PaginationParams` o usar mismo clamp.
-- [ ] `handlers/activities.rs:13-21`, `audit.rs:39-47`: reutilizar `PaginationParams`.
-- [ ] Commit: `fix(pagination): i64 with safe clamps to prevent overflow`
+- [x] `handlers/leads.rs:36-38`: sustituir i64 con `PaginationParams` o usar mismo clamp.
+- [x] `handlers/activities.rs:13-21`, `audit.rs:39-47`: reutilizar `PaginationParams`.
+- [x] Commit: `fix(pagination): i64 with safe clamps to prevent overflow`
 
 ## 2.8 Revertir deals.value a NUMERIC(15,2)
-- [ ] `database/migrations/022_deals_value_numeric.sql`:
+- [x] `database/migrations/022_deals_value_numeric.sql`:
   ```sql
   ALTER TABLE deals ALTER COLUMN value TYPE NUMERIC(15,2) USING value::NUMERIC(15,2);
   ```
-- [ ] `backend/src/models/deal.rs`: mapear con `sqlx::types::Decimal` (requires feature `rust_decimal` en Cargo.toml) o `bigdecimal`.
-- [ ] `Cargo.toml`: agregar `rust_decimal = "1"` + feature `sqlx?/rust_decimal`.
-- [ ] Verificar handlers que serializar como f64 (dashboard top_deals, reports) — ajustar a Decimal/serialize como string o number.
-- [ ] Commit: `fix(db): revert deals.value to NUMERIC(15,2) for monetary precision`
+- [x] `backend/src/models/deal.rs`: mapear con `sqlx::types::Decimal` (requires feature `rust_decimal` en Cargo.toml) o `bigdecimal`.
+- [x] `Cargo.toml`: agregar `rust_decimal = "1"` + feature `sqlx?/rust_decimal`.
+- [x] Verificar handlers que serializar como f64 (dashboard top_deals, reports) — ajustar a Decimal/serialize como string o number.
+- [x] Commit: `fix(db): revert deals.value to NUMERIC(15,2) for monetary precision`
 
 ## 2.9 Cifrar tokens OAuth/WhatsApp/AI/Calendar en reposo
-- [ ] Crear `backend/src/services/crypto.rs`:
+- [x] Crear `backend/src/services/crypto.rs`:
   - AES-256-GCM con key from `TOKEN_ENCRYPTION_KEY` (env, 32 bytes base64).
   - Funciones `encrypt(plaintext: &str) -> String` (nonce+ct base64) y `decrypt(...)`.
-- [ ] `database/migrations/023_encrypt_tokens.sql`:
+- [x] `database/migrations/023_encrypt_tokens.sql`:
   - Migrar columnas `user_integrations.access_token`, `user_integrations.refresh_token`, `whatsapp_config.api_token`, `ai_config.api_key`, `calendar_tokens.access_token`, `calendar_tokens.refresh_token` a `TEXT` (ya lo son) sin cambio de tipo pero documentar.
   - Add comment: los valores anteriores no estaban cifrados; re-cifrar via script de migracion de datos (opcional, one-shot).
-- [ ] `handlers/oauth.rs`, `whatsapp.rs::get_whatsapp_config/update_whatsapp_config`, `ai.rs::*`, `calendar.rs::google_callback/sync_google`:
+- [x] `handlers/oauth.rs`, `whatsapp.rs::get_whatsapp_config/update_whatsapp_config`, `ai.rs::*`, `calendar.rs::google_callback/sync_google`:
   - Al leer: `decrypt(value)?`.
   - Al escribir: `encrypt(value)?`.
-- [ ] `config.rs`: validar `TOKEN_ENCRYPTION_KEY` obligatorio (base64 de 32 bytes).
-- [ ] Commit: `feat(security): encrypt OAuth/WhatsApp/AI/Calendar tokens at rest`
+- [x] `config.rs`: validar `TOKEN_ENCRYPTION_KEY` obligatorio (base64 de 32 bytes).
+- [x] Commit: `feat(security): encrypt OAuth/WhatsApp/AI/Calendar tokens at rest`
 
 ## 2.10 Envelope `{ data: T }` consistente en toda la API
-- [ ] Decision de diseño (pedir confirmacion al usuario al iniciar el commit):
+- [x] Decision de diseño (pedir confirmacion al usuario al iniciar el commit):
   - Opcion A: agregar wrapper `JsonData<T>` en todas las responses exitosas → impacto: frontend debe leer `res.data`.
   - Opcion B: documentar en AGENTS.md que `PaginatedResponse<T>` YA es el envelope (tiene `data`/`total`/`page`) y que endpoints de entidad individual retornan `Json<T>` directo. Mas pragmático.
-- [ ] Si A:
+- [x] Si A:
   - `backend/src/error.rs` o nuevo `envelope.rs`: struct `ApiResponse<T> { data: T }`.
   - Reemplazar todos los `Json(x)` por `Json(ApiResponse { data: x })`.
   - `frontend/src/lib/api.ts`: unwrap `res.data` antes de retornar.
-- [ ] `backend/src/handlers/notifications.rs:142-150` `update_notification_preferences`: implementar persistencia real (ver P3 TODO) o eliminar la ruta.
-- [ ] Commit: `fix(api): adopt consistent { data: T } envelope`
+- [x] `backend/src/handlers/notifications.rs:142-150` `update_notification_preferences`: implementar persistencia real (ver P3 TODO) o eliminar la ruta.
+- [x] Commit: `fix(api): adopt consistent { data: T } envelope`
 
 ## 2.11 Monitoring: localhost + metrics route + dashboards
-- [ ] `monitoring/prometheus.yml:7`: `targets: ['backend:8000']` → `['localhost:8000']`.
-- [ ] `monitoring/promtail-config.yml:8`: `url: http://loki:3100` → `http://localhost:3100`.
-- [ ] `monitoring/grafana/provisioning/datasources.yml`: `prometheus:9090` → `localhost:9090`; `loki:3100` → `localhost:3100`.
-- [ ] `backend/src/routes.rs`: exponer ruta `/metrics` (ya existe handler en `handlers/health.rs` o `middleware/metrics.rs`?) — verificar y montar.
-- [ ] Crear `monitoring/grafana/dashboards/` con al menos:
+- [x] `monitoring/prometheus.yml:7`: `targets: ['backend:8000']` → `['localhost:8000']`.
+- [x] `monitoring/promtail-config.yml:8`: `url: http://loki:3100` → `http://localhost:3100`.
+- [x] `monitoring/grafana/provisioning/datasources.yml`: `prometheus:9090` → `localhost:9090`; `loki:3100` → `localhost:3100`.
+- [x] `backend/src/routes.rs`: exponer ruta `/metrics` (ya existe handler en `handlers/health.rs` o `middleware/metrics.rs`?) — verificar y montar.
+- [x] Crear `monitoring/grafana/dashboards/` con al menos:
   - `backend-overview.json` (http requests, latencia, 5xx).
   - `db-pool.json`.
   - Montar volumen en `docker-compose.yml` de grafana.
-- [ ] Commit: `fix(monitoring): localhost targets + metrics route + grafana dashboards`
+- [x] Commit: `fix(monitoring): localhost targets + metrics route + grafana dashboards`
 
 ## 2.12 Docker backend: non-root + cache de capas + HEALTHCHECK
-- [ ] `backend/Dockerfile`:
+- [x] `backend/Dockerfile`:
   - Agregar `RUN useradd -r -u 1001 -g crm crm` y `USER crm` antes del CMD.
   - Optimizar capas: copiar primero `Cargo.toml` + `Cargo.lock`, ejecutar `cargo build` dummy, luego copiar `src/` y rebuild (cachea deps).
   - `cargo build --release --locked`.
   - `HEALTHCHECK --interval=30s CMD curl -f http://localhost:8000/health || exit 1`.
-- [ ] Crear `backend/.dockerignore` con: `target/`, `.env`, `.git/`, `tests/`.
-- [ ] Commit: `fix(docker): run backend as non-root with cache layers and healthcheck`
+- [x] Crear `backend/.dockerignore` con: `target/`, `.env`, `.git/`, `tests/`.
+- [x] Commit: `fix(docker): run backend as non-root with cache layers and healthcheck`
 
 ## 2.13 Frontend: eliminar fallback localStorage; httpOnly cookies
-- [ ] `frontend/src/lib/api.ts`:
+- [x] `frontend/src/lib/api.ts`:
   - Eliminar lineas 35-36 (localStorage writes) en `setTokens`.
   - Eliminar init del modulo que lee `document.cookie`/localStorage (lineas 23-37).
   - Todas las requests deben usar `credentials: "include"` y depender de la httpOnly cookie.
   - En `refreshAccessToken` (linea 88): body vacio o `{}` en lugar de `{ refresh_token: "" }`.
   - `documentsApi.download` (linea 717-724): agregar `credentials: "include"`.
-- [ ] `frontend/src/stores/auth-store.ts`:
+- [x] `frontend/src/stores/auth-store.ts`:
   - Eliminar `getStoredUser` que lee localStorage (lineas 26-41).
   - Inicializar `user: null`, `isAuthenticated: false` sin leer storage.
   - Cargar via `initialize()` que llama a `/auth/me`.
-- [ ] Verificar que backend envie cookies httpOnly + SameSite=Lax en login/refresh y CORS con `allow_credentials(true)` (ya esta).
-- [ ] Commit: `fix(frontend): rely on httpOnly cookies, drop localStorage token fallback`
+- [x] Verificar que backend envie cookies httpOnly + SameSite=Lax en login/refresh y CORS con `allow_credentials(true)` (ya esta).
+- [x] Commit: `fix(frontend): rely on httpOnly cookies, drop localStorage token fallback`
 
 ## 2.14 Frontend: mutex para refresh concurrente en 401
-- [ ] `frontend/src/lib/api.ts:162-173`:
+- [x] `frontend/src/lib/api.ts:162-173`:
   ```ts
   let refreshPromise: Promise<string | null> | null = null;
   async function refreshAccessToken(): Promise<string | null> {
@@ -304,8 +304,8 @@
     finally { refreshPromise = null; }
   }
   ```
-- [ ] Test manual: dashboard con 4 calls paralelas → solo 1 refresh disparado.
-- [ ] Commit: `fix(frontend): serialize concurrent 401 refreshes with mutex`
+- [x] Test manual: dashboard con 4 calls paralelas → solo 1 refresh disparado.
+- [x] Commit: `fix(frontend): serialize concurrent 401 refreshes with mutex`
 
 ---
 

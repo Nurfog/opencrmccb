@@ -620,7 +620,7 @@
 
 - **Fase 1.5** (RBAC) puede requerir agregar permisos nuevos en migraciones — coordinar con 1.9/1.10.
 - **Fase 2.8** (deals NUMERIC) cambia serializacion JSON — frontend debe manejar string o number; confirmar con usuario.
-- **Fase 2.9** (encriptacion tokens) requiere `TOKEN_ENCRYPTION_KEY` y re-cifrar datos existentes — script one-shot o aceptar re-OAuth.
+- **Fase 2.9** (encriptacion tokens) implementada. Tokens existentes quedan en plaintext hasta re-OAuth o migracion one-shot. `decrypt()` detecta valores no cifrados automaticamente.
 - **Fase 2.10** (envelope `{ data: T }`) afecta toda la API y frontend — decidir opcion A o B **con el usuario antes de iniciar**.
 - **Fase 4.8** (sqlx-migrate) cambia como corren migraciones en prod — coordinar con `database/Dockerfile` entrypoint.
 

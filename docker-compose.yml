@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: crm_db
       POSTGRES_USER: crm_user
-      POSTGRES_PASSWORD: crm_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_db"]
       interval: 10s
@@ -33,10 +33,10 @@ services:
     network_mode: host
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://crm_user:crm_password@localhost:5432/crm_db
+      DATABASE_URL: postgres://crm_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@localhost:5432/crm_db
       REDIS_URL: redis://localhost:6379
-      JWT_SECRET: "a6Gm7y3QxYkL8fR2tPpV9uZsHnC1jD5b"
-      REFRESH_TOKEN_SECRET: "X4n8Tz1SgM6qWpR5eV0cKyYbHj7uL2oF"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET must be set in .env}
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
       FRONTEND_URL: http://localhost:3000

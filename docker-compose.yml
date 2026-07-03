@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: crm_db
       POSTGRES_USER: crm_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_password}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_db"]
       interval: 10s
@@ -33,7 +33,7 @@ services:
     network_mode: host
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://crm_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@localhost:5432/crm_db
+      DATABASE_URL: postgres://crm_user:${POSTGRES_PASSWORD:-crm_password}@localhost:5432/crm_db
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET must be set in .env}
@@ -92,7 +92,7 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
     depends_on:
       - prometheus
       - loki

@@ -26,25 +26,17 @@ let csrfToken: string | null = null;
 let onLogout: (() => void) | null = null;
 
 if (typeof window !== "undefined") {
-  // Try to read from cookies (non-httpOnly fallback)
   const cookies = document.cookie.split(";").reduce((acc, c) => {
     const [key, val] = c.trim().split("=");
     if (key) acc[key] = val ?? "";
     return acc;
   }, {} as Record<string, string>);
-  accessToken = cookies["access_token"] ?? localStorage.getItem("accessToken");
-  refreshToken = cookies["refresh_token"] ?? localStorage.getItem("refreshToken");
   csrfToken = cookies["csrf_token"] ?? null;
 }
 
 export function setTokens(access: string, refresh: string): void {
   accessToken = access;
   refreshToken = refresh;
-  // Also keep in localStorage as fallback for httpOnly cookie reading
-  if (typeof window !== "undefined") {
-    localStorage.setItem("accessToken", access);
-    localStorage.setItem("refreshToken", refresh);
-  }
 }
 
 export function getAccessToken(): string | null {
@@ -68,51 +60,52 @@ export function clearTokens(): void {
   accessToken = null;
   refreshToken = null;
   csrfToken = null;
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("user");
-  }
 }
 
 export function setLogoutHandler(handler: () => void): void {
   onLogout = handler;
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
 async function refreshAccessToken(): Promise<string | null> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ refresh_token: "" }),
-    });
-    if (!res.ok) {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        clearTokens();
+        onLogout?.();
+        return null;
+      }
+      const data = await res.json();
+      accessToken = data.access_token ?? data.access;
+      const newRefresh = data.refresh_token ?? data.refresh;
+      if (newRefresh) {
+        refreshToken = newRefresh;
+      }
+      if (typeof window !== "undefined") {
+        const cookies = document.cookie.split(";").reduce((acc, c) => {
+          const [key, val] = c.trim().split("=");
+          if (key) acc[key] = val ?? "";
+          return acc;
+        }, {} as Record<string, string>);
+        csrfToken = cookies["csrf_token"] ?? null;
+      }
+      return accessToken;
+    } catch {
       clearTokens();
       onLogout?.();
       return null;
+    } finally {
+      refreshPromise = null;
     }
-    const data = await res.json();
-    accessToken = data.access_token ?? data.access;
-    const newRefresh = data.refresh_token ?? data.refresh;
-    if (newRefresh) {
-      refreshToken = newRefresh;
-    }
-    // Read new CSRF token from cookie
-    if (typeof window !== "undefined") {
-      const cookies = document.cookie.split(";").reduce((acc, c) => {
-        const [key, val] = c.trim().split("=");
-        if (key) acc[key] = val ?? "";
-        return acc;
-      }, {} as Record<string, string>);
-      csrfToken = cookies["csrf_token"] ?? null;
-    }
-    return accessToken;
-  } catch {
-    clearTokens();
-    onLogout?.();
-    return null;
-  }
+  })();
+  return refreshPromise;
 }
 
 async function request<T>(
@@ -718,6 +711,7 @@ export const documentsApi = {
     if (!accessToken) return null;
     const res = await fetch(`${API_BASE_URL}/api/v1/documents/${id}/download`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: "include",
     });
     if (!res.ok) return null;
     return res.blob();

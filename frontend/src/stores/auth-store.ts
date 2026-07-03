@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { User } from "@/lib/api";
-import { authApi, setTokens, clearTokens, setLogoutHandler, getAccessToken } from "@/lib/api";
+import { authApi, setTokens, clearTokens, setLogoutHandler } from "@/lib/api";
 
 interface AuthState {
   user: User | null;
@@ -24,35 +24,16 @@ interface AuthState {
 }
 
 function getStoredUser(): User | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem("user");
-    if (!stored) return null;
-    const user = JSON.parse(stored);
-    // If stored user has no permissions (old format), discard it and refetch
-    if (!user.permissions || !Array.isArray(user.permissions)) {
-      localStorage.removeItem("user");
-      return null;
-    }
-    return user;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-function storeUser(user: User | null): void {
-  if (typeof window !== "undefined") {
-    if (user) {
-      localStorage.setItem("user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("user");
-    }
-  }
+function storeUser(_user: User | null): void {
+  // No-op: tokens are managed via httpOnly cookies, not localStorage
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: getStoredUser(),
-  isAuthenticated: !!getAccessToken(),
+  isAuthenticated: false,
   isLoading: false,
   error: null,
 
@@ -115,19 +96,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loadUser: async () => {
-    const token = getAccessToken();
-    if (!token) {
-      set({ user: null, isAuthenticated: false, isLoading: false });
-      return;
-    }
     set({ isLoading: true });
     try {
       const user = await authApi.me();
-      storeUser(user);
       set({ user, isAuthenticated: true, isLoading: false, error: null });
     } catch {
       clearTokens();
-      storeUser(null);
       set({ user: null, isAuthenticated: false, isLoading: false, error: null });
     }
   },
@@ -150,13 +124,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: () => {
     setLogoutHandler(() => {
-      storeUser(null);
       set({ user: null, isAuthenticated: false });
     });
 
-    const token = getAccessToken();
-    if (token) {
-      get().loadUser();
-    }
+    get().loadUser();
   },
 }));

@@ -32,14 +32,7 @@ function matchCombo(e: KeyboardEvent, combo: string): boolean {
 
   if (!ctrlMatch || !metaMatch || !altMatch || !shiftMatch) return false;
 
-  if (parsed.key === "escape" && pressedKey === "escape") return true;
-  if (parsed.key === "enter" && pressedKey === "enter") return true;
-  if (parsed.key === "tab" && pressedKey === "tab") return true;
-  if (parsed.key === "space" && pressedKey === " ") return true;
-  if (parsed.key === "delete" && (pressedKey === "delete" || pressedKey === "del")) return true;
-  if (parsed.key === "backspace" && pressedKey === "backspace") return true;
   if (parsed.key === pressedKey) return true;
-  if (parsed.key.length === 1 && pressedKey.length === 1) return true;
 
   return false;
 }

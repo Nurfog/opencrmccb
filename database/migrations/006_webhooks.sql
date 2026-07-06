@@ -7,7 +7,7 @@ CREATE TYPE webhook_event AS ENUM (
     'contact_deleted'
 );
 
-CREATE TABLE webhooks (
+CREATE TABLE IF NOT EXISTS webhooks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     url VARCHAR(500) NOT NULL,
     event webhook_event NOT NULL,
@@ -17,5 +17,5 @@ CREATE TABLE webhooks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_webhooks_event ON webhooks(event);
-CREATE INDEX idx_webhooks_active ON webhooks(active);
+CREATE INDEX IF NOT EXISTS idx_webhooks_event ON webhooks(event);
+CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(active);

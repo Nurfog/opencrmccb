@@ -1,4 +1,4 @@
-CREATE TABLE user_integrations (
+CREATE TABLE IF NOT EXISTS user_integrations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider VARCHAR(50) NOT NULL,
@@ -12,5 +12,5 @@ CREATE TABLE user_integrations (
     UNIQUE(user_id, provider)
 );
 
-CREATE INDEX idx_user_integrations_user_id ON user_integrations(user_id);
-CREATE INDEX idx_user_integrations_provider ON user_integrations(provider);
+CREATE INDEX IF NOT EXISTS idx_user_integrations_user_id ON user_integrations(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_integrations_provider ON user_integrations(provider);

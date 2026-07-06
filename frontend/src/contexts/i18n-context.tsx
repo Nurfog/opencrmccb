@@ -62,8 +62,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const loadTranslations = useCallback(async (l: Locale) => {
     setIsLoading(true);
     try {
-      const module = await import(`@/lib/i18n/${l}.json`);
-      setTranslations(module.default ?? module);
+      const mod = await import(`@/lib/i18n/${l}.json`);
+      setTranslations(mod.default ?? mod);
     } catch {
       setTranslations({});
     } finally {

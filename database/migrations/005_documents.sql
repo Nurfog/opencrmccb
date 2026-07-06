@@ -1,4 +1,4 @@
-CREATE TABLE documents (
+CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     filename VARCHAR(255) NOT NULL,
     original_name VARCHAR(255) NOT NULL,
@@ -10,6 +10,6 @@ CREATE TABLE documents (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_documents_folder ON documents(folder);
-CREATE INDEX idx_documents_uploaded_by ON documents(uploaded_by);
-CREATE INDEX idx_documents_created_at ON documents(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_documents_folder ON documents(folder);
+CREATE INDEX IF NOT EXISTS idx_documents_uploaded_by ON documents(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at DESC);

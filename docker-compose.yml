@@ -37,6 +37,12 @@ services:
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET must be set in .env}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@opencrm.local}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
       FRONTEND_URL: http://localhost:3000
@@ -85,7 +91,7 @@ services:
       - loki
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.0
     network_mode: host
     volumes:
       - grafana-data:/var/lib/grafana
@@ -93,6 +99,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SERVER_HTTP_PORT: 3001
     depends_on:
       - prometheus
       - loki

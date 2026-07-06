@@ -23,16 +23,10 @@ interface AuthState {
   hasPermission: (permission: string) => boolean;
 }
 
-function getStoredUser(): User | null {
-  return null;
-}
-
-function storeUser(_user: User | null): void {
-  // No-op: tokens are managed via httpOnly cookies, not localStorage
-}
+// Tokens are managed via httpOnly cookies, not localStorage
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: getStoredUser(),
+  user: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
@@ -42,7 +36,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await authApi.login({ email, password });
       setTokens(response.access_token, response.refresh_token);
-      storeUser(response.user);
       set({
         user: response.user,
         isAuthenticated: true,
@@ -62,7 +55,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await authApi.register(data);
       setTokens(response.access_token, response.refresh_token);
-      storeUser(response.user);
       set({
         user: response.user,
         isAuthenticated: true,
@@ -85,7 +77,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // proceed with local logout even if API call fails
     } finally {
       clearTokens();
-      storeUser(null);
       set({
         user: null,
         isAuthenticated: false,
@@ -110,7 +101,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const current = get().user;
     if (!current) return;
     const updated = { ...current, ...partial };
-    storeUser(updated);
     set({ user: updated });
   },
 
@@ -122,11 +112,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return user.permissions?.includes(permission) ?? false;
   },
 
-  initialize: () => {
+  initialize: async () => {
     setLogoutHandler(() => {
       set({ user: null, isAuthenticated: false });
     });
 
-    get().loadUser();
+    await get().loadUser();
   },
 }));

@@ -126,15 +126,14 @@ async function request<T>(
     if (qs) url += `?${qs}`;
   }
 
+  const bodyIsFormData = options.body instanceof FormData;
+
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
 
-  if (options.headers && !options.headers["Content-Type"]) {
-    if (options.body instanceof FormData) {
-      delete headers["Content-Type"];
-    }
+  if (!bodyIsFormData) {
+    headers["Content-Type"] = "application/json";
   }
 
   if (accessToken) {
@@ -704,15 +703,28 @@ export const documentsApi = {
     request<Document>("/api/v1/documents/upload", {
       method: "POST",
       body: formData,
-      headers: {},
     }),
 
   download: async (id: string): Promise<Blob | null> => {
-    if (!accessToken) return null;
+    let token = accessToken;
+    if (!token) {
+      token = await refreshAccessToken();
+      if (!token) return null;
+    }
     const res = await fetch(`${API_BASE_URL}/api/v1/documents/${id}/download`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${token}` },
       credentials: "include",
     });
+    if (res.status === 401) {
+      token = await refreshAccessToken();
+      if (!token) return null;
+      const retry = await fetch(`${API_BASE_URL}/api/v1/documents/${id}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      if (!retry.ok) return null;
+      return retry.blob();
+    }
     if (!res.ok) return null;
     return res.blob();
   },
@@ -884,6 +896,14 @@ export interface Notification {
   created_at: string;
 }
 
+export interface NotificationPreferences {
+  user_id: string;
+  email_enabled: boolean;
+  push_enabled: boolean;
+  weekly_digest: boolean;
+  marketing_emails: boolean;
+}
+
 export const notificationsApi = {
   list: () =>
     request<Notification[]>("/api/v1/notifications"),
@@ -899,6 +919,15 @@ export const notificationsApi = {
 
   delete: (id: string) =>
     request<void>(`/api/v1/notifications/${id}`, { method: "DELETE" }),
+
+  getPreferences: () =>
+    request<NotificationPreferences>("/api/v1/notifications/preferences"),
+
+  updatePreferences: (data: Partial<NotificationPreferences>) =>
+    request<void>("/api/v1/notifications/preferences", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 };
 
 // ---- Tags API ----

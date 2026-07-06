@@ -1,5 +1,5 @@
 -- ─── Embudos (Pipelines) ─────────────────────────────────────────
-CREATE TABLE pipelines (
+CREATE TABLE IF NOT EXISTS pipelines (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) NOT NULL UNIQUE,
@@ -11,7 +11,7 @@ CREATE TABLE pipelines (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE pipeline_stages (
+CREATE TABLE IF NOT EXISTS pipeline_stages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     pipeline_id UUID NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -27,7 +27,7 @@ ALTER TABLE deals ADD COLUMN pipeline_id UUID REFERENCES pipelines(id);
 ALTER TABLE deals ADD COLUMN pipeline_stage_id UUID REFERENCES pipeline_stages(id);
 
 -- ─── Perfiles y permisos ─────────────────────────────────────────
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
@@ -36,7 +36,7 @@ CREATE TABLE profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE profile_permissions (
+CREATE TABLE IF NOT EXISTS profile_permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     permission VARCHAR(255) NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE profile_permissions (
 ALTER TABLE users ADD COLUMN profile_id UUID REFERENCES profiles(id);
 
 -- ─── Branding ────────────────────────────────────────────────────
-CREATE TABLE branding (
+CREATE TABLE IF NOT EXISTS branding (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_name VARCHAR(255),
     logo_url VARCHAR(500),
@@ -61,7 +61,8 @@ CREATE TABLE branding (
 -- ─── Insert pipelines por defecto ────────────────────────────────
 INSERT INTO pipelines (name, slug, description, entity_type, is_default) VALUES
   ('Personas Naturales', 'persons', 'Embudo para leads individuales y clientes persona natural', 'person', true),
-  ('Personas Jurídicas', 'companies', 'Embudo para empresas y clientes persona jurídica', 'company', false);
+  ('Personas Jurídicas', 'companies', 'Embudo para empresas y clientes persona jurídica', 'company', false)
+ON CONFLICT DO NOTHING;
 
 -- Stages for Personas Naturales
 DO $$
@@ -76,7 +77,8 @@ BEGIN
       (p_id, 'Propuesta enviada', 2, '#8B5CF6', 50,  false),
       (p_id, 'Negociación',       3, '#F59E0B', 75,  false),
       (p_id, 'Ganado',            4, '#10B981', 100, false),
-      (p_id, 'Perdido',           5, '#EF4444', 0,   false);
+      (p_id, 'Perdido',           5, '#EF4444', 0,   false)
+    ON CONFLICT DO NOTHING;
 END $$;
 
 -- Stages for Personas Jurídicas
@@ -93,15 +95,18 @@ BEGIN
       (p_id, 'Propuesta',         3, '#F59E0B', 60,  false),
       (p_id, 'Negociación',       4, '#F97316', 80,  false),
       (p_id, 'Cerrado',           5, '#10B981', 100, false),
-      (p_id, 'Descartado',        6, '#EF4444', 0,   false);
+      (p_id, 'Descartado',        6, '#EF4444', 0,   false)
+    ON CONFLICT DO NOTHING;
 END $$;
 
 -- Profiles por defecto
 INSERT INTO profiles (name, description, is_system) VALUES
   ('Administrador', 'Acceso completo al sistema', true),
   ('Vendedor', 'Gestión de contactos, deals y actividades', true),
-  ('Ejecutivo de cuentas', 'Visión general sin edición', true);
+  ('Ejecutivo de cuentas', 'Visión general sin edición', true)
+ON CONFLICT DO NOTHING;
 
 -- Branding por defecto
 INSERT INTO branding (company_name, primary_color, secondary_color, accent_color)
-VALUES ('OpenCRM', '#2563eb', '#1e40af', '#10b981');
+VALUES ('OpenCRM', '#2563eb', '#1e40af', '#10b981')
+ON CONFLICT DO NOTHING;

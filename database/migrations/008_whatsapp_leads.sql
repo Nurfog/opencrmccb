@@ -1,5 +1,5 @@
 -- WhatsApp Business API config (singleton)
-CREATE TABLE whatsapp_config (
+CREATE TABLE IF NOT EXISTS whatsapp_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     phone_number_id VARCHAR(255) NOT NULL,
     business_account_id VARCHAR(255) NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE whatsapp_config (
 );
 
 -- Lead assignment strategy config
-CREATE TABLE lead_assignment_config (
+CREATE TABLE IF NOT EXISTS lead_assignment_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     strategy VARCHAR(50) NOT NULL DEFAULT 'round_robin',
     max_active_leads INT DEFAULT 10,
@@ -23,7 +23,7 @@ CREATE TABLE lead_assignment_config (
 );
 
 -- Agent lead assignments
-CREATE TABLE agent_lead_assignments (
+CREATE TABLE IF NOT EXISTS agent_lead_assignments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     agent_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     lead_id UUID NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE agent_lead_assignments (
 );
 
 -- WhatsApp messages
-CREATE TABLE whatsapp_messages (
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     direction VARCHAR(10) NOT NULL,
     from_number VARCHAR(50) NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE whatsapp_messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_agent_assignments_agent ON agent_lead_assignments(agent_id);
-CREATE INDEX idx_agent_assignments_lead ON agent_lead_assignments(lead_id, lead_type);
-CREATE INDEX idx_whatsapp_messages_contact ON whatsapp_messages(contact_id);
-CREATE INDEX idx_whatsapp_messages_number ON whatsapp_messages(from_number);
+CREATE INDEX IF NOT EXISTS idx_agent_assignments_agent ON agent_lead_assignments(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_assignments_lead ON agent_lead_assignments(lead_id, lead_type);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_contact ON whatsapp_messages(contact_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_number ON whatsapp_messages(from_number);

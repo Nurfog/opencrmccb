@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE users (
 );
 
 -- Companies table
-CREATE TABLE companies (
+CREATE TABLE IF NOT EXISTS companies (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     industry VARCHAR(100),
@@ -34,7 +34,7 @@ CREATE TABLE companies (
 );
 
 -- Contacts table
-CREATE TABLE contacts (
+CREATE TABLE IF NOT EXISTS contacts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
@@ -58,7 +58,7 @@ CREATE TYPE deal_stage AS ENUM (
     'closed_lost'
 );
 
-CREATE TABLE deals (
+CREATE TABLE IF NOT EXISTS deals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title VARCHAR(255) NOT NULL,
     value DECIMAL(15, 2) NOT NULL,
@@ -82,7 +82,7 @@ CREATE TYPE activity_type AS ENUM (
     'note'
 );
 
-CREATE TABLE activities (
+CREATE TABLE IF NOT EXISTS activities (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     activity_type activity_type NOT NULL,
     subject VARCHAR(255) NOT NULL,
@@ -97,15 +97,15 @@ CREATE TABLE activities (
 );
 
 -- Create indexes
-CREATE INDEX idx_contacts_company_id ON contacts(company_id);
-CREATE INDEX idx_deals_contact_id ON deals(contact_id);
-CREATE INDEX idx_deals_company_id ON deals(company_id);
-CREATE INDEX idx_activities_contact_id ON activities(contact_id);
-CREATE INDEX idx_activities_deal_id ON activities(deal_id);
-CREATE INDEX idx_activities_company_id ON activities(company_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
+CREATE INDEX IF NOT EXISTS idx_deals_contact_id ON deals(contact_id);
+CREATE INDEX IF NOT EXISTS idx_deals_company_id ON deals(company_id);
+CREATE INDEX IF NOT EXISTS idx_activities_contact_id ON activities(contact_id);
+CREATE INDEX IF NOT EXISTS idx_activities_deal_id ON activities(deal_id);
+CREATE INDEX IF NOT EXISTS idx_activities_company_id ON activities(company_id);
 
 -- Vector similarity search indexes
-CREATE INDEX idx_companies_embedding ON companies USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-CREATE INDEX idx_contacts_embedding ON contacts USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-CREATE INDEX idx_deals_embedding ON deals USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_companies_embedding ON companies USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_contacts_embedding ON contacts USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_deals_embedding ON deals USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 

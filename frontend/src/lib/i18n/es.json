@@ -82,7 +82,12 @@
     "meta": "Meta",
     "none": "Ninguno",
     "markAllRead": "Marcar todo como leído",
-    "apply": "Aplicar"
+    "apply": "Aplicar",
+    "inactive": "Inactivo",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "optional": "Opcional",
+    "date": "Fecha"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -402,7 +407,24 @@
     "customDomain": "Dominio Personalizado",
     "brandingPreview": "Vista previa del branding",
     "saveBranding": "Guardar Branding",
-    "brandingSaved": "Branding guardado"
+    "brandingSaved": "Branding guardado",
+    "webhooks": "Webhooks",
+    "manageWebhooks": "Gestiona suscripciones de webhook para entrega de eventos en tiempo real",
+    "newWebhook": "Nuevo Webhook",
+    "webhookCreated": "Webhook creado",
+    "webhookDeleted": "Webhook eliminado",
+    "webhookEnabled": "Webhook activado",
+    "webhookDisabled": "Webhook desactivado",
+    "webhookUrl": "URL del Endpoint",
+    "webhookEvent": "Evento",
+    "webhookSecret": "Secreto (HMAC-SHA256)",
+    "noWebhooks": "No hay webhooks configurados",
+    "deliveries": "Registro de Entregas",
+    "noDeliveries": "No hay entregas registradas",
+    "status": "Estado",
+    "attempts": "Intentos",
+    "responseCode": "Respuesta",
+    "viewDeliveries": "Ver registro de entregas"
   },
   "whatsapp": {
     "title": "WhatsApp",

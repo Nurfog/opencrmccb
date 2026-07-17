@@ -82,7 +82,12 @@
     "search": "Search...",
     "none": "None",
     "markAllRead": "Mark all as read",
-    "apply": "Apply"
+    "apply": "Apply",
+    "inactive": "Inactive",
+    "enable": "Enable",
+    "disable": "Disable",
+    "optional": "Optional",
+    "date": "Date"
   },
   "auth": {
     "login": "Log In",
@@ -402,7 +407,24 @@
     "customDomain": "Custom Domain",
     "brandingPreview": "Branding preview",
     "saveBranding": "Save Branding",
-    "brandingSaved": "Branding saved"
+    "brandingSaved": "Branding saved",
+    "webhooks": "Webhooks",
+    "manageWebhooks": "Manage webhook subscriptions for real-time event delivery",
+    "newWebhook": "New Webhook",
+    "webhookCreated": "Webhook created",
+    "webhookDeleted": "Webhook deleted",
+    "webhookEnabled": "Webhook enabled",
+    "webhookDisabled": "Webhook disabled",
+    "webhookUrl": "Endpoint URL",
+    "webhookEvent": "Event",
+    "webhookSecret": "Secret (HMAC-SHA256)",
+    "noWebhooks": "No webhooks configured",
+    "deliveries": "Delivery Log",
+    "noDeliveries": "No deliveries recorded",
+    "status": "Status",
+    "attempts": "Attempts",
+    "responseCode": "Response",
+    "viewDeliveries": "View delivery log"
   },
   "whatsapp": {
     "title": "WhatsApp",

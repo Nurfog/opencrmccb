@@ -434,7 +434,11 @@ pub fn admin_routes() -> Router<AppState> {
         )
         .route(
             "/api/v1/webhooks/{id}",
-            delete(handlers::webhooks::delete_webhook),
+            patch(handlers::webhooks::update_webhook).delete(handlers::webhooks::delete_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/{id}/deliveries",
+            get(handlers::webhooks::list_deliveries),
         )
 }
 

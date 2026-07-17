@@ -1,19 +1,25 @@
 use crate::models::{WebhookEvent, WebhookStatus};
 use chrono::{Duration, Utc};
 use hmac::{Hmac, Mac};
-use reqwest::{Client, header::{HeaderMap, HeaderValue, CONTENT_TYPE}};
+use reqwest::{
+    Client,
+    header::{CONTENT_TYPE, HeaderMap, HeaderValue},
+};
 use sha2::Sha256;
 use sqlx::PgPool;
 use std::time::Duration as StdDuration;
 use tracing::{error, info, warn};
-use uuid::Uuid;
 
 type HmacSha256 = Hmac<Sha256>;
 
 const MAX_ATTEMPTS: i32 = 3;
 
 /// Helper function to enqueue a webhook event
-pub async fn enqueue_event(pool: &PgPool, event: WebhookEvent, payload: serde_json::Value) -> Result<(), sqlx::Error> {
+pub async fn enqueue_event(
+    pool: &PgPool,
+    event: WebhookEvent,
+    payload: serde_json::Value,
+) -> Result<(), sqlx::Error> {
     // 1. Find active webhooks subscribed to this event
     let webhooks = sqlx::query!(
         "SELECT id, event FROM webhooks WHERE active = true AND event = $1",
@@ -29,7 +35,11 @@ pub async fn enqueue_event(pool: &PgPool, event: WebhookEvent, payload: serde_js
     // 2. Insert delivery records for each webhook
     let mut tx = pool.begin().await?;
 
-    let event_type_str = serde_json::to_value(&event).unwrap().as_str().unwrap_or("unknown").to_string();
+    let event_type_str = serde_json::to_value(&event)
+        .unwrap()
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
 
     for webhook in webhooks {
         sqlx::query!(
@@ -66,7 +76,10 @@ pub async fn start_worker(pool: PgPool) {
     }
 }
 
-async fn process_pending_deliveries(pool: &PgPool, client: &Client) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn process_pending_deliveries(
+    pool: &PgPool,
+    client: &Client,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Select up to 50 pending deliveries that are due
     let deliveries = sqlx::query!(
         "SELECT d.id, d.webhook_id, d.payload, d.attempts, w.url, w.secret 
@@ -127,7 +140,7 @@ async fn process_pending_deliveries(pool: &PgPool, client: &Client) -> Result<()
             Ok(res) => {
                 let status = res.status();
                 response_status = Some(status.as_u16() as i32);
-                
+
                 if status.is_success() {
                     new_status = WebhookStatus::Success;
                 } else {
@@ -161,9 +174,12 @@ async fn process_pending_deliveries(pool: &PgPool, client: &Client) -> Result<()
         )
         .execute(pool)
         .await?;
-        
+
         if new_status == WebhookStatus::Failed {
-            warn!("Webhook delivery {} failed after {} attempts", delivery.id, attempts);
+            warn!(
+                "Webhook delivery {} failed after {} attempts",
+                delivery.id, attempts
+            );
         } else if new_status == WebhookStatus::Success {
             info!("Webhook delivery {} succeeded", delivery.id);
         }

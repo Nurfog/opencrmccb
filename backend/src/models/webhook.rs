@@ -37,6 +37,17 @@ pub struct CreateWebhook {
     pub secret: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateWebhook {
+    #[validate(url(message = "URL must be valid"))]
+    pub url: Option<String>,
+
+    pub active: Option<bool>,
+
+    #[validate(length(max = 255, message = "Secret must be at most 255 characters"))]
+    pub secret: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "webhook_status", rename_all = "snake_case")]
@@ -61,4 +72,3 @@ pub struct WebhookDelivery {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
-

@@ -1073,17 +1073,50 @@ export const adminApi = {
 };
 
 // ---- Webhooks API ----
+export interface Webhook {
+  id: string;
+  url: string;
+  event: string;
+  secret: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhook_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "processing" | "success" | "failed";
+  attempts: number;
+  next_attempt_at: string;
+  response_status: number | null;
+  response_body: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const webhooksApi = {
-  list: () => request<unknown[]>("/api/v1/webhooks"),
+  list: () => request<Webhook[]>("/api/v1/webhooks"),
 
   create: (data: { url: string; event: string; secret?: string }) =>
-    request<unknown>("/api/v1/webhooks", {
+    request<Webhook>("/api/v1/webhooks", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: { url?: string; active?: boolean; secret?: string }) =>
+    request<Webhook>(`/api/v1/webhooks/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(data),
     }),
 
   delete: (id: string) =>
     request<void>(`/api/v1/webhooks/${id}`, { method: "DELETE" }),
+
+  listDeliveries: (id: string) =>
+    request<WebhookDelivery[]>(`/api/v1/webhooks/${id}/deliveries`),
 };
 
 // ---- Leads API ----
@@ -1277,33 +1310,4 @@ export const calendarApi = {
 
   syncGoogle: () =>
     request<{ synced: number }>("/api/v1/calendar/sync/google", { method: "POST" }),
-};
-
-// ---- Notifications API ----
-export interface Notification {
-  id: string;
-  user_id: string;
-  title: string;
-  message: string;
-  entity_type?: string;
-  entity_id?: string;
-  read: boolean;
-  created_at: string;
-}
-
-export const notificationsApi = {
-  list: (params?: { page?: number; per_page?: number }) =>
-    request<Notification[]>("/api/v1/notifications", { params }),
-
-  getUnreadCount: () =>
-    request<{ count: number }>("/api/v1/notifications/unread-count"),
-
-  markAsRead: (id: string) =>
-    request<void>(`/api/v1/notifications/${id}/read`, { method: "PUT" }),
-
-  markAllAsRead: () =>
-    request<void>("/api/v1/notifications/read-all", { method: "PUT" }),
-
-  delete: (id: string) =>
-    request<void>(`/api/v1/notifications/${id}`, { method: "DELETE" }),
 };

@@ -10,7 +10,7 @@ use crate::handlers::audit::insert_audit_log;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{
     CreateDeal, Deal, DealStage, PaginatedResponse, PaginationParams, UpdateDeal, UpdateDealStage,
-    WebhookEvent
+    WebhookEvent,
 };
 use crate::models::{ImportResult, escape_csv, escape_like, parse_csv_rows, parse_deal_import_row};
 use crate::services::webhook_worker::enqueue_event;
@@ -165,7 +165,15 @@ pub async fn create_deal(
     )
     .await;
 
-    let _ = enqueue_event(&state.db, WebhookEvent::DealCreated, serde_json::to_value(&deal).unwrap_or_default()).await;
+    if let Err(e) = enqueue_event(
+        &state.db,
+        WebhookEvent::DealCreated,
+        serde_json::to_value(&deal).unwrap_or_default(),
+    )
+    .await
+    {
+        tracing::warn!("Failed to enqueue DealCreated webhook: {e}");
+    }
 
     Ok((StatusCode::CREATED, Json(deal)))
 }
@@ -244,7 +252,15 @@ pub async fn update_deal(
     )
     .await;
 
-    let _ = enqueue_event(&state.db, WebhookEvent::DealUpdated, serde_json::to_value(&deal).unwrap_or_default()).await;
+    if let Err(e) = enqueue_event(
+        &state.db,
+        WebhookEvent::DealUpdated,
+        serde_json::to_value(&deal).unwrap_or_default(),
+    )
+    .await
+    {
+        tracing::warn!("Failed to enqueue DealUpdated webhook: {e}");
+    }
 
     Ok(Json(deal))
 }
@@ -288,8 +304,16 @@ pub async fn delete_deal(
             None,
         )
         .await;
-        
-        let _ = enqueue_event(&state.db, WebhookEvent::DealDeleted, serde_json::to_value(&deal).unwrap_or_default()).await;
+
+        if let Err(e) = enqueue_event(
+            &state.db,
+            WebhookEvent::DealDeleted,
+            serde_json::to_value(&deal).unwrap_or_default(),
+        )
+        .await
+        {
+            tracing::warn!("Failed to enqueue DealDeleted webhook: {e}");
+        }
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -447,7 +471,15 @@ pub async fn update_deal_stage(
     )
     .await;
 
-    let _ = enqueue_event(&state.db, WebhookEvent::DealUpdated, serde_json::to_value(&deal).unwrap_or_default()).await;
+    if let Err(e) = enqueue_event(
+        &state.db,
+        WebhookEvent::DealUpdated,
+        serde_json::to_value(&deal).unwrap_or_default(),
+    )
+    .await
+    {
+        tracing::warn!("Failed to enqueue DealUpdated webhook: {e}");
+    }
 
     Ok(Json(deal))
 }

@@ -10,6 +10,7 @@ import { leadsApi, type Lead, type LeadActivity } from "@/lib/api"
 import { LeadForm } from "@/components/forms/lead-form"
 import { ConvertLeadDialog } from "@/components/forms/convert-lead-dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { TagsInput } from "@/components/ui/tags-input"
 import { formatDate, cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -35,7 +36,7 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 export default function LeadDetailPage() {
-  const { id } = useParams()
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { t } = useI18n()
   const { success, error } = useToast()
@@ -289,6 +290,12 @@ export default function LeadDetailPage() {
                   <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{lead.notes}</div>
                 </div>
               )}
+            </div>
+
+            {/* Tags */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t("common.tags")}</h2>
+              <TagsInput entityType="lead" entityId={id} />
             </div>
 
             {/* Converted Info */}

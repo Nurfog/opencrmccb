@@ -153,7 +153,7 @@
 
 ## 🔄 En Progreso
 
-_(nada en progreso actualmente)_
+_(nada en progreso actualmente — ver hallazgos arquitectónicos en /tmp/opencode/architecture-review-*.html)_
 
 ---
 
@@ -171,14 +171,27 @@ _(nada en progreso actualmente)_
   - [x] Crear componente reutilizable `CompanyAsyncSelect`
   - [x] Integrar el nuevo selector en el modal/página de "Nuevo Contacto"
 - [x] Filtro real en contacts page (por compañía, industria, etc.)
+- [x] **Repository layer** — Separar acceso a datos de handlers HTTP
+  - [x] Crear `PgContactRepo` y `PgDealRepo` con SQL centralizado
+  - [x] Refactorizar handlers para usar repositorios
+- [x] **SQL queries consolidadas** — Módulo `queries/` por entidad
+  - [x] Constantes `DEAL_SELECT`, `DEAL_SELECT_BY_ID` en `deal_queries.rs`
+  - [x] Eliminar duplicación de SQL en deals.rs (8 copias → 1)
+- [x] **Cross-cutting concerns centralizados** — Audit + Webhooks como traits
+  - [x] `AuditPort` y `WebhookPort` traits en `domain_events.rs`
+  - [x] `PgAuditAdapter` y `PgWebhookAdapter` concretos
+  - [x] `DomainEventBus` para orquestar side-effects
 
 ### Prioridad Media
-- [ ] Pruebas end-to-end con Playwright
-  - [ ] Configurar fixtures de prueba
-  - [ ] Escribir smoke test del ciclo de creación de Deal
-- [ ] Tags/labels personalizables para entities
-  - [ ] Crear tabla `tags` (color, nombre) y tablas de join (ej. `contact_tags`)
-  - [ ] Añadir componente UI para seleccionar y crear tags dinámicamente
+- [x] Pruebas end-to-end con Playwright
+  - [x] Configurar fixtures de prueba (auth API, test-data)
+  - [x] 25 tests: auth, contacts, companies, deals, leads, dashboard, settings
+  - [x] CI pipeline con jobs backend, frontend, e2e
+- [x] Tags/labels personalizables para entities
+  - [x] Crear tabla `tags` (color, nombre) y tabla polymórfica `entity_tags`
+  - [x] Añadir componente UI `TagsInput` con autocomplete y creación inline
+  - [x] RBAC permissions para tags (migration 030)
+  - [x] Integración en contact, company, deal y lead detail pages
 - [ ] Notificaciones in-app en tiempo real
   - [ ] Implementar capa de WebSockets en Axum (o Server-Sent Events)
   - [ ] Conectar la UI del header para escuchar eventos y sumar contador (badge red)
@@ -200,6 +213,17 @@ _(nada en progreso actualmente)_
 - [ ] Rate limiter distribuido con Redis (persistente)
   - [ ] Reemplazar limiter in-memory de Axum por comandos incrementales en Redis
 - [x] Health check endpoint que verifique DB
+- [x] **Frontend API split** — Dividir `api.ts` (1313 líneas) en módulos
+  - [x] `api-client.ts` con lógica de request y refresh
+  - [x] Módulos `api/auth.ts`, `api/contacts.ts`, `api/deals.ts`, `api/companies.ts`
+  - [x] Tipos en `types/` (auth, contact, deal, company, activity)
+- [x] **Config monolith descompuesto** — Sub-structs agrupados
+  - [x] `DatabaseConfig`, `ServerConfig`, `AuthConfig`, `SmtpConfig`, `UploadConfig`, `OAuthProvidersConfig`
+  - [x] Cada grupo con `from_env()` propio
+  - [x] main.rs simplificado (eliminada copia manual de 30+ campos)
+- [x] **UserPermissions cacheada** — 1 DB query por request (no N)
+  - [x] Permisos cargados en `auth_middleware` y adjuntados a request extensions
+  - [x] `UserPermissions` extractor lee de extensions, no de DB
 
 ### Prioridad Baja
 - [ ] Temas visuales adicionales
@@ -216,10 +240,12 @@ _(nada en progreso actualmente)_
 ### Técnico / Deuda
 - [ ] Eliminar pgvector del schema si no se usa
 - [ ] Migrar de `version: '3.8'` en docker-compose (obsoleto)
-- [ ] Agregar graceful shutdown al backend
+- [x] Agregar graceful shutdown al backend (ya implementado en main.rs)
 - [ ] Cachear búsquedas frecuentes con Redis
 - [ ] Agregar tests de integración para handlers
 - [ ] Frontend: reemplazar `any` types en forms con tipos concretos
+- [x] Frontend: httpOnly cookies (eliminado localStorage fallback)
+- [x] Frontend: mutex para refresh concurrente en 401
 
 ---
 
@@ -227,8 +253,8 @@ _(nada en progreso actualmente)_
 
 | Componente | Líneas de Código | Estado |
 |------------|------------------|--------|
-| Backend Rust | ~4,000 | ✅ Compila + Clippy clean |
-| Frontend TSX | ~12,000 | ✅ Build + TypeScript clean |
+| Backend Rust | ~5,000 | ✅ Compila + Clippy clean (repository + queries + domain events) |
+| Frontend TSX | ~13,000 | ✅ Build + TypeScript clean (API modular) |
 | Tests | ~400 | ✅ 35 tests |
 | API Docs | ~750 | ✅ OpenAPI 3.0 |
 | Traducciones (i18n) | ~600 | ✅ ES/EN |
@@ -237,7 +263,7 @@ _(nada en progreso actualmente)_
 | CI/CD | ~100 | ✅ GitHub Actions |
 | Monitoring | ~100 | ✅ Prometheus + Grafana |
 | Scripts | ~100 | ✅ Backup/Restore |
-| **Total** | **~19,100** | **Producto Completo** |
+| **Total** | **~20,100** | **Producto Completo + Arquitectura Mejorada** |
 
 ---
 

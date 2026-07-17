@@ -6,7 +6,7 @@ use validator::Validate;
 
 use crate::models::date_flex;
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "deal_stage", rename_all = "snake_case")]
 pub enum DealStage {

@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -11,6 +12,20 @@ pub enum AppError {
     Validation(String),
     Conflict(String),
     Internal(String),
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::NotFound => write!(f, "Not found"),
+            AppError::Unauthorized => write!(f, "Unauthorized"),
+            AppError::Forbidden => write!(f, "Forbidden"),
+            AppError::BadRequest(msg) => write!(f, "Bad request: {msg}"),
+            AppError::Validation(msg) => write!(f, "Validation: {msg}"),
+            AppError::Conflict(msg) => write!(f, "Conflict: {msg}"),
+            AppError::Internal(msg) => write!(f, "Internal: {msg}"),
+        }
+    }
 }
 
 impl IntoResponse for AppError {

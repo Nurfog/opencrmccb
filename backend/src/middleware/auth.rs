@@ -88,7 +88,23 @@ pub async fn auth_middleware(
     )
     .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
+    // Load permissions once and attach to request extensions
+    let user_id = Uuid::parse_str(&token_data.claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    let permissions: Vec<String> = sqlx::query_scalar(
+        "SELECT pp.permission FROM profile_permissions pp \
+         JOIN users u ON u.profile_id = pp.profile_id \
+         WHERE u.id = $1",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     request.extensions_mut().insert(token_data.claims);
+    request
+        .extensions_mut()
+        .insert(UserPermissions(permissions));
 
     Ok(next.run(request).await)
 }

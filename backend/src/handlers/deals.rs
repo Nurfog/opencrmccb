@@ -1,7 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use sqlx::Row;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -12,29 +11,8 @@ use crate::models::{
     CreateDeal, Deal, DealStage, PaginatedResponse, PaginationParams, UpdateDeal, UpdateDealStage,
     WebhookEvent,
 };
-use crate::models::{ImportResult, escape_csv, escape_like, parse_csv_rows, parse_deal_import_row};
+use crate::models::{ImportResult, escape_csv, parse_csv_rows, parse_deal_import_row};
 use crate::services::webhook_worker::enqueue_event;
-
-fn map_deal_row(row: sqlx::postgres::PgRow) -> Deal {
-    Deal {
-        id: row.get("id"),
-        title: row.get("title"),
-        value: row.get("value"),
-        currency: row.get("currency"),
-        stage: row.get("stage"),
-        position: row.get("position"),
-        contact_id: row.get("contact_id"),
-        company_id: row.get("company_id"),
-        pipeline_id: row.get("pipeline_id"),
-        pipeline_stage_id: row.get("pipeline_stage_id"),
-        expected_close_date: row.get("expected_close_date"),
-        notes: row.get("notes"),
-        contact_name: row.get("contact_name"),
-        company_name: row.get("company_name"),
-        created_at: row.get("created_at"),
-        updated_at: row.get("updated_at"),
-    }
-}
 
 pub async fn list_deals(
     State(state): State<AppState>,
@@ -44,6 +22,7 @@ pub async fn list_deals(
     perms
         .require("deals.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
+
     let page = params.page();
     let per_page = params.per_page();
     let offset = params.offset();
@@ -59,36 +38,32 @@ pub async fn list_deals(
     let search_filter = params
         .search
         .as_ref()
-        .map(|s| format!("%{}%", escape_like(s)));
+        .map(|s| format!("%{}%", crate::models::escape_like(s)));
 
-    let count_query = if let Some(ref _search) = search_filter {
-        "SELECT COUNT(*) FROM deals WHERE title ILIKE $1 ESCAPE '\\'".to_string()
+    let count_query = if search_filter.is_some() {
+        crate::queries::deal_queries::DEAL_COUNT_SEARCH
     } else {
-        "SELECT COUNT(*) FROM deals".to_string()
+        crate::queries::deal_queries::DEAL_COUNT
     };
 
-    let base_select = "SELECT d.id, d.title, d.value, d.currency, d.stage, d.position, d.contact_id, d.company_id, d.pipeline_id, d.pipeline_stage_id, d.expected_close_date, d.notes, CONCAT(c.first_name, ' ', c.last_name) as contact_name, co.name as company_name, d.created_at, d.updated_at FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id LEFT JOIN companies co ON d.company_id = co.id";
+    let base_select = crate::queries::deal_queries::DEAL_SELECT;
 
-    let data_query = if let Some(ref _search) = search_filter {
+    let data_query = if search_filter.is_some() {
         format!(
-            "{} WHERE d.title ILIKE $1 ESCAPE '\\' ORDER BY d.{} {} LIMIT $2 OFFSET $3",
-            base_select, sort_col, sort_dir
+            "{base_select} WHERE d.title ILIKE $1 ESCAPE '\\' ORDER BY d.{sort_col} {sort_dir} LIMIT $2 OFFSET $3"
         )
     } else {
-        format!(
-            "{} ORDER BY d.{} {} LIMIT $1 OFFSET $2",
-            base_select, sort_col, sort_dir
-        )
+        format!("{base_select} ORDER BY d.{sort_col} {sort_dir} LIMIT $1 OFFSET $2")
     };
 
     let total: (i64,) = if let Some(ref search) = search_filter {
-        sqlx::query_as(&count_query)
+        sqlx::query_as(count_query)
             .bind(search)
             .fetch_one(&state.db)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     } else {
-        sqlx::query_as(&count_query)
+        sqlx::query_as(count_query)
             .fetch_one(&state.db)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -136,26 +111,27 @@ pub async fn create_deal(
     let stage = input.stage.unwrap_or(DealStage::Lead);
     let currency = input.currency.unwrap_or_else(|| "USD".to_string());
 
-    let row = sqlx::query(
-        "INSERT INTO deals (title, value, currency, stage, contact_id, company_id, expected_close_date, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
-    )
-    .bind(&input.title)
-    .bind(input.value)
-    .bind(&currency)
-    .bind(stage)
-    .bind(input.contact_id)
-    .bind(input.company_id)
-    .bind(input.expected_close_date)
-    .bind(&input.notes)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| { tracing::error!("create_deal error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
-
-    let deal = map_deal_row(row);
+    let deal = state
+        .deal_repo
+        .create(
+            &input.title,
+            input.value,
+            &currency,
+            stage,
+            input.contact_id,
+            input.company_id,
+            input.expected_close_date,
+            input.notes.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("create_deal error: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "created",
         "deal",
@@ -186,16 +162,14 @@ pub async fn get_deal(
     perms
         .require("deals.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
-    let deal = sqlx::query_as::<_, Deal>(
-        "SELECT d.id, d.title, d.value, d.currency, d.stage, d.position, d.contact_id, d.company_id, d.pipeline_id, d.pipeline_stage_id, d.expected_close_date, d.notes, CONCAT(c.first_name, ' ', c.last_name) as contact_name, co.name as company_name, d.created_at, d.updated_at FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id LEFT JOIN companies co ON d.company_id = co.id WHERE d.id = $1"
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
 
-    Ok(Json(deal))
+    state
+        .deal_repo
+        .find_by_id(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
 }
 
 pub async fn update_deal(
@@ -212,37 +186,23 @@ pub async fn update_deal(
         .validate()
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
 
-    let old = sqlx::query_as::<_, Deal>(
-        "SELECT d.id, d.title, d.value, d.currency, d.stage, d.position, d.contact_id, d.company_id, d.pipeline_id, d.pipeline_stage_id, d.expected_close_date, d.notes, CONCAT(c.first_name, ' ', c.last_name) as contact_name, co.name as company_name, d.created_at, d.updated_at FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id LEFT JOIN companies co ON d.company_id = co.id WHERE d.id = $1"
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    let old = state
+        .deal_repo
+        .find_by_id(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
-    let row = sqlx::query(
-        "UPDATE deals SET title = COALESCE($2, title), value = COALESCE($3, value), currency = COALESCE($4, currency), stage = COALESCE($5, stage), contact_id = COALESCE($6, contact_id), company_id = COALESCE($7, company_id), expected_close_date = COALESCE($8, expected_close_date), notes = COALESCE($9, notes), updated_at = NOW() WHERE id = $1 RETURNING id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
-    )
-    .bind(id)
-    .bind(&input.title)
-    .bind(input.value)
-    .bind(&input.currency)
-    .bind(input.stage)
-    .bind(input.contact_id)
-    .bind(input.company_id)
-    .bind(input.expected_close_date)
-    .bind(&input.notes)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
-
-    let deal = map_deal_row(row);
+    let deal = state
+        .deal_repo
+        .update(id, &input)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "updated",
         "deal",
@@ -274,46 +234,34 @@ pub async fn delete_deal(
     perms
         .require("deals.delete")
         .map_err(|_| StatusCode::FORBIDDEN)?;
-    let old = sqlx::query_as::<_, Deal>(
-        "SELECT d.id, d.title, d.value, d.currency, d.stage, d.position, d.contact_id, d.company_id, d.pipeline_id, d.pipeline_stage_id, d.expected_close_date, d.notes, CONCAT(c.first_name, ' ', c.last_name) as contact_name, co.name as company_name, d.created_at, d.updated_at FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id LEFT JOIN companies co ON d.company_id = co.id WHERE d.id = $1"
+
+    let old = state
+        .deal_repo
+        .delete(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let user_id = Uuid::parse_str(&claims.sub).ok();
+    let _ = insert_audit_log(
+        &state.db,
+        user_id,
+        "deleted",
+        "deal",
+        old.id,
+        Some(serde_json::to_value(&old).unwrap_or_default()),
+        None,
     )
-    .bind(id)
-    .fetch_optional(&state.db)
+    .await;
+
+    if let Err(e) = enqueue_event(
+        &state.db,
+        WebhookEvent::DealDeleted,
+        serde_json::to_value(&old).unwrap_or_default(),
+    )
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let result = sqlx::query("DELETE FROM deals WHERE id = $1")
-        .bind(id)
-        .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    if let Some(deal) = old {
-        let user_id = Uuid::parse_str(&claims.sub).ok();
-        let _ = insert_audit_log(
-            &state,
-            user_id,
-            "deleted",
-            "deal",
-            deal.id,
-            Some(serde_json::to_value(&deal).unwrap_or_default()),
-            None,
-        )
-        .await;
-
-        if let Err(e) = enqueue_event(
-            &state.db,
-            WebhookEvent::DealDeleted,
-            serde_json::to_value(&deal).unwrap_or_default(),
-        )
-        .await
-        {
-            tracing::warn!("Failed to enqueue DealDeleted webhook: {e}");
-        }
+    {
+        tracing::warn!("Failed to enqueue DealDeleted webhook: {e}");
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -327,27 +275,12 @@ pub async fn export_deals(
     perms
         .require("deals.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
-    let search_filter = params
-        .search
-        .as_ref()
-        .map(|s| format!("%{}%", escape_like(s)));
 
-    let deals = if let Some(ref search) = search_filter {
-        sqlx::query_as::<_, Deal>(
-            "SELECT d.id, d.title, d.value, d.currency, d.stage, d.position, d.contact_id, d.company_id, d.pipeline_id, d.pipeline_stage_id, d.expected_close_date, d.notes, CONCAT(c.first_name, ' ', c.last_name) as contact_name, co.name as company_name, d.created_at, d.updated_at FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id LEFT JOIN companies co ON d.company_id = co.id WHERE d.title ILIKE $1 ESCAPE '\\' ORDER BY d.created_at DESC LIMIT 100000"
-        )
-        .bind(search)
-        .fetch_all(&state.db)
+    let deals = state
+        .deal_repo
+        .find_all_for_export(params.search.as_deref())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    } else {
-        sqlx::query_as::<_, Deal>(
-            "SELECT d.id, d.title, d.value, d.currency, d.stage, d.position, d.contact_id, d.company_id, d.pipeline_id, d.pipeline_stage_id, d.expected_close_date, d.notes, CONCAT(c.first_name, ' ', c.last_name) as contact_name, co.name as company_name, d.created_at, d.updated_at FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id LEFT JOIN companies co ON d.company_id = co.id ORDER BY d.created_at DESC LIMIT 100000"
-        )
-        .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    };
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let mut csv = String::from(
         "title,value,currency,stage,contact_id,company_id,expected_close_date,notes\n",
@@ -404,21 +337,20 @@ pub async fn import_deals(
             }
         };
 
-        let result = sqlx::query(
-            "INSERT INTO deals (title, value, currency, stage, contact_id, company_id, expected_close_date, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
-        )
-        .bind(&row.title)
-        .bind(row.value)
-        .bind(&row.currency)
-        .bind(row.stage)
-        .bind(row.contact_id)
-        .bind(row.company_id)
-        .bind(row.expected_close_date)
-        .bind(&row.notes)
-        .fetch_one(&state.db)
-        .await;
-
-        match result {
+        match state
+            .deal_repo
+            .create(
+                &row.title,
+                row.value,
+                &row.currency,
+                row.stage,
+                row.contact_id,
+                row.company_id,
+                row.expected_close_date,
+                row.notes.as_deref(),
+            )
+            .await
+        {
             Ok(_) => imported += 1,
             Err(e) => errors.push(format!("Línea {}: {}", row_num + 2, e)),
         }
@@ -437,31 +369,24 @@ pub async fn update_deal_stage(
     perms
         .require("deals.edit")
         .map_err(|_| StatusCode::FORBIDDEN)?;
-    let old = sqlx::query_as::<_, Deal>(
-        "SELECT d.id, d.title, d.value, d.currency, d.stage, d.position, d.contact_id, d.company_id, d.pipeline_id, d.pipeline_stage_id, d.expected_close_date, d.notes, CONCAT(c.first_name, ' ', c.last_name) as contact_name, co.name as company_name, d.created_at, d.updated_at FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id LEFT JOIN companies co ON d.company_id = co.id WHERE d.id = $1"
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
 
-    let row = sqlx::query(
-        "UPDATE deals SET stage = $2, position = COALESCE($3, position), updated_at = NOW() WHERE id = $1 RETURNING id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
-    )
-    .bind(id)
-    .bind(input.stage)
-    .bind(input.position)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    let old = state
+        .deal_repo
+        .find_by_id(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
-    let deal = map_deal_row(row);
+    let deal = state
+        .deal_repo
+        .update_stage(id, input.stage, input.position)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "stage_updated",
         "deal",

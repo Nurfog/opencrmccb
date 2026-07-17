@@ -1,6 +1,7 @@
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::AppState;
@@ -8,7 +9,7 @@ use crate::middleware::auth::UserPermissions;
 use crate::models::{AuditFilter, AuditLog};
 
 pub async fn insert_audit_log(
-    state: &AppState,
+    pool: &PgPool,
     user_id: Option<Uuid>,
     action: &str,
     entity_type: &str,
@@ -28,7 +29,7 @@ pub async fn insert_audit_log(
     .bind(entity_id)
     .bind(old_values)
     .bind(new_values)
-    .execute(&state.db)
+    .execute(pool)
     .await?;
     Ok(())
 }

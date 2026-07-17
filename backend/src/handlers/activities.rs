@@ -117,7 +117,7 @@ pub async fn create_activity(
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "created",
         "activity",
@@ -184,7 +184,7 @@ pub async fn update_activity(
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "updated",
         "activity",
@@ -227,7 +227,7 @@ pub async fn delete_activity(
     if let Some(activity) = old {
         let user_id = Uuid::parse_str(&claims.sub).ok();
         let _ = insert_audit_log(
-            &state,
+            &state.db,
             user_id,
             "deleted",
             "activity",
@@ -266,7 +266,7 @@ pub async fn complete_activity(
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "completed",
         "activity",

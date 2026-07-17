@@ -8,34 +8,93 @@ pub struct OAuthProviderConfig {
     pub scope: String,
 }
 
-pub struct Config {
-    pub database_url: String,
+#[derive(Clone)]
+pub struct DatabaseConfig {
+    pub url: String,
+}
+
+#[derive(Clone)]
+pub struct ServerConfig {
+    pub host: String,
+    pub port: u16,
+    pub cors_origins: String,
+    pub frontend_url: String,
+}
+
+#[derive(Clone)]
+pub struct AuthConfig {
     pub jwt_secret: String,
     pub refresh_token_secret: String,
     pub token_encryption_key: Option<Vec<u8>>,
-    pub server_host: String,
-    pub server_port: u16,
-    pub cors_origins: String,
     pub access_token_expiry_minutes: i64,
     pub refresh_token_expiry_days: i64,
-    pub upload_dir: String,
+}
+
+#[derive(Clone)]
+pub struct SmtpConfig {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    pub from: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone)]
+pub struct UploadConfig {
+    pub dir: String,
     pub max_file_size_mb: u64,
-    pub smtp_host: String,
-    pub smtp_port: u16,
-    pub smtp_user: String,
-    pub smtp_password: String,
-    pub smtp_from: String,
-    pub email_enabled: bool,
-    pub frontend_url: String,
-    pub oauth_google: Option<OAuthProviderConfig>,
-    pub oauth_microsoft: Option<OAuthProviderConfig>,
-    pub oauth_github: Option<OAuthProviderConfig>,
+}
+
+#[derive(Clone)]
+pub struct OAuthProvidersConfig {
+    pub google: Option<OAuthProviderConfig>,
+    pub microsoft: Option<OAuthProviderConfig>,
+    pub github: Option<OAuthProviderConfig>,
+}
+
+pub struct Config {
+    pub database: DatabaseConfig,
+    pub server: ServerConfig,
+    pub auth: AuthConfig,
+    pub smtp: SmtpConfig,
+    pub upload: UploadConfig,
+    pub oauth: OAuthProvidersConfig,
 }
 
 impl Config {
     pub fn from_env() -> Self {
         dotenvy::dotenv().ok();
 
+        let auth = Self::load_auth();
+        let smtp = Self::load_smtp();
+        let upload = Self::load_upload();
+        let oauth = Self::load_oauth();
+
+        Self {
+            database: DatabaseConfig {
+                url: std::env::var("DATABASE_URL")
+                    .expect("DATABASE_URL environment variable must be set"),
+            },
+            server: ServerConfig {
+                host: std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".into()),
+                port: std::env::var("SERVER_PORT")
+                    .unwrap_or_else(|_| "8000".into())
+                    .parse()
+                    .unwrap_or(8000),
+                cors_origins: std::env::var("CORS_ORIGINS")
+                    .unwrap_or_else(|_| "http://localhost:3000".into()),
+                frontend_url: std::env::var("FRONTEND_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".into()),
+            },
+            auth,
+            smtp,
+            upload,
+            oauth,
+        }
+    }
+
+    fn load_auth() -> AuthConfig {
         let jwt_secret =
             std::env::var("JWT_SECRET").expect("JWT_SECRET environment variable must be set");
         if jwt_secret.len() < 32 {
@@ -67,19 +126,10 @@ impl Config {
             }
         });
 
-        Self {
-            database_url: std::env::var("DATABASE_URL")
-                .expect("DATABASE_URL environment variable must be set"),
+        AuthConfig {
             jwt_secret,
             refresh_token_secret,
             token_encryption_key,
-            server_host: std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".into()),
-            server_port: std::env::var("SERVER_PORT")
-                .unwrap_or_else(|_| "8000".into())
-                .parse()
-                .unwrap_or(8000),
-            cors_origins: std::env::var("CORS_ORIGINS")
-                .unwrap_or_else(|_| "http://localhost:3000".into()),
             access_token_expiry_minutes: std::env::var("ACCESS_TOKEN_EXPIRY_MINUTES")
                 .unwrap_or_else(|_| "15".into())
                 .parse()
@@ -88,40 +138,53 @@ impl Config {
                 .unwrap_or_else(|_| "30".into())
                 .parse()
                 .unwrap_or(30),
-            upload_dir: std::env::var("UPLOAD_DIR").unwrap_or_else(|_| "./uploads".into()),
+        }
+    }
+
+    fn load_smtp() -> SmtpConfig {
+        SmtpConfig {
+            host: std::env::var("SMTP_HOST").unwrap_or_else(|_| "localhost".into()),
+            port: std::env::var("SMTP_PORT")
+                .unwrap_or_else(|_| "587".into())
+                .parse()
+                .unwrap_or(587),
+            user: std::env::var("SMTP_USER").unwrap_or_default(),
+            password: std::env::var("SMTP_PASSWORD").unwrap_or_default(),
+            from: std::env::var("SMTP_FROM").unwrap_or_else(|_| "noreply@crm.local".into()),
+            enabled: std::env::var("EMAIL_ENABLED")
+                .unwrap_or_else(|_| "false".into())
+                .parse()
+                .unwrap_or(false),
+        }
+    }
+
+    fn load_upload() -> UploadConfig {
+        UploadConfig {
+            dir: std::env::var("UPLOAD_DIR").unwrap_or_else(|_| "./uploads".into()),
             max_file_size_mb: std::env::var("MAX_FILE_SIZE_MB")
                 .unwrap_or_else(|_| "10".into())
                 .parse()
                 .unwrap_or(10),
-            smtp_host: std::env::var("SMTP_HOST").unwrap_or_else(|_| "localhost".into()),
-            smtp_port: std::env::var("SMTP_PORT")
-                .unwrap_or_else(|_| "587".into())
-                .parse()
-                .unwrap_or(587),
-            smtp_user: std::env::var("SMTP_USER").unwrap_or_default(),
-            smtp_password: std::env::var("SMTP_PASSWORD").unwrap_or_default(),
-            smtp_from: std::env::var("SMTP_FROM").unwrap_or_else(|_| "noreply@crm.local".into()),
-            email_enabled: std::env::var("EMAIL_ENABLED")
-                .unwrap_or_else(|_| "false".into())
-                .parse()
-                .unwrap_or(false),
-            frontend_url: std::env::var("FRONTEND_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".into()),
-            oauth_google: Self::load_oauth_provider(
+        }
+    }
+
+    fn load_oauth() -> OAuthProvidersConfig {
+        OAuthProvidersConfig {
+            google: Self::load_oauth_provider(
                 "GOOGLE",
                 "https://accounts.google.com/o/oauth2/v2/auth",
                 "https://oauth2.googleapis.com/token",
                 "https://openidconnect.googleapis.com/v1/userinfo",
                 "openid email profile",
             ),
-            oauth_microsoft: Self::load_oauth_provider(
+            microsoft: Self::load_oauth_provider(
                 "MICROSOFT",
                 "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
                 "https://login.microsoftonline.com/common/oauth2/v2.0/token",
                 "https://graph.microsoft.com/oidc/userinfo",
                 "openid email profile",
             ),
-            oauth_github: Self::load_oauth_provider(
+            github: Self::load_oauth_provider(
                 "GITHUB",
                 "https://github.com/login/oauth/authorize",
                 "https://github.com/login/oauth/access_token",
@@ -158,7 +221,8 @@ impl Config {
     }
 
     pub fn parse_cors_origins(&self) -> Vec<String> {
-        self.cors_origins
+        self.server
+            .cors_origins
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())

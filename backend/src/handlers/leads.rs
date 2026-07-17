@@ -201,7 +201,7 @@ pub async fn create_lead(
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "create",
         "lead",
@@ -296,7 +296,7 @@ pub async fn update_lead(
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "update",
         "lead",
@@ -329,7 +329,7 @@ pub async fn delete_lead(
     }
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
-    let _ = insert_audit_log(&state, user_id, "delete", "lead", id, None, None).await;
+    let _ = insert_audit_log(&state.db, user_id, "delete", "lead", id, None, None).await;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -483,7 +483,7 @@ pub async fn convert_lead(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
-    let _ = insert_audit_log(&state, user_id, "convert", "lead", id,
+    let _ = insert_audit_log(&state.db, user_id, "convert", "lead", id,
         Some(serde_json::json!(lead)),
         Some(serde_json::json!({"contact_id": contact_id, "company_id": company_id, "deal_id": deal_id})),
     ).await;

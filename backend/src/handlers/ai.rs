@@ -276,7 +276,7 @@ Usa null si no encuentras el dato. Responde ÚNICAMENTE con el JSON."#;
     // If contact was created, log audit
     if let Some(cid) = contact_id {
         let _ = crate::handlers::audit::insert_audit_log(
-            &state,
+            &state.db,
             Some(user_id),
             "lead_extracted",
             "contact",

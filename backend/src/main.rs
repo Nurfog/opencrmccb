@@ -9,6 +9,8 @@ use crm_backend::config;
 use crm_backend::db;
 use crm_backend::middleware::metrics::{Metrics, track_metrics};
 use crm_backend::middleware::rate_limit::RateLimiter;
+use crm_backend::repositories::contact_repo::PgContactRepo;
+use crm_backend::repositories::deal_repo::PgDealRepo;
 use crm_backend::routes;
 use crm_backend::{AppState, AuthConfig, OAuthConfig, SmtpConfig, UploadConfig};
 
@@ -24,39 +26,44 @@ async fn main() {
 
     let config = config::Config::from_env();
     let cors_origins = config.parse_cors_origins();
-    let pool = db::create_pool(&config.database_url).await;
+    let pool = db::create_pool(&config.database.url).await;
     tokio::spawn(crm_backend::services::webhook_worker::start_worker(
         pool.clone(),
     ));
 
+    let contact_repo = PgContactRepo::new(pool.clone());
+    let deal_repo = PgDealRepo::new(pool.clone());
+
     let state = AppState {
         db: pool,
         auth: AuthConfig {
-            jwt_secret: config.jwt_secret.clone(),
-            refresh_token_secret: config.refresh_token_secret.clone(),
-            token_encryption_key: config.token_encryption_key.clone(),
-            access_token_expiry_minutes: config.access_token_expiry_minutes,
-            refresh_token_expiry_days: config.refresh_token_expiry_days,
+            jwt_secret: config.auth.jwt_secret.clone(),
+            refresh_token_secret: config.auth.refresh_token_secret.clone(),
+            token_encryption_key: config.auth.token_encryption_key.clone(),
+            access_token_expiry_minutes: config.auth.access_token_expiry_minutes,
+            refresh_token_expiry_days: config.auth.refresh_token_expiry_days,
         },
         smtp: SmtpConfig {
-            host: config.smtp_host.clone(),
-            port: config.smtp_port,
-            user: config.smtp_user.clone(),
-            password: config.smtp_password.clone(),
-            from: config.smtp_from.clone(),
-            enabled: config.email_enabled,
+            host: config.smtp.host.clone(),
+            port: config.smtp.port,
+            user: config.smtp.user.clone(),
+            password: config.smtp.password.clone(),
+            from: config.smtp.from.clone(),
+            enabled: config.smtp.enabled,
         },
         upload: UploadConfig {
-            dir: config.upload_dir.clone(),
-            max_file_size_mb: config.max_file_size_mb,
+            dir: config.upload.dir.clone(),
+            max_file_size_mb: config.upload.max_file_size_mb,
         },
-        frontend_url: config.frontend_url.clone(),
+        frontend_url: config.server.frontend_url.clone(),
         oauth: OAuthConfig {
-            google: config.oauth_google.clone(),
-            microsoft: config.oauth_microsoft.clone(),
-            github: config.oauth_github.clone(),
+            google: config.oauth.google.clone(),
+            microsoft: config.oauth.microsoft.clone(),
+            github: config.oauth.github.clone(),
             state_store: Arc::new(RwLock::new(HashMap::new())),
         },
+        contact_repo: Arc::new(contact_repo),
+        deal_repo: Arc::new(deal_repo),
     };
 
     let rate_limiter = if let Ok(redis_url) = std::env::var("REDIS_URL") {
@@ -126,7 +133,7 @@ async fn main() {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr = format!("{}:{}", config.server_host, config.server_port);
+    let addr = format!("{}:{}", config.server.host, config.server.port);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .unwrap_or_else(|e| panic!("Failed to bind to {}: {}", addr, e));

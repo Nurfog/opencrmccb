@@ -124,7 +124,7 @@ pub async fn create_company(
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "created",
         "company",
@@ -214,7 +214,7 @@ pub async fn update_company(
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
-        &state,
+        &state.db,
         user_id,
         "updated",
         "company",
@@ -257,7 +257,7 @@ pub async fn delete_company(
     if let Some(company) = old {
         let user_id = Uuid::parse_str(&claims.sub).ok();
         let _ = insert_audit_log(
-            &state,
+            &state.db,
             user_id,
             "deleted",
             "company",

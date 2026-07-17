@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, Plus, Calendar, DollarSign, Phone, Mail, Building2, Briefcase, FileText } from "lucide-react"
+import { ArrowLeft, Edit, Trash2, Calendar, Phone, Mail, Briefcase, Building2, Clock } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
-import { contactsApi, dealsApi, activitiesApi, type Contact, type Deal, type Activity } from "@/lib/api"
+import { contactsApi, type Contact, type Deal, type Activity } from "@/lib/api"
 import { ContactForm } from "@/components/forms/contact-form"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TagsInput } from "@/components/ui/tags-input"
+import { Timeline } from "@/components/ui/timeline"
 import { formatDate, formatCurrency, getInitials, cn } from "@/lib/utils"
 
-type Tab = "overview" | "deals" | "activities"
+type Tab = "timeline" | "deals" | "activities"
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -24,7 +25,7 @@ export default function ContactDetailPage() {
   const [deals, setDeals] = useState<Deal[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<Tab>("overview")
+  const [activeTab, setActiveTab] = useState<Tab>("timeline")
   const [formOpen, setFormOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -48,7 +49,7 @@ export default function ContactDetailPage() {
       }
     }
     fetchData()
-  }, [id, router, error])
+  }, [id, router, error, t])
 
   const handleUpdate = async (formData: Record<string, unknown>) => {
     try {
@@ -77,7 +78,10 @@ export default function ContactDetailPage() {
       <AppLayout>
         <div className="animate-fade-in space-y-6">
           <div className="h-8 w-48 bg-muted rounded animate-pulse" />
-          <div className="h-64 bg-muted rounded animate-pulse" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="h-96 bg-muted rounded animate-pulse" />
+            <div className="lg:col-span-2 h-96 bg-muted rounded animate-pulse" />
+          </div>
         </div>
       </AppLayout>
     )
@@ -86,7 +90,7 @@ export default function ContactDetailPage() {
   if (!contact) return null
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "overview", label: t("common.overview"), count: 0 },
+    { id: "timeline", label: t("common.overview"), count: 0 },
     { id: "deals", label: t("deals.title"), count: deals.length },
     { id: "activities", label: t("activities.title"), count: activities.length },
   ]
@@ -126,201 +130,200 @@ export default function ContactDetailPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-border">
-          <nav className="flex gap-6">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "pb-3 text-sm font-medium border-b-2 transition-colors",
-                  activeTab === tab.id
-                    ? "border-brand text-brand"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {tab.label}
-                {tab.count > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-muted">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === "overview" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Contact Info */}
-            <div className="slds-card p-6">
-              <h3 className="text-lg font-semibold mb-4">{t("common.details")}</h3>
-              <dl className="space-y-4">
+        {/* 360 Layout: Sidebar + Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sidebar */}
+          <div className="space-y-4">
+            {/* Contact Info Card */}
+            <div className="slds-card p-5">
+              <h3 className="text-sm font-semibold mb-4">{t("common.details")}</h3>
+              <dl className="space-y-3">
                 {contact.email && (
-                  <div className="flex items-center gap-3">
-                    <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                      <Mail className="h-4 w-4" />
-                      {t("contacts.email")}
-                    </dt>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <dd>
-                      <a href={`mailto:${contact.email}`} className="text-brand hover:underline">
+                      <a href={`mailto:${contact.email}`} className="text-sm text-brand hover:underline truncate">
                         {contact.email}
                       </a>
                     </dd>
                   </div>
                 )}
                 {contact.phone && (
-                  <div className="flex items-center gap-3">
-                    <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                      <Phone className="h-4 w-4" />
-                      {t("contacts.phone")}
-                    </dt>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <dd>
-                      <a href={`tel:${contact.phone}`} className="text-brand hover:underline">
+                      <a href={`tel:${contact.phone}`} className="text-sm text-brand hover:underline">
                         {contact.phone}
                       </a>
                     </dd>
                   </div>
                 )}
                 {contact.position && (
-                  <div className="flex items-center gap-3">
-                    <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                      <Briefcase className="h-4 w-4" />
-                      {t("contacts.position")}
-                    </dt>
-                    <dd>{contact.position}</dd>
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <dd className="text-sm">{contact.position}</dd>
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                    <Calendar className="h-4 w-4" />
-                    {t("common.createdAt")}
-                  </dt>
-                  <dd>{formatDate(contact.created_at)}</dd>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <dd className="text-sm">{formatDate(contact.created_at)}</dd>
                 </div>
               </dl>
             </div>
 
-            {/* Notes */}
-            {contact.notes && (
-              <div className="slds-card p-6">
-                <h3 className="text-lg font-semibold mb-4">{t("common.notes")}</h3>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{contact.notes}</p>
-              </div>
-            )}
-
-            {/* Summary Cards */}
-            <div className="slds-card p-6">
-              <h3 className="text-lg font-semibold mb-4">{t("common.summary")}</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold">{deals.length}</p>
-                  <p className="text-sm text-muted-foreground">{t("deals.title")}</p>
+            {/* Summary Card */}
+            <div className="slds-card p-5">
+              <h3 className="text-sm font-semibold mb-4">{t("common.summary")}</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-xl font-bold">{deals.length}</p>
+                  <p className="text-xs text-muted-foreground">{t("deals.title")}</p>
                 </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold">{activities.length}</p>
-                  <p className="text-sm text-muted-foreground">{t("activities.title")}</p>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-xl font-bold">{activities.length}</p>
+                  <p className="text-xs text-muted-foreground">{t("activities.title")}</p>
                 </div>
               </div>
             </div>
 
             {/* Tags */}
-            <div className="slds-card p-6">
-              <h3 className="text-lg font-semibold mb-4">{t("common.tags")}</h3>
+            <div className="slds-card p-5">
+              <h3 className="text-sm font-semibold mb-3">{t("common.tags")}</h3>
               <TagsInput entityType="contact" entityId={id} />
             </div>
-          </div>
-        )}
 
-        {activeTab === "deals" && (
-          <div className="slds-card">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold">{t("deals.title")}</h3>
-            </div>
-            {deals.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                {t("contacts.noDeals")}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="slds-table">
-                  <thead>
-                    <tr>
-                      <th>{t("deals.dealName")}</th>
-                      <th>{t("deals.value")}</th>
-                      <th>{t("deals.stage")}</th>
-                      <th>{t("deals.expectedCloseDate")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deals.map((deal) => (
-                      <tr key={deal.id}>
-                        <td className="font-medium">{deal.title}</td>
-                        <td>{formatCurrency(deal.value, deal.currency)}</td>
-                        <td>
-                          <span className={cn(
-                            "px-2 py-1 text-xs rounded-full",
-                            deal.stage === "closed_won" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
-                            deal.stage === "closed_lost" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
-                            "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                          )}>
-                            {t(`stages.${deal.stage}`) || deal.stage}
-                          </span>
-                        </td>
-                        <td>{deal.expected_close_date ? formatDate(deal.expected_close_date || "") : "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Notes */}
+            {contact.notes && (
+              <div className="slds-card p-5">
+                <h3 className="text-sm font-semibold mb-3">{t("common.notes")}</h3>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{contact.notes}</p>
               </div>
             )}
           </div>
-        )}
 
-        {activeTab === "activities" && (
-          <div className="slds-card">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold">{t("activities.title")}</h3>
-            </div>
-            {activities.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                {t("contacts.noActivities")}
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {activities.map((activity) => (
-                  <div key={activity.id} className="p-4 flex items-start gap-4">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                      activity.completed ? "bg-green-100 dark:bg-green-900/30" : "bg-blue-100 dark:bg-blue-900/30"
-                    )}>
-                      {activity.activity_type === "call" ? <Phone className="h-4 w-4" /> :
-                       activity.activity_type === "email" ? <Mail className="h-4 w-4" /> :
-                       <Calendar className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{activity.subject}</p>
-                      {activity.description && (
-                        <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {activity.activity_type} • {formatDate(activity.due_date || "")}
-                      </p>
-                    </div>
-                    {activity.completed && (
-                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                        {t("activities.completed")}
+          {/* Main Content */}
+          <div className="lg:col-span-2">
+            {/* Tabs */}
+            <div className="border-b border-border mb-4">
+              <nav className="flex gap-6">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "pb-3 text-sm font-medium border-b-2 transition-colors",
+                      activeTab === tab.id
+                        ? "border-brand text-brand"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab.label}
+                    {tab.count > 0 && (
+                      <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-muted">
+                        {tab.count}
                       </span>
                     )}
-                  </div>
+                  </button>
                 ))}
+              </nav>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === "timeline" && (
+              <div className="slds-card p-5">
+                <Timeline entityType="contact" entityId={id} activities={activities} />
+              </div>
+            )}
+
+            {activeTab === "deals" && (
+              <div className="slds-card">
+                <div className="p-4 border-b border-border">
+                  <h3 className="font-semibold">{t("deals.title")}</h3>
+                </div>
+                {deals.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    {t("contacts.noDeals")}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="slds-table">
+                      <thead>
+                        <tr>
+                          <th>{t("deals.dealName")}</th>
+                          <th>{t("deals.value")}</th>
+                          <th>{t("deals.stage")}</th>
+                          <th>{t("deals.expectedCloseDate")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deals.map((deal) => (
+                          <tr key={deal.id}>
+                            <td className="font-medium">{deal.title}</td>
+                            <td>{formatCurrency(deal.value, deal.currency)}</td>
+                            <td>
+                              <span className={cn(
+                                "px-2 py-1 text-xs rounded-full",
+                                deal.stage === "closed_won" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
+                                deal.stage === "closed_lost" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
+                                "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                              )}>
+                                {t(`stages.${deal.stage}`) || deal.stage}
+                              </span>
+                            </td>
+                            <td>{deal.expected_close_date ? formatDate(deal.expected_close_date) : "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "activities" && (
+              <div className="slds-card">
+                <div className="p-4 border-b border-border">
+                  <h3 className="font-semibold">{t("activities.title")}</h3>
+                </div>
+                {activities.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    {t("contacts.noActivities")}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {activities.map((activity) => (
+                      <div key={activity.id} className="p-4 flex items-start gap-4">
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                          activity.completed ? "bg-green-100 dark:bg-green-900/30" : "bg-blue-100 dark:bg-blue-900/30"
+                        )}>
+                          {activity.activity_type === "call" ? <Phone className="h-4 w-4" /> :
+                           activity.activity_type === "email" ? <Mail className="h-4 w-4" /> :
+                           <Calendar className="h-4 w-4" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{activity.subject}</p>
+                          {activity.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {activity.activity_type} • {formatDate(activity.due_date || "")}
+                          </p>
+                        </div>
+                        {activity.completed && (
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            {t("activities.completed")}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       <ContactForm

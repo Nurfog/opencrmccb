@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, Plus, Calendar, DollarSign, Phone, Mail, Globe, MapPin, Users } from "lucide-react"
+import { ArrowLeft, Edit, Trash2, Calendar, Phone, Mail, Globe, MapPin, DollarSign, Clock } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -10,9 +10,10 @@ import { companiesApi, type Company, type Contact, type Deal } from "@/lib/api"
 import { CompanyForm } from "@/components/forms/company-form"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TagsInput } from "@/components/ui/tags-input"
-import { formatDate, formatCurrency, getInitials, cn } from "@/lib/utils"
+import { Timeline } from "@/components/ui/timeline"
+import { formatDate, formatCurrency, cn } from "@/lib/utils"
 
-type Tab = "overview" | "contacts" | "deals"
+type Tab = "timeline" | "contacts" | "deals"
 
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -25,7 +26,7 @@ export default function CompanyDetailPage() {
   const [deals, setDeals] = useState<Deal[]>([])
   const [revenue, setRevenue] = useState<{ total_value: number; deal_count: number } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<Tab>("overview")
+  const [activeTab, setActiveTab] = useState<Tab>("timeline")
   const [formOpen, setFormOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -51,7 +52,7 @@ export default function CompanyDetailPage() {
       }
     }
     fetchData()
-  }, [id, router, error])
+  }, [id, router, error, t])
 
   const handleUpdate = async (formData: Record<string, unknown>) => {
     try {
@@ -80,7 +81,10 @@ export default function CompanyDetailPage() {
       <AppLayout>
         <div className="animate-fade-in space-y-6">
           <div className="h-8 w-48 bg-muted rounded animate-pulse" />
-          <div className="h-64 bg-muted rounded animate-pulse" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="h-96 bg-muted rounded animate-pulse" />
+            <div className="lg:col-span-2 h-96 bg-muted rounded animate-pulse" />
+          </div>
         </div>
       </AppLayout>
     )
@@ -89,7 +93,7 @@ export default function CompanyDetailPage() {
   if (!company) return null
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "overview", label: t("common.overview"), count: 0 },
+    { id: "timeline", label: t("common.overview"), count: 0 },
     { id: "contacts", label: t("contacts.title"), count: contacts.length },
     { id: "deals", label: t("deals.title"), count: deals.length },
   ]
@@ -122,218 +126,214 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-border">
-          <nav className="flex gap-6">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "pb-3 text-sm font-medium border-b-2 transition-colors",
-                  activeTab === tab.id
-                    ? "border-brand text-brand"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {tab.label}
-                {tab.count > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-muted">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === "overview" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Company Info */}
-            <div className="slds-card p-6">
-              <h3 className="text-lg font-semibold mb-4">{t("common.details")}</h3>
-              <dl className="space-y-4">
+        {/* 360 Layout: Sidebar + Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sidebar */}
+          <div className="space-y-4">
+            {/* Company Info Card */}
+            <div className="slds-card p-5">
+              <h3 className="text-sm font-semibold mb-4">{t("common.details")}</h3>
+              <dl className="space-y-3">
                 {company.email && (
-                  <div className="flex items-center gap-3">
-                    <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                      <Mail className="h-4 w-4" />
-                      {t("companies.email")}
-                    </dt>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <dd>
-                      <a href={`mailto:${company.email}`} className="text-brand hover:underline">
+                      <a href={`mailto:${company.email}`} className="text-sm text-brand hover:underline truncate">
                         {company.email}
                       </a>
                     </dd>
                   </div>
                 )}
                 {company.phone && (
-                  <div className="flex items-center gap-3">
-                    <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                      <Phone className="h-4 w-4" />
-                      {t("companies.phone")}
-                    </dt>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <dd>
-                      <a href={`tel:${company.phone}`} className="text-brand hover:underline">
+                      <a href={`tel:${company.phone}`} className="text-sm text-brand hover:underline">
                         {company.phone}
                       </a>
                     </dd>
                   </div>
                 )}
                 {company.website && (
-                  <div className="flex items-center gap-3">
-                    <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                      <Globe className="h-4 w-4" />
-                      {t("companies.website")}
-                    </dt>
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <dd>
-                      <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+                      <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-sm text-brand hover:underline truncate">
                         {company.website}
                       </a>
                     </dd>
                   </div>
                 )}
                 {(company.address || company.city || company.country) && (
-                  <div className="flex items-center gap-3">
-                    <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                      <MapPin className="h-4 w-4" />
-                      {t("companies.address")}
-                    </dt>
-                    <dd>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <dd className="text-sm">
                       {[company.address, company.city, company.country].filter(Boolean).join(", ")}
                     </dd>
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  <dt className="flex items-center gap-2 text-muted-foreground w-32">
-                    <Calendar className="h-4 w-4" />
-                    {t("common.createdAt")}
-                  </dt>
-                  <dd>{formatDate(company.created_at)}</dd>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <dd className="text-sm">{formatDate(company.created_at)}</dd>
                 </div>
               </dl>
             </div>
 
-            {/* Revenue Summary */}
-            <div className="slds-card p-6">
-              <h3 className="text-lg font-semibold mb-4">{t("companies.revenue")}</h3>
-              {revenue && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+            {/* Revenue Card */}
+            {revenue && (
+              <div className="slds-card p-5">
+                <h3 className="text-sm font-semibold mb-4">{t("companies.revenue")}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <p className="text-lg font-bold text-green-600 dark:text-green-400">
                       {formatCurrency(revenue.total_value)}
                     </p>
-                    <p className="text-sm text-muted-foreground">{t("companies.totalValue")}</p>
+                    <p className="text-xs text-muted-foreground">{t("companies.totalValue")}</p>
                   </div>
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold">{revenue.deal_count}</p>
-                    <p className="text-sm text-muted-foreground">{t("deals.title")}</p>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <p className="text-lg font-bold">{revenue.deal_count}</p>
+                    <p className="text-xs text-muted-foreground">{t("deals.title")}</p>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Tags */}
-            <div className="slds-card p-6">
-              <h3 className="text-lg font-semibold mb-4">{t("common.tags")}</h3>
+            <div className="slds-card p-5">
+              <h3 className="text-sm font-semibold mb-3">{t("common.tags")}</h3>
               <TagsInput entityType="company" entityId={id} />
             </div>
 
             {/* Notes */}
             {company.notes && (
-              <div className="slds-card p-6">
-                <h3 className="text-lg font-semibold mb-4">{t("common.notes")}</h3>
+              <div className="slds-card p-5">
+                <h3 className="text-sm font-semibold mb-3">{t("common.notes")}</h3>
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">{company.notes}</p>
               </div>
             )}
           </div>
-        )}
 
-        {activeTab === "contacts" && (
-          <div className="slds-card">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold">{t("contacts.title")}</h3>
+          {/* Main Content */}
+          <div className="lg:col-span-2">
+            {/* Tabs */}
+            <div className="border-b border-border mb-4">
+              <nav className="flex gap-6">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "pb-3 text-sm font-medium border-b-2 transition-colors",
+                      activeTab === tab.id
+                        ? "border-brand text-brand"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab.label}
+                    {tab.count > 0 && (
+                      <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-muted">
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </nav>
             </div>
-            {contacts.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                {t("companies.noContacts")}
+
+            {/* Tab Content */}
+            {activeTab === "timeline" && (
+              <div className="slds-card p-5">
+                <Timeline entityType="company" entityId={id} activities={[]} />
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="slds-table">
-                  <thead>
-                    <tr>
-                      <th>{t("contacts.name")}</th>
-                      <th>{t("contacts.email")}</th>
-                      <th>{t("contacts.phone")}</th>
-                      <th>{t("contacts.position")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contacts.map((contact) => (
-                      <tr key={contact.id}>
-                        <td>
-                          <a href={`/contacts/${contact.id}`} className="font-medium hover:underline">
-                            {contact.first_name} {contact.last_name}
-                          </a>
-                        </td>
-                        <td>{contact.email || "-"}</td>
-                        <td>{contact.phone || "-"}</td>
-                        <td>{contact.position || "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            )}
+
+            {activeTab === "contacts" && (
+              <div className="slds-card">
+                <div className="p-4 border-b border-border">
+                  <h3 className="font-semibold">{t("contacts.title")}</h3>
+                </div>
+                {contacts.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    {t("companies.noContacts")}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="slds-table">
+                      <thead>
+                        <tr>
+                          <th>{t("contacts.name")}</th>
+                          <th>{t("contacts.email")}</th>
+                          <th>{t("contacts.phone")}</th>
+                          <th>{t("contacts.position")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {contacts.map((contact) => (
+                          <tr key={contact.id}>
+                            <td>
+                              <a href={`/contacts/${contact.id}`} className="font-medium hover:underline">
+                                {contact.first_name} {contact.last_name}
+                              </a>
+                            </td>
+                            <td>{contact.email || "-"}</td>
+                            <td>{contact.phone || "-"}</td>
+                            <td>{contact.position || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "deals" && (
+              <div className="slds-card">
+                <div className="p-4 border-b border-border">
+                  <h3 className="font-semibold">{t("deals.title")}</h3>
+                </div>
+                {deals.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    {t("companies.noDeals")}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="slds-table">
+                      <thead>
+                        <tr>
+                          <th>{t("deals.dealName")}</th>
+                          <th>{t("deals.value")}</th>
+                          <th>{t("deals.stage")}</th>
+                          <th>{t("deals.expectedCloseDate")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deals.map((deal) => (
+                          <tr key={deal.id}>
+                            <td className="font-medium">{deal.title}</td>
+                            <td>{formatCurrency(deal.value, deal.currency)}</td>
+                            <td>
+                              <span className={cn(
+                                "px-2 py-1 text-xs rounded-full",
+                                deal.stage === "closed_won" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
+                                deal.stage === "closed_lost" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
+                                "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                              )}>
+                                {t(`stages.${deal.stage}`) || deal.stage}
+                              </span>
+                            </td>
+                            <td>{deal.expected_close_date ? formatDate(deal.expected_close_date) : "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-
-        {activeTab === "deals" && (
-          <div className="slds-card">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold">{t("deals.title")}</h3>
-            </div>
-            {deals.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                {t("companies.noDeals")}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="slds-table">
-                  <thead>
-                    <tr>
-                      <th>{t("deals.dealName")}</th>
-                      <th>{t("deals.value")}</th>
-                      <th>{t("deals.stage")}</th>
-                      <th>{t("deals.expectedCloseDate")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deals.map((deal) => (
-                      <tr key={deal.id}>
-                        <td className="font-medium">{deal.title}</td>
-                        <td>{formatCurrency(deal.value, deal.currency)}</td>
-                        <td>
-                          <span className={cn(
-                            "px-2 py-1 text-xs rounded-full",
-                            deal.stage === "closed_won" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
-                            deal.stage === "closed_lost" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
-                            "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                          )}>
-                            {t(`stages.${deal.stage}`) || deal.stage}
-                          </span>
-                        </td>
-                        <td>{deal.expected_close_date ? formatDate(deal.expected_close_date) : "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
       </div>
 
       <CompanyForm

@@ -144,18 +144,7 @@
 
 ## 🔄 En Progreso
 
-- [x] Recuperación de contraseña (forgot/reset endpoints)
-- [x] Notificaciones persistentes en base de datos
-  - [x] Crear tabla `notifications` (migration) y modelo CRUD en Rust
-  - [x] Crear endpoint `GET /api/v1/notifications` (paginado)
-  - [x] Crear endpoint `PATCH /api/v1/notifications/:id/read`
-  - [x] Integrar consumo desde el dropdown de UI en el frontend
-- [x] Pruebas de integración con docker-compose.test.yml
-- [ ] Webhook delivery system (disparar eventos reales)
-  - [ ] Diseñar tabla o queue de eventos (`webhook_events`)
-  - [ ] Implementar un background worker en Rust (tokio::spawn o queue en DB) para procesar envíos
-  - [ ] Implementar lógica de reintentos (retries) y guardar el log de intentos
-  - [ ] Añadir triggers en handlers (ej. `contact.created`, `deal.won`) para popular la queue
+_(nada en progreso actualmente)_
 
 ---
 
@@ -164,11 +153,11 @@
 ### Prioridad Alta
 - [x] Logout debe invalidar refresh token en servidor
 - [x] Actividades CRUD completo (update, delete, complete)
-- [ ] Detail views para contacts y companies (Vista 360)
-  - [ ] Diseñar layout con información a la izquierda y tabs (Timeline, Deals, Documents) a la derecha
-  - [ ] Implementar fetch paralelo de dependencias (fetchContact, fetchActivities, fetchDeals)
-  - [ ] Componente `Timeline` para listar el Audit Log y Activities combinados
-  - [ ] Componente de tabla compacta para listar los Deals asociados
+- [x] Detail views para contacts y companies (Vista 360)
+  - [x] Layout con sidebar de info y tabs (Timeline, Deals, Documents)
+  - [x] Componente `Timeline` combinando Audit Log + Activities
+  - [x] Tabla compacta de Deals asociados
+  - [x] Fetch paralelo de dependencias
 - [ ] Company selector con búsqueda asíncrona al crear contactos
   - [ ] Crear componente reusable `CompanyAsyncSelect` 
   - [ ] Integrar el nuevo selector en el modal/página de "Nuevo Contacto"

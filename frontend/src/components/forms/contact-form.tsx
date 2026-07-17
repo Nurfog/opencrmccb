@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { X, Search, Building2 } from "lucide-react"
+import { useState, useEffect } from "react"
 import { Modal } from "@/components/ui/modal"
-import { companiesApi, type Company } from "@/lib/api"
+import { CompanyAsyncSelect } from "@/components/ui/company-async-select"
+import { type Company } from "@/lib/api"
 import { useI18n } from "@/contexts/i18n-context"
 
 interface ContactFormProps {
@@ -21,14 +21,8 @@ export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactF
   const [phone, setPhone] = useState("")
   const [position, setPosition] = useState("")
   const [notes, setNotes] = useState("")
-  const [companySearch, setCompanySearch] = useState("")
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
-  const [companyResults, setCompanyResults] = useState<Company[]>([])
-  const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  const companyRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (initialData) {
@@ -40,7 +34,8 @@ export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactF
       setNotes(initialData.notes ?? "")
       if (initialData.company_id) {
         setSelectedCompany({ id: initialData.company_id, name: initialData.company_name ?? "" } as Company)
-        setCompanySearch(initialData.company_name ?? "")
+      } else {
+        setSelectedCompany(null)
       }
     } else {
       setFirstName("")
@@ -49,54 +44,9 @@ export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactF
       setPhone("")
       setPosition("")
       setNotes("")
-      setCompanySearch("")
       setSelectedCompany(null)
-      setCompanyResults([])
     }
   }, [initialData, isOpen])
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (companyRef.current && !companyRef.current.contains(e.target as Node)) {
-        setCompanyDropdownOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  const searchCompanies = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setCompanyResults([])
-      return
-    }
-    try {
-      const res = await companiesApi.list({ search: query })
-      setCompanyResults(res.data)
-    } catch {
-      setCompanyResults([])
-    }
-  }, [])
-
-  const handleCompanyInputChange = (value: string) => {
-    setCompanySearch(value)
-    setSelectedCompany(null)
-    setCompanyDropdownOpen(true)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => searchCompanies(value), 300)
-  }
-
-  const selectCompany = (company: Company) => {
-    setSelectedCompany(company)
-    setCompanySearch(company.name)
-    setCompanyDropdownOpen(false)
-  }
-
-  const clearCompany = () => {
-    setSelectedCompany(null)
-    setCompanySearch("")
-    setCompanyResults([])
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -182,46 +132,10 @@ export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactF
           />
         </div>
 
-        <div ref={companyRef} className="relative">
-          <label className="slds-label" htmlFor="companySearch">{t("contacts.company")}</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              id="companySearch"
-              className="slds-input pl-10"
-              value={companySearch}
-              onChange={(e) => handleCompanyInputChange(e.target.value)}
-              onFocus={() => {
-                if (companyResults.length > 0) setCompanyDropdownOpen(true)
-              }}
-              placeholder={t("companies.searchCompanies")}
-            />
-            {selectedCompany && (
-              <button
-                type="button"
-                onClick={clearCompany}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          {companyDropdownOpen && companyResults.length > 0 && (
-            <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-              {companyResults.map((company) => (
-                <button
-                  key={company.id}
-                  type="button"
-                  onClick={() => selectCompany(company)}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
-                >
-                  <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <span>{company.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <CompanyAsyncSelect
+          value={selectedCompany}
+          onChange={setSelectedCompany}
+        />
 
         <div>
           <label className="slds-label" htmlFor="notes">{t("contacts.notes")}</label>

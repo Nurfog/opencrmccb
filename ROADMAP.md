@@ -153,14 +153,14 @@ _(nada en progreso actualmente)_
 ### Prioridad Alta
 - [x] Logout debe invalidar refresh token en servidor
 - [x] Actividades CRUD completo (update, delete, complete)
-- [x] Detail views para contacts y companies (Vista 360)
+  - [x] Detail views para contacts y companies (Vista 360)
   - [x] Layout con sidebar de info y tabs (Timeline, Deals, Documents)
   - [x] Componente `Timeline` combinando Audit Log + Activities
   - [x] Tabla compacta de Deals asociados
   - [x] Fetch paralelo de dependencias
-- [ ] Company selector con búsqueda asíncrona al crear contactos
-  - [ ] Crear componente reusable `CompanyAsyncSelect` 
-  - [ ] Integrar el nuevo selector en el modal/página de "Nuevo Contacto"
+- [x] Company selector con búsqueda asíncrona al crear contactos
+  - [x] Crear componente reutilizable `CompanyAsyncSelect`
+  - [x] Integrar el nuevo selector en el modal/página de "Nuevo Contacto"
 - [x] Filtro real en contacts page (por compañía, industria, etc.)
 
 ### Prioridad Media

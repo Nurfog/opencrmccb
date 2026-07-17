@@ -41,6 +41,13 @@
 - [x] OAuth 2.0 social login (Google, Microsoft, GitHub)
 - [x] Token expiry configurabil (access 15min, refresh 30 días)
 - [x] Enums de base de datos mapeados con sqlx (deal_stage, activity_type, webhook_event)
+- [x] Webhook delivery system completo:
+  - Worker background con tokio::spawn (polling 5s, batch 50)
+  - Retry con backoff lineal (3 intentos: 1min → 5min → 1h)
+  - HMAC-SHA256 signatures en delivery
+  - Endpoint PATCH /webhooks/:id (toggle active, editar URL/secret)
+  - Endpoint GET /webhooks/:id/deliveries (log de entregas)
+  - Error logging en enqueue_event (tracing::warn)
 
 ### Frontend (Next.js 15 + Tailwind CSS 3.4)
 - [x] Diseño estética Salesforce Lightning (SLDS) con CSS custom
@@ -56,6 +63,8 @@
   - Skeleton, EmptyState
   - ThemeToggle, LanguageSwitcher
   - Breadcrumbs
+  - CompanyAsyncSelect (búsqueda async + quick-create)
+  - Timeline (Audit Log + Activities combinados)
 - [x] Charts:
   - PipelineBarChart (Recharts con soporte dark mode)
 - [x] Kanban DnD:
@@ -64,8 +73,8 @@
 - [x] Calendar view (FullCalendar con dayGrid, timeGrid, interaction)
 - [x] Páginas implementadas:
   - Dashboard - 4 llamadas paralelas (stats, pipeline, top deals, activities)
-  - Contacts - CRUD + paginación + sorting + CSV export
-  - Companies - CRUD + paginación
+  - Contacts - CRUD + paginación + sorting + CSV export + Vista 360° (sidebar + Timeline)
+  - Companies - CRUD + paginación + Vista 360° (sidebar + Timeline)
   - Deals - Kanban DnD + vista tabla + stage filter + detail modal con historial
   - Activities - Calendar view + crear/ver actividades
   - Reports - Pipeline + Win/Loss desde endpoints reales
@@ -258,4 +267,4 @@ _(nada en progreso actualmente)_
 
 ---
 
-*Última actualización: 22 de Junio, 2026*
+*Última actualización: 17 de Julio, 2026*

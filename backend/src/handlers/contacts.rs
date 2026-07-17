@@ -8,8 +8,9 @@ use validator::Validate;
 use crate::AppState;
 use crate::handlers::audit::insert_audit_log;
 use crate::middleware::auth::{Claims, UserPermissions};
-use crate::models::{Contact, CreateContact, PaginatedResponse, PaginationParams, UpdateContact};
+use crate::models::{Contact, CreateContact, PaginatedResponse, PaginationParams, UpdateContact, WebhookEvent};
 use crate::models::{ImportResult, escape_csv, escape_like, parse_csv_rows};
+use crate::services::webhook_worker::enqueue_event;
 
 #[derive(Debug, Deserialize)]
 pub struct BulkDeleteRequest {
@@ -138,6 +139,8 @@ pub async fn create_contact(
     )
     .await;
 
+    let _ = enqueue_event(&state.db, WebhookEvent::ContactCreated, serde_json::to_value(&contact).unwrap_or_default()).await;
+
     Ok((StatusCode::CREATED, Json(contact)))
 }
 
@@ -224,6 +227,8 @@ pub async fn update_contact(
     )
     .await;
 
+    let _ = enqueue_event(&state.db, WebhookEvent::ContactUpdated, serde_json::to_value(&contact).unwrap_or_default()).await;
+
     Ok(Json(contact))
 }
 
@@ -266,6 +271,8 @@ pub async fn delete_contact(
             None,
         )
         .await;
+
+        let _ = enqueue_event(&state.db, WebhookEvent::ContactDeleted, serde_json::to_value(&contact).unwrap_or_default()).await;
     }
 
     Ok(StatusCode::NO_CONTENT)

@@ -145,9 +145,17 @@
 ## 🔄 En Progreso
 
 - [x] Recuperación de contraseña (forgot/reset endpoints)
-- [ ] Notificaciones persistentes en base de datos
+- [x] Notificaciones persistentes en base de datos
+  - [x] Crear tabla `notifications` (migration) y modelo CRUD en Rust
+  - [x] Crear endpoint `GET /api/v1/notifications` (paginado)
+  - [x] Crear endpoint `PATCH /api/v1/notifications/:id/read`
+  - [x] Integrar consumo desde el dropdown de UI en el frontend
 - [x] Pruebas de integración con docker-compose.test.yml
 - [ ] Webhook delivery system (disparar eventos reales)
+  - [ ] Diseñar tabla o queue de eventos (`webhook_events`)
+  - [ ] Implementar un background worker en Rust (tokio::spawn o queue en DB) para procesar envíos
+  - [ ] Implementar lógica de reintentos (retries) y guardar el log de intentos
+  - [ ] Añadir triggers en handlers (ej. `contact.created`, `deal.won`) para popular la queue
 
 ---
 
@@ -156,21 +164,43 @@
 ### Prioridad Alta
 - [x] Logout debe invalidar refresh token en servidor
 - [x] Actividades CRUD completo (update, delete, complete)
-- [ ] Detail views para contacts y companies
-- [ ] Company selector con búsqueda al crear contactos (como en deals)
+- [ ] Detail views para contacts y companies (Vista 360)
+  - [ ] Diseñar layout con información a la izquierda y tabs (Timeline, Deals, Documents) a la derecha
+  - [ ] Implementar fetch paralelo de dependencias (fetchContact, fetchActivities, fetchDeals)
+  - [ ] Componente `Timeline` para listar el Audit Log y Activities combinados
+  - [ ] Componente de tabla compacta para listar los Deals asociados
+- [ ] Company selector con búsqueda asíncrona al crear contactos
+  - [ ] Crear componente reusable `CompanyAsyncSelect` 
+  - [ ] Integrar el nuevo selector en el modal/página de "Nuevo Contacto"
 - [x] Filtro real en contacts page (por compañía, industria, etc.)
 
 ### Prioridad Media
 - [ ] Pruebas end-to-end con Playwright
-- [ ] Tags/labels personalizables para contacts, companies, deals
-- [ ] Notificaciones in-app con WebSocket o polling
-- [ ] Import CSV mapping de columnas
+  - [ ] Configurar fixtures de prueba
+  - [ ] Escribir smoke test del ciclo de creación de Deal
+- [ ] Tags/labels personalizables para entities
+  - [ ] Crear tabla `tags` (color, nombre) y tablas de join (ej. `contact_tags`)
+  - [ ] Añadir componente UI para seleccionar y crear tags dinámicamente
+- [ ] Notificaciones in-app en tiempo real
+  - [ ] Implementar capa de WebSockets en Axum (o Server-Sent Events)
+  - [ ] Conectar la UI del header para escuchar eventos y sumar contador (badge red)
+- [ ] Import CSV dinámico (mapping de columnas)
+  - [ ] Modificar endpoint de upload para leer cabeceras sin insertar
+  - [ ] Añadir paso intermedio en UI donde el usuario mapee las columnas del archivo a la DB
+  - [ ] Ejecutar el batch insert final
 - [ ] Drag & drop reorder en Kanban (posición persistente)
+  - [ ] Añadir campo `position` (integer) a los Deals
+  - [ ] Endpoint `PATCH /api/v1/deals/reorder` que actualice los índices
 - [ ] Multi-file upload en documentos
-- [ ] Reportes exportables (PDF/CSV desde el frontend)
+  - [ ] Ajustar el dropzone de UI para aceptar `multiple={true}`
+  - [ ] Ejecutar peticiones concurrentes o modificar endpoint backend para recibir array de multipart
 - [ ] Pipeline forecast basado en expected_close_date
+  - [ ] Query SQL para proyectar "Revenue" por mes/trimestre
+  - [ ] Renderizar gráfico "Forecast" en el Dashboard (Recharts)
 - [ ] Actividad historial automática al crear/editar entidades
-- [ ] Rate limiter con Redis (persistente entre reinicios)
+  - [ ] Conectar el Audit Log o disparar inserciones en la tabla `activities` (tipo 'System') en el backend
+- [ ] Rate limiter distribuido con Redis (persistente)
+  - [ ] Reemplazar limiter in-memory de Axum por comandos incrementales en Redis
 - [x] Health check endpoint que verifique DB
 
 ### Prioridad Baja

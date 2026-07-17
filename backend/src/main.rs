@@ -25,6 +25,7 @@ async fn main() {
     let config = config::Config::from_env();
     let cors_origins = config.parse_cors_origins();
     let pool = db::create_pool(&config.database_url).await;
+    tokio::spawn(crm_backend::services::webhook_worker::start_worker(pool.clone()));
 
     let state = AppState {
         db: pool,

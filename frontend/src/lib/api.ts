@@ -1278,3 +1278,32 @@ export const calendarApi = {
   syncGoogle: () =>
     request<{ synced: number }>("/api/v1/calendar/sync/google", { method: "POST" }),
 };
+
+// ---- Notifications API ----
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  entity_type?: string;
+  entity_id?: string;
+  read: boolean;
+  created_at: string;
+}
+
+export const notificationsApi = {
+  list: (params?: { page?: number; per_page?: number }) =>
+    request<Notification[]>("/api/v1/notifications", { params }),
+
+  getUnreadCount: () =>
+    request<{ count: number }>("/api/v1/notifications/unread-count"),
+
+  markAsRead: (id: string) =>
+    request<void>(`/api/v1/notifications/${id}/read`, { method: "PUT" }),
+
+  markAllAsRead: () =>
+    request<void>("/api/v1/notifications/read-all", { method: "PUT" }),
+
+  delete: (id: string) =>
+    request<void>(`/api/v1/notifications/${id}`, { method: "DELETE" }),
+};

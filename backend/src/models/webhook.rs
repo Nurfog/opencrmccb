@@ -36,3 +36,29 @@ pub struct CreateWebhook {
     #[validate(length(max = 255, message = "Secret must be at most 255 characters"))]
     pub secret: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "webhook_status", rename_all = "snake_case")]
+pub enum WebhookStatus {
+    Pending,
+    Processing,
+    Success,
+    Failed,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct WebhookDelivery {
+    pub id: Uuid,
+    pub webhook_id: Uuid,
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub status: WebhookStatus,
+    pub attempts: i32,
+    pub next_attempt_at: DateTime<Utc>,
+    pub response_status: Option<i32>,
+    pub response_body: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+

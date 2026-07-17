@@ -153,7 +153,7 @@
 
 ## 🔄 En Progreso
 
-_(nada en progreso actualmente — ver hallazgos arquitectónicos en /tmp/opencode/architecture-review-*.html)_
+_Siguiente tarea: Notificaciones in-app en tiempo real (WebSockets/SSE)_
 
 ---
 
@@ -254,16 +254,17 @@ _(nada en progreso actualmente — ver hallazgos arquitectónicos en /tmp/openco
 | Componente | Líneas de Código | Estado |
 |------------|------------------|--------|
 | Backend Rust | ~5,000 | ✅ Compila + Clippy clean (repository + queries + domain events) |
-| Frontend TSX | ~13,000 | ✅ Build + TypeScript clean (API modular) |
-| Tests | ~400 | ✅ 35 tests |
+| Frontend TSX | ~13,000 | ✅ Build + TypeScript clean (API modular, 21 modules) |
+| Tests E2E | ~1,500 | ✅ 25 Playwright tests (auth, CRUD, dashboard, settings) |
+| Tests Unit | ~400 | ✅ 35 backend tests |
 | API Docs | ~750 | ✅ OpenAPI 3.0 |
 | Traducciones (i18n) | ~600 | ✅ ES/EN |
 | CSS/Styles | ~800 | ✅ Dark mode |
 | Docker | ~250 | ✅ 9 servicios |
-| CI/CD | ~100 | ✅ GitHub Actions |
+| CI/CD | ~150 | ✅ GitHub Actions (backend + frontend + E2E) |
 | Monitoring | ~100 | ✅ Prometheus + Grafana |
 | Scripts | ~100 | ✅ Backup/Restore |
-| **Total** | **~20,100** | **Producto Completo + Arquitectura Mejorada** |
+| **Total** | **~22,600** | **Producto Completo + Arquitectura Mejorada + E2E Tests** |
 
 ---
 

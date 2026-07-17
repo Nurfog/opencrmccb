@@ -14,10 +14,13 @@ cargo fmt -- --check                     # format check
 ### Frontend (Next.js 15 + React 19 + Tailwind 3.4)
 ```bash
 cd frontend
-npm ci                                   # install deps
-npm run build                            # production build
-npm run lint                             # ESLint
-npm run dev                              # dev server on :3000
+pnpm install                              # install deps (use pnpm, not npm)
+pnpm build                                # production build
+pnpm lint                                 # ESLint
+pnpm dev                                  # dev server on :3000
+pnpm test:e2e                             # run Playwright E2E tests
+pnpm test:e2e:ui                          # open Playwright UI mode
+pnpm test:e2e:headed                      # run tests with browser visible
 ```
 
 ### Database
@@ -39,7 +42,7 @@ docker compose -f docker-compose.test.yml up  # test DB on :5433
 
 - **Backend**: Rust edition 2024, Axum 0.8, SQLx 0.8, entry at `backend/src/main.rs`
 - **Frontend**: Next.js 15.1, React 19, Zustand for state, Tailwind 3.4 with CSS custom properties for theming
-- **DB**: PostgreSQL 17 + pgvector. 21 numbered migrations in `database/migrations/`. Auto-run on `docker compose up`.
+- **DB**: PostgreSQL 17 + pgvector. 30 numbered migrations in `database/migrations/`. Auto-run on `docker compose up`.
 - **API**: All routes under `/api/v1/`. Route definitions in `backend/src/routes.rs`. Auth via JWT (HS256) + refresh token rotation.
 - **Auth/RBAC**: `auth_routes()` applies JWT middleware. `admin_routes()` wraps with `admin_only_middleware` (checks admin.access permission).
 - **i18n**: JSON files in `frontend/src/lib/i18n/`. Language stored in localStorage. Context provider at app root.

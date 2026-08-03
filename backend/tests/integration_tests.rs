@@ -57,8 +57,12 @@ async fn test_health_check() {
                 std::collections::HashMap::new(),
             )),
         },
-        contact_repo: std::sync::Arc::new(crm_backend::repositories::contact_repo::PgContactRepo::new(pool.clone())),
-        deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(pool.clone())),
+        contact_repo: std::sync::Arc::new(
+            crm_backend::repositories::contact_repo::PgContactRepo::new(pool.clone()),
+        ),
+        deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(
+            pool.clone(),
+        )),
     };
 
     let app = crm_backend::routes::public_routes().with_state(state);
@@ -117,8 +121,12 @@ async fn test_register_first_user() {
                 std::collections::HashMap::new(),
             )),
         },
-        contact_repo: std::sync::Arc::new(crm_backend::repositories::contact_repo::PgContactRepo::new(pool.clone())),
-        deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(pool.clone())),
+        contact_repo: std::sync::Arc::new(
+            crm_backend::repositories::contact_repo::PgContactRepo::new(pool.clone()),
+        ),
+        deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(
+            pool.clone(),
+        )),
     };
 
     let app = crm_backend::routes::register_routes().with_state(state);
@@ -200,8 +208,12 @@ async fn test_register_second_user_forbidden() {
                 std::collections::HashMap::new(),
             )),
         },
-        contact_repo: std::sync::Arc::new(crm_backend::repositories::contact_repo::PgContactRepo::new(pool.clone())),
-        deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(pool.clone())),
+        contact_repo: std::sync::Arc::new(
+            crm_backend::repositories::contact_repo::PgContactRepo::new(pool.clone()),
+        ),
+        deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(
+            pool.clone(),
+        )),
     };
 
     let app = crm_backend::routes::register_routes().with_state(state);

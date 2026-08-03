@@ -4,12 +4,17 @@ use axum::http::StatusCode;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::middleware::auth::UserPermissions;
 use crate::models::{Activity, Contact, Deal};
 
 pub async fn get_contact_deals(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<Deal>>, StatusCode> {
+    perms
+        .require("contacts.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let deals = sqlx::query_as::<_, Deal>(
         "SELECT id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, created_at, updated_at FROM deals WHERE contact_id = $1 ORDER BY created_at DESC"
     )
@@ -23,10 +28,14 @@ pub async fn get_contact_deals(
 
 pub async fn get_contact_activities(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<Activity>>, StatusCode> {
+    perms
+        .require("contacts.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let activities = sqlx::query_as::<_, Activity>(
-        "SELECT id, subject, description, activity_type, due_date, completed, contact_id, deal_id, created_at, updated_at FROM activities WHERE contact_id = $1 ORDER BY due_date DESC"
+        "SELECT id, subject, description, activity_type as \"activity_type: ActivityType\", due_date, completed, contact_id, deal_id, created_at, updated_at FROM activities WHERE contact_id = $1 ORDER BY due_date DESC"
     )
     .bind(id)
     .fetch_all(&state.db)
@@ -38,8 +47,12 @@ pub async fn get_contact_activities(
 
 pub async fn get_company_contacts(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<Contact>>, StatusCode> {
+    perms
+        .require("companies.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let contacts = sqlx::query_as::<_, Contact>(
         "SELECT id, first_name, last_name, email, phone, company_id, position, notes, created_at, updated_at FROM contacts WHERE company_id = $1 ORDER BY created_at DESC"
     )
@@ -53,8 +66,12 @@ pub async fn get_company_contacts(
 
 pub async fn get_company_deals(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<Deal>>, StatusCode> {
+    perms
+        .require("companies.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let deals = sqlx::query_as::<_, Deal>(
         "SELECT id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, created_at, updated_at FROM deals WHERE company_id = $1 ORDER BY created_at DESC"
     )
@@ -68,10 +85,14 @@ pub async fn get_company_deals(
 
 pub async fn get_deal_activities(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<Activity>>, StatusCode> {
+    perms
+        .require("deals.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let activities = sqlx::query_as::<_, Activity>(
-        "SELECT id, subject, description, activity_type, due_date, completed, contact_id, deal_id, created_at, updated_at FROM activities WHERE deal_id = $1 ORDER BY due_date DESC"
+        "SELECT id, subject, description, activity_type as \"activity_type: ActivityType\", due_date, completed, contact_id, deal_id, created_at, updated_at FROM activities WHERE deal_id = $1 ORDER BY due_date DESC"
     )
     .bind(id)
     .fetch_all(&state.db)
@@ -83,8 +104,12 @@ pub async fn get_deal_activities(
 
 pub async fn get_company_revenue(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    perms
+        .require("companies.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let result: (Option<f64>, i64) = sqlx::query_as(
         "SELECT SUM(value), COUNT(*) FROM deals WHERE company_id = $1 AND stage IN ('closed_won', 'proposal', 'negotiation')"
     )

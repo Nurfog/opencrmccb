@@ -207,6 +207,7 @@ export default function LeadsPage() {
             </p>
           </div>
           <button
+            type="button"
             onClick={() => { setEditingLead(null); setFormOpen(true) }}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
@@ -287,6 +288,7 @@ export default function LeadsPage() {
             </div>
             {(statusFilter || sourceFilter) && (
               <button
+                type="button"
                 onClick={() => { setStatusFilter(""); setSourceFilter(""); setPage(1) }}
                 className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 self-end"
               >
@@ -388,6 +390,7 @@ export default function LeadsPage() {
                           <div className="flex items-center justify-end gap-1">
                             {lead.status !== "converted" && (
                               <button
+                                type="button"
                                 onClick={() => { setConvertTarget(lead); setConvertOpen(true) }}
                                 className="p-1.5 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
                                 title={t("leads.convert")}
@@ -396,12 +399,14 @@ export default function LeadsPage() {
                               </button>
                             )}
                             <button
+                              type="button"
                               onClick={() => { setEditingLead(lead); setFormOpen(true) }}
                               className="p-1.5 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
+                              type="button"
                               onClick={() => { setDeleteTarget(lead); setDeleteOpen(true) }}
                               className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                             >

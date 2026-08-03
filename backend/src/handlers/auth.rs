@@ -837,11 +837,10 @@ pub async fn forgot_password(
     .await?;
 
     // Always return OK to prevent email enumeration
-    if user.is_none() {
-        return Ok(StatusCode::OK);
-    }
-
-    let user = user.unwrap();
+    let user = match user {
+        Some(u) => u,
+        None => return Ok(StatusCode::OK),
+    };
     let token = format!("{}", Uuid::new_v4());
     let token_hash = hash_token(&token);
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);

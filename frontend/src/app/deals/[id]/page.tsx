@@ -10,6 +10,7 @@ import { dealsApi, contactsApi, companiesApi, type Deal, type Contact, type Comp
 import { DealForm } from "@/components/forms/deal-form"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TagsInput } from "@/components/ui/tags-input"
+import Link from "next/link"
 import { formatDate, formatCurrency, cn } from "@/lib/utils"
 
 type Tab = "overview" | "activities"
@@ -220,9 +221,9 @@ export default function DealDetailPage() {
                       {t("contacts.title")}
                     </dt>
                     <dd>
-                      <a href={`/contacts/${contact.id}`} className="text-brand hover:underline">
+                      <Link href={`/contacts/${contact.id}`} className="text-brand hover:underline">
                         {contact.first_name} {contact.last_name}
-                      </a>
+                      </Link>
                     </dd>
                   </div>
                 )}
@@ -233,9 +234,9 @@ export default function DealDetailPage() {
                       {t("companies.title")}
                     </dt>
                     <dd>
-                      <a href={`/companies/${company.id}`} className="text-brand hover:underline">
+                      <Link href={`/companies/${company.id}`} className="text-brand hover:underline">
                         {company.name}
-                      </a>
+                      </Link>
                     </dd>
                   </div>
                 )}

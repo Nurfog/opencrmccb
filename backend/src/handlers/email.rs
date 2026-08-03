@@ -23,25 +23,18 @@ pub async fn send_email(
         .map_err(|_| StatusCode::FORBIDDEN)?;
     input.validate().map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    // Get SMTP config from env
-    let smtp_host = std::env::var("SMTP_HOST").unwrap_or_else(|_| "smtp.gmail.com".into());
-    let smtp_port: u16 = std::env::var("SMTP_PORT")
-        .unwrap_or_else(|_| "587".into())
-        .parse()
-        .unwrap_or(587);
-    let smtp_user = std::env::var("SMTP_USER").unwrap_or_default();
-    let smtp_pass = std::env::var("SMTP_PASSWORD").unwrap_or_default();
+    // Use SMTP config from AppState
     let from_email = input
         .from
         .clone()
-        .unwrap_or_else(|| std::env::var("SMTP_FROM").unwrap_or_else(|_| smtp_user.clone()));
+        .unwrap_or_else(|| state.smtp.from.clone());
 
     // Send via SMTP
     let send_result = crate::services::email::send_email(
-        &smtp_host,
-        smtp_port,
-        &smtp_user,
-        &smtp_pass,
+        &state.smtp.host,
+        state.smtp.port,
+        &state.smtp.user,
+        &state.smtp.password,
         &from_email,
         &input.to,
         &input.subject,
@@ -264,23 +257,17 @@ pub async fn send_from_template(
     let subject = template.subject.replace("{{to}}", &input.to);
     let body = template.body.replace("{{to}}", &input.to);
 
-    let smtp_host = std::env::var("SMTP_HOST").unwrap_or_else(|_| "smtp.gmail.com".into());
-    let smtp_port: u16 = std::env::var("SMTP_PORT")
-        .unwrap_or_else(|_| "587".into())
-        .parse()
-        .unwrap_or(587);
-    let smtp_user = std::env::var("SMTP_USER").unwrap_or_default();
-    let smtp_pass = std::env::var("SMTP_PASSWORD").unwrap_or_default();
+    // Use SMTP config from AppState
     let from_email = input
         .from
         .clone()
-        .unwrap_or_else(|| std::env::var("SMTP_FROM").unwrap_or_else(|_| smtp_user.clone()));
+        .unwrap_or_else(|| state.smtp.from.clone());
 
     let send_result = crate::services::email::send_email(
-        &smtp_host,
-        smtp_port,
-        &smtp_user,
-        &smtp_pass,
+        &state.smtp.host,
+        state.smtp.port,
+        &state.smtp.user,
+        &state.smtp.password,
         &from_email,
         &input.to,
         &subject,

@@ -101,6 +101,7 @@ pub async fn list_leads(
     if let Some(assigned) = params.assigned_to {
         bind_values.push(assigned.to_string());
         let idx = param_idx;
+        param_idx += 1;
         conditions.push(format!("assigned_to = ${}", idx));
     }
 

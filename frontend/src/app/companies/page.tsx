@@ -11,6 +11,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
 
 export default function CompaniesPage() {
@@ -176,7 +177,7 @@ export default function CompaniesPage() {
                   <tbody>
                     {data.data.map((company) => (
                       <tr key={company.id}>
-                        <td className="font-medium"><a href={`/companies/${company.id}`} className="hover:underline">{company.name}</a></td>
+                        <td className="font-medium"><Link href={`/companies/${company.id}`} className="hover:underline">{company.name}</Link></td>
                         <td className="text-sm">{company.industry ?? "-"}</td>
                         <td className="text-sm">{company.city ?? "-"}</td>
                         <td className="text-sm">{company.country ?? "-"}</td>

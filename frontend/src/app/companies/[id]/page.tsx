@@ -10,6 +10,7 @@ import { companiesApi, type Company, type Contact, type Deal } from "@/lib/api"
 import { CompanyForm } from "@/components/forms/company-form"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TagsInput } from "@/components/ui/tags-input"
+import Link from "next/link"
 import { Timeline } from "@/components/ui/timeline"
 import { formatDate, formatCurrency, cn } from "@/lib/utils"
 
@@ -272,9 +273,9 @@ export default function CompanyDetailPage() {
                         {contacts.map((contact) => (
                           <tr key={contact.id}>
                             <td>
-                              <a href={`/contacts/${contact.id}`} className="font-medium hover:underline">
+                              <Link href={`/contacts/${contact.id}`} className="font-medium hover:underline">
                                 {contact.first_name} {contact.last_name}
-                              </a>
+                              </Link>
                             </td>
                             <td>{contact.email || "-"}</td>
                             <td>{contact.phone || "-"}</td>

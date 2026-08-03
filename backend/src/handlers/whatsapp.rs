@@ -101,7 +101,6 @@ pub struct WebhookMetadata {
 
 #[derive(Debug, Deserialize)]
 pub struct WebhookQuery {
-    #[allow(dead_code)]
     #[serde(rename = "hub.mode")]
     pub mode: Option<String>,
     #[serde(rename = "hub.verify_token")]

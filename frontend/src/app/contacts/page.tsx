@@ -12,6 +12,7 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AdvancedFilters, ActiveFilters, type FilterField } from "@/components/ui/advanced-filters"
+import Link from "next/link"
 import { formatDate, getInitials, cn } from "@/lib/utils"
 
 type SortField = "first_name" | "last_name" | "email" | "phone" | "position"
@@ -348,9 +349,9 @@ export default function ContactsPage() {
                               {getInitials(`${contact.first_name} ${contact.last_name}`)}
                             </div>
                             <div>
-                              <a href={`/contacts/${contact.id}`} className="text-sm font-medium hover:underline">
+                              <Link href={`/contacts/${contact.id}`} className="text-sm font-medium hover:underline">
                                 {contact.first_name} {contact.last_name}
-                              </a>
+                              </Link>
                             </div>
                           </div>
                         </td>

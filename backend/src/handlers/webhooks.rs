@@ -5,11 +5,16 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::AppState;
+use crate::middleware::auth::UserPermissions;
 use crate::models::{CreateWebhook, UpdateWebhook, Webhook, WebhookDelivery};
 
 pub async fn list_webhooks(
     State(state): State<AppState>,
+    perms: UserPermissions,
 ) -> Result<Json<Vec<Webhook>>, StatusCode> {
+    perms
+        .require("webhooks.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let webhooks = sqlx::query_as::<_, Webhook>(
         "SELECT id, url, event as \"event: WebhookEvent\", secret, active, created_at, updated_at FROM webhooks ORDER BY created_at DESC",
     )
@@ -22,8 +27,12 @@ pub async fn list_webhooks(
 
 pub async fn create_webhook(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Json(input): Json<CreateWebhook>,
 ) -> Result<(StatusCode, Json<Webhook>), StatusCode> {
+    perms
+        .require("webhooks.manage")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     input
         .validate()
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
@@ -47,9 +56,13 @@ pub async fn create_webhook(
 
 pub async fn update_webhook(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateWebhook>,
 ) -> Result<Json<Webhook>, StatusCode> {
+    perms
+        .require("webhooks.manage")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     input
         .validate()
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
@@ -93,8 +106,12 @@ pub async fn update_webhook(
 
 pub async fn list_deliveries(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<WebhookDelivery>>, StatusCode> {
+    perms
+        .require("webhooks.view")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     // Verify webhook exists
     let exists = sqlx::query_scalar::<_, i64>("SELECT 1 FROM webhooks WHERE id = $1")
         .bind(id)
@@ -126,8 +143,12 @@ pub async fn list_deliveries(
 
 pub async fn delete_webhook(
     State(state): State<AppState>,
+    perms: UserPermissions,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
+    perms
+        .require("webhooks.manage")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let result = sqlx::query("DELETE FROM webhooks WHERE id = $1")
         .bind(id)
         .execute(&state.db)

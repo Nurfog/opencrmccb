@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Pagination } from "@/components/ui/pagination"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
+import Link from "next/link"
 import { formatCurrency, formatDate, formatDateTime, cn } from "@/lib/utils"
 
 interface AuditEvent {
@@ -360,7 +361,7 @@ export default function DealsPage() {
                   <tbody>
                     {deals.map((deal) => (
                       <tr key={deal.id}>
-                        <td className="font-medium"><a href={`/deals/${deal.id}`} className="hover:underline">{deal.title}</a></td>
+                        <td className="font-medium"><Link href={`/deals/${deal.id}`} className="hover:underline">{deal.title}</Link></td>
                         <td>{formatCurrency(deal.value, deal.currency)}</td>
                         <td>
                           <span className={cn("slds-badge", stageColors[deal.stage] ?? "")}>

@@ -14,7 +14,7 @@ pub enum ActivityType {
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "recurrence_type", rename_all = "lowercase")]
+#[sqlx(rename_all = "lowercase")]
 pub enum RecurrenceType {
     None,
     Daily,

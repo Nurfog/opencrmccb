@@ -395,15 +395,9 @@ async fn try_create_contact(
 ) -> Option<Uuid> {
     let first_name = data["first_name"].as_str().filter(|s| !s.is_empty())?;
     let last_name = data["last_name"].as_str().unwrap_or("");
-    let email = data["email"]
-        .as_str()
-        .and_then(|s| if s.is_empty() { None } else { Some(s) });
-    let position = data["position"]
-        .as_str()
-        .and_then(|s| if s.is_empty() { None } else { Some(s) });
-    let notes = data["notes"]
-        .as_str()
-        .and_then(|s| if s.is_empty() { None } else { Some(s) });
+    let email = data["email"].as_str().filter(|s| !s.is_empty());
+    let position = data["position"].as_str().filter(|s| !s.is_empty());
+    let notes = data["notes"].as_str().filter(|s| !s.is_empty());
 
     sqlx::query_scalar::<_, Uuid>(
         r#"

@@ -1,7 +1,6 @@
 use crm_backend::models::DealStage;
 use crm_backend::models::csv::{escape_csv, parse_csv_rows, parse_deal_import_row};
 use rust_decimal::Decimal;
-use std::str::FromStr;
 
 #[test]
 fn parse_csv_rows_simple() {

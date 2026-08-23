@@ -238,7 +238,9 @@ export default function DashboardPage() {
                       <td>
                         <span className="slds-badge">{deal.stage}</span>
                       </td>
-                      <td className="text-muted-foreground">-</td>
+                      <td className="text-muted-foreground">
+                        {deal.expected_close_date ? formatDate(deal.expected_close_date) : "-"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

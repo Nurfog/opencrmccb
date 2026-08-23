@@ -150,11 +150,13 @@ pub async fn get_top_deals(
         value: f64,
         stage: String,
         company_name: Option<String>,
+        expected_close_date: Option<chrono::DateTime<chrono::Utc>>,
     }
 
     let rows = sqlx::query_as::<_, TopDealRow>(
         r#"
-        SELECT d.id, d.title, d.value::double precision, d.stage::text AS stage, c.name AS company_name
+        SELECT d.id, d.title, d.value::double precision, d.stage::text AS stage,
+               c.name AS company_name, d.expected_close_date
         FROM deals d
         LEFT JOIN companies c ON d.company_id = c.id
         WHERE d.stage != 'closed_lost'
@@ -174,6 +176,7 @@ pub async fn get_top_deals(
             value: r.value,
             stage: r.stage,
             company_name: r.company_name,
+            expected_close_date: r.expected_close_date,
         })
         .collect();
 

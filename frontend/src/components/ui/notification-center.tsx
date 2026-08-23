@@ -28,6 +28,8 @@ export function NotificationCenter() {
       }
     }
     fetchData()
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {

@@ -31,6 +31,7 @@ pub struct TopDeal {
     pub value: f64,
     pub stage: String,
     pub company_name: Option<String>,
+    pub expected_close_date: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize)]

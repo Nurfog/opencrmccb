@@ -32,6 +32,7 @@ export interface TopDeal {
   value: number;
   stage: string;
   company_name?: string;
+  expected_close_date?: string;
 }
 
 export interface RecentActivity {

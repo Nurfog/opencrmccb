@@ -7,7 +7,6 @@ import {
   Menu,
   Search,
   Plus,
-  Bell,
   Settings,
   HelpCircle,
   LogOut,
@@ -127,14 +126,6 @@ export function Header({ onMenuClick }: HeaderProps) {
             </div>
           )}
         </div>
-
-        <Link
-          href="/activities"
-          className="relative flex items-center justify-center rounded p-1.5 text-white/80 hover:text-white transition-colors"
-          aria-label="Notifications"
-        >
-          <Bell className="h-4 w-4" />
-        </Link>
 
         <Link
           href="/settings"

@@ -1,11 +1,12 @@
 use axum::Json;
 use axum::extract::{Query, State};
-use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::UserPermissions;
 use crate::models::escape_like;
+use rust_decimal::Decimal;
 
 #[derive(Debug, Deserialize)]
 pub struct SearchParams {
@@ -32,10 +33,10 @@ pub async fn global_search(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
     perms: UserPermissions,
-) -> Result<Json<SearchResponse>, StatusCode> {
+) -> Result<Json<SearchResponse>, AppError> {
     perms
         .require("search.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let query = params.q.trim();
     if query.is_empty() {
         return Ok(Json(SearchResponse {
@@ -62,8 +63,7 @@ pub async fn global_search(
     .bind(&search_pattern)
     .bind(limit)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .await?
     .into_iter()
     .map(|(id, first_name, last_name, email)| {
         let label = format!("{} {}", first_name, last_name);
@@ -90,8 +90,7 @@ pub async fn global_search(
     .bind(&search_pattern)
     .bind(limit)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .await?
     .into_iter()
     .map(|(id, name, industry)| {
         let subtitle = industry.unwrap_or_default();
@@ -104,7 +103,7 @@ pub async fn global_search(
     })
     .collect();
 
-    let deals = sqlx::query_as::<_, (uuid::Uuid, String, f64, String)>(
+    let deals = sqlx::query_as::<_, (uuid::Uuid, String, Decimal, String)>(
         r#"
         SELECT id, title, value, stage::text
         FROM deals
@@ -116,11 +115,10 @@ pub async fn global_search(
     .bind(&search_pattern)
     .bind(limit)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .await?
     .into_iter()
     .map(|(id, title, value, stage)| {
-        let subtitle = format!("${:.0} - {}", value, stage);
+        let subtitle = format!("${} - {}", value.round_dp(0), stage);
         SearchResult {
             id: id.to_string(),
             entity_type: "deal".to_string(),

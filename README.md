@@ -218,11 +218,11 @@ opencmrccb/
 │   │   ├── lib.rs             # Library exports
 │   │   ├── config.rs          # Environment configuration
 │   │   ├── db.rs              # Database connection pool
-│   │   ├── handlers/          # 14 handler modules
+│   │   ├── handlers/          # 26 handler modules
 │   │   ├── middleware/        # Auth, rate limiting, metrics
-│   │   ├── models/            # 13 model modules
+│   │   ├── models/            # 22 model modules
 │   │   └── services/          # Email service
-│   ├── tests/                 # 35 unit tests
+│   ├── tests/                 # 7 test files (unit + integration, require Postgres)
 │   ├── Cargo.toml
 │   └── Dockerfile
 ├── frontend/                   # Next.js 15 + Tailwind
@@ -236,7 +236,7 @@ opencmrccb/
 │   ├── package.json
 │   └── Dockerfile
 ├── database/
-│   └── migrations/            # 24 SQL migrations
+│   └── migrations/            # 33 SQL migrations
 ├── monitoring/
 │   ├── prometheus.yml
 │   ├── promtail-config.yml

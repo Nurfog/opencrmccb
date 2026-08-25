@@ -42,7 +42,7 @@ docker compose -f docker-compose.test.yml up  # test DB on :5433
 
 - **Backend**: Rust edition 2024, Axum 0.8, SQLx 0.8, entry at `backend/src/main.rs`
 - **Frontend**: Next.js 15.1, React 19, Zustand for state, Tailwind 3.4 with CSS custom properties for theming
-- **DB**: PostgreSQL 17 + pgvector. 30 numbered migrations in `database/migrations/`. Auto-run on `docker compose up`.
+- **DB**: PostgreSQL 17 + pgvector. 33 numbered migrations in `database/migrations/`. Auto-run on `docker compose up`.
 - **API**: All routes under `/api/v1/`. Route definitions in `backend/src/routes.rs`. Auth via JWT (HS256) + refresh token rotation.
 - **Auth/RBAC**: `auth_routes()` applies JWT middleware. `admin_routes()` wraps with `admin_only_middleware` (checks admin.access permission).
 - **i18n**: JSON files in `frontend/src/lib/i18n/`. Language stored in localStorage. Context provider at app root.
@@ -64,7 +64,7 @@ docker compose -f docker-compose.test.yml up  # test DB on :5433
 | Config (env vars) | `backend/src/config.rs` |
 | API client (fetch wrapper) | `frontend/src/lib/api.ts` |
 | Translations | `frontend/src/lib/i18n/` |
-| Migrations | `database/migrations/*.sql` (numbered 001–021) |
+| Migrations | `database/migrations/*.sql` (numbered 001–033) |
 | Docker stack | `docker-compose.yml` (9 services) |
 | CI pipeline | `.github/workflows/ci.yml` |
 | Env template | `.env.example` (copy to `.env`) |
@@ -77,4 +77,4 @@ docker compose -f docker-compose.test.yml up  # test DB on :5433
 - **pgvector in Dockerfile**: Extension installed but no vector columns used yet. Don't add vector features without confirming pgvector version compatibility.
 - **`NEXT_PUBLIC_API_URL`**: Must be set in frontend env. Defaults to `http://localhost:8000`.
 - **Migrations are non-destructive numbered SQL**: Never rename a migration file. Append new ones with next number.
-- **No frontend test runner**: `npm test` is not configured. CI only runs `build` + `lint` for frontend.
+- **Frontend testing**: `pnpm test:e2e` runs Playwright E2E tests. No unit test runner configured.

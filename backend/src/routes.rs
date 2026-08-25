@@ -456,15 +456,9 @@ pub async fn admin_only_middleware(
     let user_id =
         uuid::Uuid::parse_str(&claims.sub).map_err(|_| axum::http::StatusCode::UNAUTHORIZED)?;
 
-    let permissions: Vec<String> = sqlx::query_scalar(
-        "SELECT pp.permission FROM profile_permissions pp \
-         JOIN users u ON u.profile_id = pp.profile_id \
-         WHERE u.id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    let permissions = crate::middleware::auth::load_permissions(&state, user_id)
+        .await
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let has_admin = permissions.iter().any(|p| p.as_str() == "admin.access");
     if !has_admin {

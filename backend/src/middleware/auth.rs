@@ -6,9 +6,63 @@ use axum::{
 };
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::AppState;
+
+// ─── Permissions cache ─────────────────────────────────────────
+// Avoid querying `profile_permissions` on every authenticated request
+// (and twice on admin routes). Short TTL keeps RBAC changes visible
+// within seconds while drastically cutting DB round-trips.
+const PERM_TTL: Duration = Duration::from_secs(60);
+
+struct PermCacheEntry {
+    perms: Vec<String>,
+    fetched_at: Instant,
+}
+
+fn perm_cache() -> &'static Mutex<HashMap<Uuid, PermCacheEntry>> {
+    static CACHE: OnceLock<Mutex<HashMap<Uuid, PermCacheEntry>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Load a user's permissions from the DB, using a short-lived in-memory cache.
+pub(crate) async fn load_permissions(
+    state: &AppState,
+    user_id: Uuid,
+) -> Result<Vec<String>, StatusCode> {
+    if let Ok(guard) = perm_cache().lock()
+        && let Some(entry) = guard.get(&user_id)
+        && entry.fetched_at.elapsed() < PERM_TTL
+    {
+        return Ok(entry.perms.clone());
+    }
+
+    let perms: Vec<String> = sqlx::query_scalar(
+        "SELECT pp.permission FROM profile_permissions pp \
+         JOIN users u ON u.profile_id = pp.profile_id \
+         WHERE u.id = $1",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Ok(mut guard) = perm_cache().lock() {
+        guard.insert(
+            user_id,
+            PermCacheEntry {
+                perms: perms.clone(),
+                fetched_at: Instant::now(),
+            },
+        );
+    }
+
+    Ok(perms)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -91,15 +145,7 @@ pub async fn auth_middleware(
     // Load permissions once and attach to request extensions
     let user_id = Uuid::parse_str(&token_data.claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    let permissions: Vec<String> = sqlx::query_scalar(
-        "SELECT pp.permission FROM profile_permissions pp \
-         JOIN users u ON u.profile_id = pp.profile_id \
-         WHERE u.id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let permissions = load_permissions(&state, user_id).await?;
 
     request.extensions_mut().insert(token_data.claims);
     request
@@ -201,15 +247,7 @@ impl FromRequestParts<AppState> for UserPermissions {
 
         let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-        let permissions: Vec<String> = sqlx::query_scalar(
-            "SELECT pp.permission FROM profile_permissions pp \
-             JOIN users u ON u.profile_id = pp.profile_id \
-             WHERE u.id = $1",
-        )
-        .bind(user_id)
-        .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let permissions = load_permissions(state, user_id).await?;
 
         Ok(UserPermissions(permissions))
     }

@@ -63,6 +63,13 @@ async fn test_health_check() {
         deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(
             pool.clone(),
         )),
+        company_repo: std::sync::Arc::new(
+            crm_backend::repositories::company_repo::PgCompanyRepo::new(pool.clone()),
+        ),
+        lead_repo: std::sync::Arc::new(
+            crm_backend::repositories::lead_repo::PgLeadRepo::new(pool.clone()),
+        ),
+        http_client: reqwest::Client::new(),
     };
 
     let app = crm_backend::routes::public_routes().with_state(state);
@@ -127,6 +134,13 @@ async fn test_register_first_user() {
         deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(
             pool.clone(),
         )),
+        company_repo: std::sync::Arc::new(
+            crm_backend::repositories::company_repo::PgCompanyRepo::new(pool.clone()),
+        ),
+        lead_repo: std::sync::Arc::new(
+            crm_backend::repositories::lead_repo::PgLeadRepo::new(pool.clone()),
+        ),
+        http_client: reqwest::Client::new(),
     };
 
     let app = crm_backend::routes::register_routes().with_state(state);
@@ -214,6 +228,13 @@ async fn test_register_second_user_forbidden() {
         deal_repo: std::sync::Arc::new(crm_backend::repositories::deal_repo::PgDealRepo::new(
             pool.clone(),
         )),
+        company_repo: std::sync::Arc::new(
+            crm_backend::repositories::company_repo::PgCompanyRepo::new(pool.clone()),
+        ),
+        lead_repo: std::sync::Arc::new(
+            crm_backend::repositories::lead_repo::PgLeadRepo::new(pool.clone()),
+        ),
+        http_client: reqwest::Client::new(),
     };
 
     let app = crm_backend::routes::register_routes().with_state(state);

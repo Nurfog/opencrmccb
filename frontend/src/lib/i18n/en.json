@@ -28,7 +28,8 @@
     "settings": "Settings",
     "admin": "Administration",
     "help": "Help",
-    "audit": "Audit"
+    "audit": "Audit",
+    "skipToContent": "Skip to main content"
   },
   "common": {
     "new": "New",

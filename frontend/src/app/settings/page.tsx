@@ -1,16 +1,18 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { User, Shield, Bell, Palette, Globe, Plug, Camera, Moon, Sun, Save, Check, ExternalLink, Trash2 } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { User, Shield, Bell, Palette, Globe, Plug, ExternalLink, Trash2 } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
-import { useAuthStore } from "@/stores/auth-store"
 import { useToast } from "@/contexts/toast-context"
-import { useTheme } from "@/contexts/theme-context"
-import { authApi, integrationsApi, whatsAppApi, aiApi, notificationsApi, type IntegrationStatus, type WhatsAppConfig, type LeadAssignmentConfig, type AIConfig } from "@/lib/api"
+import { integrationsApi, whatsAppApi, aiApi, type IntegrationStatus, type WhatsAppConfig, type LeadAssignmentConfig, type AIConfig } from "@/lib/api"
 import { Modal } from "@/components/ui/modal"
-import { ChangePasswordForm } from "@/components/forms/change-password-form"
 import { cn } from "@/lib/utils"
+import { ProfileSection } from "@/components/settings/profile-section"
+import { SecuritySection } from "@/components/settings/security-section"
+import { NotificationsSection } from "@/components/settings/notifications-section"
+import { AppearanceSection } from "@/components/settings/appearance-section"
+import { LanguageSection } from "@/components/settings/language-section"
 
 type SettingsTab = "profile" | "security" | "notifications" | "appearance" | "language" | "integrations"
 
@@ -24,77 +26,10 @@ const tabs: { id: SettingsTab; label: string; icon: typeof User }[] = [
 ]
 
 export default function SettingsPage() {
-  const { t, locale, setLocale } = useI18n()
-  const { user, updateUser } = useAuthStore()
+  const { t } = useI18n()
   const { success, error } = useToast()
-  const { theme, setTheme } = useTheme()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile")
-
-  // Notification toggles
-  const [emailNotifs, setEmailNotifs] = useState(true)
-  const [pushNotifs, setPushNotifs] = useState(true)
-  const [weeklyDigest, setWeeklyDigest] = useState(false)
-  const [marketingEmails, setMarketingEmails] = useState(false)
-  const [notifPrefsLoading, setNotifPrefsLoading] = useState(false)
-
-  // Load notification preferences from API
-  useEffect(() => {
-    if (activeTab === "notifications") {
-      setNotifPrefsLoading(true)
-      notificationsApi.getPreferences()
-        .then((prefs) => {
-          setEmailNotifs(prefs.email_enabled)
-          setPushNotifs(prefs.push_enabled)
-          setWeeklyDigest(prefs.weekly_digest)
-          setMarketingEmails(prefs.marketing_emails)
-        })
-        .catch(() => { /* use defaults */ })
-        .finally(() => setNotifPrefsLoading(false))
-    }
-  }, [activeTab])
-
-  const handleNotifToggle = async (key: string, current: boolean, setter: (v: boolean) => void) => {
-    const newVal = !current
-    setter(newVal)
-    try {
-      await notificationsApi.updatePreferences({ [key]: newVal })
-      success(t("toast.updated", { entity: t("settings.notifications") }))
-    } catch {
-      setter(current)
-      error(t("toast.error", { action: "update", entity: t("settings.notifications") }))
-    }
-  }
-
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [email, setEmail] = useState("")
-  const [profileLoading, setProfileLoading] = useState(false)
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (user) {
-      setFirstName(user.first_name ?? "")
-      setLastName(user.last_name ?? "")
-      setEmail(user.email ?? "")
-    }
-  }, [user])
-
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setProfileLoading(true)
-    try {
-      const updated = await authApi.updateProfile({ first_name: firstName, last_name: lastName, email })
-      updateUser(updated)
-      success(t("toast.updated", { entity: t("settings.profile") }))
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t("toast.error", { action: "update", entity: t("settings.profile") })
-      error(msg)
-    } finally {
-      setProfileLoading(false)
-    }
-  }
 
   // ─── Integrations ───
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([])
@@ -279,203 +214,22 @@ export default function SettingsPage() {
     twilio: { name: "Twilio", description: "SMS, llamadas de voz", type: "oauth" },
   }
 
-  // TODO: implement avatar upload via API client when backend supports it (POST /api/v1/auth/profile with base64 image)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const handleAvatarChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setAvatarPreview(reader.result as string)
-    reader.readAsDataURL(file)
-    success(t("toast.updated", { entity: t("settings.profile") }))
-  }, [success, t])
-
   const renderTab = () => {
     switch (activeTab) {
       case "profile":
-        return (
-          <form onSubmit={handleProfileSubmit} className="space-y-6">
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Avatar" className="w-20 h-20 rounded-full object-cover" />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-brand flex items-center justify-center text-white text-2xl font-semibold">
-                    {user ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}` : "U"}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                >
-                  <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-              </div>
-              <div>
-                <p className="text-sm font-medium">{user ? `${user.first_name} ${user.last_name}` : ""}</p>
-                <p className="text-xs text-muted-foreground">
-                  {user?.permissions?.length ? `${user.permissions.length} permisos` : "Sin perfil"}
-                </p>
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs text-brand hover:underline mt-1">
-                  {t("settings.changePhoto")}
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="slds-label" htmlFor="firstName">{t("settings.firstName")}</label>
-                <input id="firstName" className="slds-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-              </div>
-              <div>
-                <label className="slds-label" htmlFor="lastName">{t("settings.lastName")}</label>
-                <input id="lastName" className="slds-input" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="slds-label" htmlFor="email">{t("settings.email")}</label>
-                <input id="email" type="email" className="slds-input" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-            </div>
-
-            <button type="submit" disabled={profileLoading} className="slds-btn slds-btn--brand flex items-center gap-2">
-              <Save className="h-4 w-4" />
-              {profileLoading ? t("app.loading") : t("common.saveChanges")}
-            </button>
-          </form>
-        )
+        return <ProfileSection />
 
       case "security":
-        return <ChangePasswordForm />
+        return <SecuritySection />
 
       case "notifications":
-        return (
-          <div className="space-y-6">
-            <div className="space-y-4">
-              {[
-                { key: "email_enabled", label: t("settings.emailNotifications"), desc: t("settings.emailNotificationsDesc"), value: emailNotifs, onChange: setEmailNotifs },
-                { key: "push_enabled", label: t("settings.newContactNotifications"), desc: t("settings.newContactNotificationsDesc"), value: pushNotifs, onChange: setPushNotifs },
-                { key: "weekly_digest", label: t("settings.dealStageChanges"), desc: t("settings.dealStageChangesDesc"), value: weeklyDigest, onChange: setWeeklyDigest },
-                { key: "marketing_emails", label: t("settings.activityReminders"), desc: t("settings.activityRemindersDesc"), value: marketingEmails, onChange: setMarketingEmails },
-              ].map((item, idx) => (
-                <label key={idx} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <div>
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={item.value}
-                    disabled={notifPrefsLoading}
-                    onClick={() => handleNotifToggle(item.key, item.value, item.onChange)}
-                    className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                      item.value ? "bg-brand" : "bg-gray-300 dark:bg-gray-600",
-                      notifPrefsLoading && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition", item.value ? "translate-x-6" : "translate-x-1")} />
-                  </button>
-                </label>
-              ))}
-            </div>
-          </div>
-        )
+        return <NotificationsSection />
 
       case "appearance":
-        return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setTheme("light")}
-                className={cn(
-                  "flex items-center gap-4 p-4 rounded-lg border-2 transition-colors text-left",
-                  theme === "light"
-                    ? "border-brand bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                )}
-              >
-                <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-                  <Sun className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{t("settings.lightMode")}</p>
-                </div>
-                {theme === "light" && <Check className="h-5 w-5 text-brand" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme("dark")}
-                className={cn(
-                  "flex items-center gap-4 p-4 rounded-lg border-2 transition-colors text-left",
-                  theme === "dark"
-                    ? "border-brand bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                )}
-              >
-                <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                  <Moon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{t("settings.darkMode")}</p>
-                </div>
-                {theme === "dark" && <Check className="h-5 w-5 text-brand" />}
-              </button>
-            </div>
-          </div>
-        )
+        return <AppearanceSection />
 
       case "language":
-        return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setLocale("es")}
-                className={cn(
-                  "flex items-center gap-4 p-4 rounded-lg border-2 transition-colors text-left",
-                  locale === "es"
-                    ? "border-brand bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                )}
-              >
-                <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                  <span className="text-base font-bold text-red-600 dark:text-red-400">ES</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{t("settings.spanish")}</p>
-                  <p className="text-xs text-muted-foreground">Español</p>
-                </div>
-                {locale === "es" && <Check className="h-5 w-5 text-brand" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => setLocale("en")}
-                className={cn(
-                  "flex items-center gap-4 p-4 rounded-lg border-2 transition-colors text-left",
-                  locale === "en"
-                    ? "border-brand bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                )}
-              >
-                <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                  <span className="text-base font-bold text-blue-600 dark:text-blue-400">EN</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{t("settings.english")}</p>
-                  <p className="text-xs text-muted-foreground">English</p>
-                </div>
-                {locale === "en" && <Check className="h-5 w-5 text-brand" />}
-              </button>
-            </div>
-          </div>
-        )
+        return <LanguageSection />
 
       case "integrations":
         return (

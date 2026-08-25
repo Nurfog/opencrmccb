@@ -6,6 +6,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::handlers::audit::insert_audit_log;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{
@@ -57,10 +58,10 @@ pub async fn list_leads(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<LeadQuery>,
-) -> Result<Json<PaginatedResponse<Lead>>, StatusCode> {
+) -> Result<Json<PaginatedResponse<Lead>>, AppError> {
     perms
         .require("leads.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let page = params.page();
     let per_page = params.per_page();
     let offset = params.offset();
@@ -129,17 +130,13 @@ pub async fn list_leads(
         data_q = data_q.bind(val);
     }
 
-    let total: i64 = count_q
-        .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let total: i64 = count_q.fetch_one(&state.db).await?;
 
     let leads = data_q
         .bind(per_page)
         .bind(offset)
         .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(Json(PaginatedResponse::new(leads, total, page, per_page)))
 }
@@ -148,10 +145,10 @@ pub async fn get_lead(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<Json<Lead>, StatusCode> {
+) -> Result<Json<Lead>, AppError> {
     perms
         .require("leads.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let lead = sqlx::query_as::<_, Lead>(
         "SELECT id, first_name, last_name, email, phone, company_name, title, industry, website,
                 lead_source, status, score, assigned_to, converted_at, converted_contact_id,
@@ -160,9 +157,8 @@ pub async fn get_lead(
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     Ok(Json(lead))
 }
@@ -172,11 +168,11 @@ pub async fn create_lead(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<CreateLead>,
-) -> Result<(StatusCode, Json<Lead>), StatusCode> {
+) -> Result<(StatusCode, Json<Lead>), AppError> {
     perms
         .require("leads.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    input.validate().map_err(|_| StatusCode::BAD_REQUEST)?;
+        .map_err(|_| AppError::Forbidden)?;
+    input.validate()?;
 
     let lead = sqlx::query_as::<_, Lead>(
         "INSERT INTO leads (first_name, last_name, email, phone, company_name, title, industry, website, lead_source, assigned_to, notes)
@@ -197,8 +193,7 @@ pub async fn create_lead(
     .bind(input.assigned_to)
     .bind(&input.notes)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
     let _ = insert_audit_log(
@@ -221,11 +216,11 @@ pub async fn update_lead(
     perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateLead>,
-) -> Result<Json<Lead>, StatusCode> {
+) -> Result<Json<Lead>, AppError> {
     perms
         .require("leads.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    input.validate().map_err(|_| StatusCode::BAD_REQUEST)?;
+        .map_err(|_| AppError::Forbidden)?;
+    input.validate()?;
 
     let existing = sqlx::query_as::<_, Lead>(
         "SELECT id, first_name, last_name, email, phone, company_name, title, industry, website,
@@ -235,9 +230,8 @@ pub async fn update_lead(
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     // Validate status progression
     if let Some(ref new_status) = input.status {
@@ -252,7 +246,7 @@ pub async fn update_lead(
         };
 
         if !allowed {
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(AppError::BadRequest("Invalid status transition".into()));
         }
     }
 
@@ -292,8 +286,7 @@ pub async fn update_lead(
     .bind(input.assigned_to)
     .bind(&input.notes)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
     let _ = insert_audit_log(
@@ -315,18 +308,17 @@ pub async fn delete_lead(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("leads.delete")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let result = sqlx::query("DELETE FROM leads WHERE id = $1")
         .bind(id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
@@ -341,16 +333,12 @@ pub async fn convert_lead(
     perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<ConvertLead>,
-) -> Result<Json<ConvertLeadResult>, StatusCode> {
+) -> Result<Json<ConvertLeadResult>, AppError> {
     perms
         .require("leads.convert")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
 
-    let mut tx = state
-        .db
-        .begin()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut tx = state.db.begin().await?;
 
     let lead = sqlx::query_as::<_, Lead>(
         "SELECT id, first_name, last_name, email, phone, company_name, title, industry, website,
@@ -360,13 +348,14 @@ pub async fn convert_lead(
     )
     .bind(id)
     .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     // Only qualified leads can be converted
     if lead.status != LeadStatus::Qualified {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::BadRequest(
+            "Lead must be qualified to convert".into(),
+        ));
     }
 
     // Fetch pipeline to determine entity type
@@ -374,9 +363,8 @@ pub async fn convert_lead(
         sqlx::query_as::<_, (String,)>("SELECT entity_type FROM pipelines WHERE id = $1")
             .bind(input.pipeline_id)
             .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-            .ok_or(StatusCode::BAD_REQUEST)?;
+            .await?
+            .ok_or(AppError::BadRequest("Invalid pipeline".into()))?;
 
     let is_company = pipeline_info.0 == "company";
 
@@ -386,8 +374,7 @@ pub async fn convert_lead(
     )
     .bind(input.pipeline_id)
     .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     #[allow(unused_assignments)]
     let mut company_id: Option<Uuid> = None;
@@ -409,8 +396,7 @@ pub async fn convert_lead(
         .bind(&lead.phone)
         .bind(&lead.email)
         .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
         company_id = Some(company.id);
     }
@@ -431,8 +417,7 @@ pub async fn convert_lead(
     .bind(company_id)
     .bind(&lead.title)
     .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     contact_id = Some(contact.id);
 
@@ -460,8 +445,7 @@ pub async fn convert_lead(
     .bind(default_stage.map(|s| s.0))
     .bind(format!("Converted from lead: {}", lead.id))
     .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     deal_id = Some(deal.id);
 
@@ -476,12 +460,9 @@ pub async fn convert_lead(
     .bind(company_id)
     .bind(deal_id)
     .execute(&mut *tx)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
-    tx.commit()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    tx.commit().await?;
 
     let user_id = Uuid::parse_str(&claims.0.sub).ok();
     let _ = insert_audit_log(&state.db, user_id, "convert", "lead", id,
@@ -501,18 +482,17 @@ pub async fn list_lead_activities(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(lead_id): Path<Uuid>,
-) -> Result<Json<Vec<LeadActivity>>, StatusCode> {
+) -> Result<Json<Vec<LeadActivity>>, AppError> {
     perms
         .require("leads.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let activities = sqlx::query_as::<_, LeadActivity>(
         "SELECT id, lead_id, type, subject, description, due_date, completed, created_by, created_at
          FROM lead_activities WHERE lead_id = $1 ORDER BY created_at DESC",
     )
     .bind(lead_id)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(activities))
 }
@@ -523,21 +503,20 @@ pub async fn create_lead_activity(
     perms: UserPermissions,
     Path(lead_id): Path<Uuid>,
     Json(input): Json<CreateLeadActivity>,
-) -> Result<(StatusCode, Json<LeadActivity>), StatusCode> {
+) -> Result<(StatusCode, Json<LeadActivity>), AppError> {
     perms
         .require("leads.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    input.validate().map_err(|_| StatusCode::BAD_REQUEST)?;
+        .map_err(|_| AppError::Forbidden)?;
+    input.validate()?;
 
     // Verify lead exists
     let exists = sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM leads WHERE id = $1)")
         .bind(lead_id)
         .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if !exists {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     let created_by = Uuid::parse_str(&claims.0.sub).ok();
@@ -553,8 +532,7 @@ pub async fn create_lead_activity(
     .bind(input.due_date)
     .bind(created_by)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok((StatusCode::CREATED, Json(activity)))
 }
@@ -563,20 +541,19 @@ pub async fn complete_lead_activity(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path((lead_id, activity_id)): Path<(Uuid, Uuid)>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("leads.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let result =
         sqlx::query("UPDATE lead_activities SET completed = TRUE WHERE id = $1 AND lead_id = $2")
             .bind(activity_id)
             .bind(lead_id)
             .execute(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     Ok(StatusCode::OK)
@@ -586,19 +563,18 @@ pub async fn delete_lead_activity(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path((lead_id, activity_id)): Path<(Uuid, Uuid)>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("leads.delete")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let result = sqlx::query("DELETE FROM lead_activities WHERE id = $1 AND lead_id = $2")
         .bind(activity_id)
         .bind(lead_id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -625,34 +601,29 @@ pub struct SourceCount {
 pub async fn lead_stats(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<LeadStats>, StatusCode> {
+) -> Result<Json<LeadStats>, AppError> {
     perms
         .require("leads.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads")
         .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let new: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'new'")
         .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let contacted: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'contacted'")
         .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let qualified: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'qualified'")
         .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let converted: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'converted'")
         .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let conversion_rate = if total.0 > 0 {
         (converted.0 as f64 / total.0 as f64) * 100.0
@@ -664,8 +635,7 @@ pub async fn lead_stats(
         "SELECT lead_source::text, COUNT(*) FROM leads GROUP BY lead_source ORDER BY COUNT(*) DESC",
     )
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .await?
     .into_iter()
     .map(|(source, count)| SourceCount { source, count })
     .collect();

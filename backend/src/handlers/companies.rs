@@ -5,6 +5,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::handlers::audit::insert_audit_log;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{Company, CreateCompany, PaginatedResponse, PaginationParams, UpdateCompany};
@@ -14,10 +15,10 @@ pub async fn list_companies(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<PaginationParams>,
-) -> Result<Json<PaginatedResponse<Company>>, StatusCode> {
+) -> Result<Json<PaginatedResponse<Company>>, AppError> {
     perms
         .require("companies.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let page = params.page();
     let per_page = params.per_page();
     let offset = params.offset();
@@ -58,13 +59,9 @@ pub async fn list_companies(
         sqlx::query_as(&count_query)
             .bind(search)
             .fetch_one(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .await?
     } else {
-        sqlx::query_as(&count_query)
-            .fetch_one(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        sqlx::query_as(&count_query).fetch_one(&state.db).await?
     };
 
     let companies = if let Some(ref search) = search_filter {
@@ -73,15 +70,13 @@ pub async fn list_companies(
             .bind(per_page)
             .bind(offset)
             .fetch_all(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .await?
     } else {
         sqlx::query_as::<_, Company>(&data_query)
             .bind(per_page)
             .bind(offset)
             .fetch_all(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .await?
     };
 
     Ok(Json(PaginatedResponse::new(
@@ -94,13 +89,13 @@ pub async fn create_company(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<CreateCompany>,
-) -> Result<(StatusCode, Json<Company>), StatusCode> {
+) -> Result<(StatusCode, Json<Company>), AppError> {
     perms
         .require("companies.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     input
         .validate()
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        .map_err(|_| AppError::Validation("Invalid company data".into()))?;
 
     let company = sqlx::query_as::<_, Company>(
         r#"
@@ -119,8 +114,7 @@ pub async fn create_company(
     .bind(&input.country)
     .bind(&input.notes)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
@@ -141,18 +135,17 @@ pub async fn get_company(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<Json<Company>, StatusCode> {
+) -> Result<Json<Company>, AppError> {
     perms
         .require("companies.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let company = sqlx::query_as::<_, Company>(
         "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     Ok(Json(company))
 }
@@ -163,22 +156,21 @@ pub async fn update_company(
     perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateCompany>,
-) -> Result<Json<Company>, StatusCode> {
+) -> Result<Json<Company>, AppError> {
     perms
         .require("companies.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     input
         .validate()
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        .map_err(|_| AppError::Validation("Invalid company data".into()))?;
 
     let old = sqlx::query_as::<_, Company>(
         "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let company = sqlx::query_as::<_, Company>(
         r#"
@@ -208,9 +200,8 @@ pub async fn update_company(
     .bind(&input.country)
     .bind(&input.notes)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
@@ -232,26 +223,24 @@ pub async fn delete_company(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("companies.delete")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let old = sqlx::query_as::<_, Company>(
         "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let result = sqlx::query("DELETE FROM companies WHERE id = $1")
         .bind(id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     if let Some(company) = old {
@@ -275,10 +264,10 @@ pub async fn export_companies(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<PaginationParams>,
-) -> Result<(HeaderMap, String), StatusCode> {
+) -> Result<(HeaderMap, String), AppError> {
     perms
         .require("companies.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let search_filter = params
         .search
         .as_ref()
@@ -290,15 +279,13 @@ pub async fn export_companies(
         )
         .bind(search)
         .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .await?
     } else {
         sqlx::query_as::<_, Company>(
             "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies ORDER BY created_at DESC LIMIT 100000"
         )
         .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .await?
     };
 
     let mut csv = String::from("name,industry,website,phone,email,address,city,country,notes\n");
@@ -334,10 +321,10 @@ pub async fn import_companies(
     State(state): State<AppState>,
     perms: UserPermissions,
     body: String,
-) -> Result<Json<ImportResult>, StatusCode> {
+) -> Result<Json<ImportResult>, AppError> {
     perms
         .require("companies.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let rows = parse_csv_rows(&body);
 
     let mut imported = 0;

@@ -1,57 +1,20 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, Search, LayoutGrid, List, X, Eye, Edit, Trash2, CircleDollarSign } from "lucide-react"
+import { Plus, Search, LayoutGrid, List, X, CircleDollarSign } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
 import { dealsApi, auditApi, type Deal } from "@/lib/api"
-import { KanbanBoard } from "@/components/kanban/kanban-board"
 import { DealForm } from "@/components/forms/deal-form"
-import { Modal } from "@/components/ui/modal"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Pagination } from "@/components/ui/pagination"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import Link from "next/link"
-import { formatCurrency, formatDate, formatDateTime, cn } from "@/lib/utils"
-
-interface AuditEvent {
-  id: string;
-  action: string;
-  entity_type: string;
-  entity_id: string;
-  old_values?: Record<string, unknown>;
-  new_values?: Record<string, unknown>;
-  created_at: string;
-}
-
-const STAGE_CONFIG = [
-  { id: "lead", name: "Lead", color: "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600" },
-  { id: "qualified", name: "Qualified", color: "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600" },
-  { id: "proposal", name: "Proposal", color: "bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-600" },
-  { id: "negotiation", name: "Negotiation", color: "bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-600" },
-  { id: "closed_won", name: "Closed Won", color: "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600" },
-  { id: "closed_lost", name: "Closed Lost", color: "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600" },
-]
-
-const stageColors: Record<string, string> = {
-  lead: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
-  qualified: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
-  proposal: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
-  negotiation: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-  closed_won: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-  closed_lost: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
-}
-
-const stageI18nKey: Record<string, string> = {
-  lead: "stages.lead",
-  qualified: "stages.qualified",
-  proposal: "stages.proposal",
-  negotiation: "stages.negotiation",
-  closed_won: "stages.closedWon",
-  closed_lost: "stages.closedLost",
-}
+import { cn } from "@/lib/utils"
+import { DealsTableView } from "@/components/deals/deals-table-view"
+import { DealsKanbanView, DealsKanbanSkeleton } from "@/components/deals/deals-kanban-view"
+import { DealDetailModal } from "@/components/deals/deal-detail-modal"
+import { STAGE_CONFIG, stageI18nKey, type AuditEvent } from "@/components/deals/deals-constants"
 
 export default function DealsPage() {
   const { t } = useI18n()
@@ -301,24 +264,7 @@ export default function DealsPage() {
 
         {loading ? (
           viewMode === "pipeline" ? (
-            <div className="slds-kanban">
-              {STAGE_CONFIG.map((stage) => (
-                <div key={stage.id} className="slds-kanban__column space-y-2">
-                  <div className="slds-kanban__column-header">
-                    <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
-                  </div>
-                  <div className="slds-kanban__column-body min-h-[200px]">
-                    {Array.from({ length: 2 }).map((_, i) => (
-                      <div key={i} className="slds-kanban__card space-y-2">
-                        <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
-                        <div className="h-3 w-1/2 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
-                        <div className="h-3 w-2/3 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DealsKanbanSkeleton />
           ) : (
             <TableSkeleton rows={8} />
           )
@@ -335,67 +281,25 @@ export default function DealsPage() {
             action={{ label: t("deals.newDeal"), onClick: openCreate }}
           />
         ) : viewMode === "pipeline" ? (
-          <KanbanBoard
-            stages={STAGE_CONFIG.map((s) => ({ id: s.id, name: s.name, color: stageColors[s.id] }))}
+          <DealsKanbanView
             deals={deals}
             onStageChange={handleStageChange}
-            formatCurrency={(value: number, currency: string) => formatCurrency(value, currency)}
             onView={openView}
             onEdit={openEdit}
             onDelete={openDelete}
           />
         ) : (
-          <>
-            <div className="slds-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="slds-table">
-                  <thead>
-                    <tr>
-                      <th>{t("deals.dealName")}</th>
-                      <th>{t("deals.amount")}</th>
-                      <th>{t("deals.stage")}</th>
-                      <th>{t("deals.expectedCloseDate")}</th>
-                      <th>{t("common.actions")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deals.map((deal) => (
-                      <tr key={deal.id}>
-                        <td className="font-medium"><Link href={`/deals/${deal.id}`} className="hover:underline">{deal.title}</Link></td>
-                        <td>{formatCurrency(deal.value, deal.currency)}</td>
-                        <td>
-                          <span className={cn("slds-badge", stageColors[deal.stage] ?? "")}>
-                            {stageLabel(deal.stage)}
-                          </span>
-                        </td>
-                        <td className="text-muted-foreground">{deal.expected_close_date ? formatDate(deal.expected_close_date) : "-"}</td>
-                        <td>
-                          <div className="flex items-center gap-1">
-                            <button type="button" onClick={() => openView(deal)} className="slds-btn slds-btn--icon">
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button type="button" onClick={() => openEdit(deal)} className="slds-btn slds-btn--icon">
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button type="button" onClick={() => openDelete(deal)} className="slds-btn slds-btn--icon text-red-500 hover:text-red-700 dark:hover:text-red-400">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              total={totalCount}
-              perPage={perPage}
-              onPageChange={setPage}
-            />
-          </>
+          <DealsTableView
+            deals={deals}
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            perPage={perPage}
+            onPageChange={setPage}
+            onView={openView}
+            onEdit={openEdit}
+            onDelete={openDelete}
+          />
         )}
       </div>
 
@@ -406,97 +310,15 @@ export default function DealsPage() {
         initialData={editingDeal ?? undefined}
       />
 
-      <Modal isOpen={viewDealOpen} onClose={() => setViewDealOpen(false)} title={t("deals.dealDetails")} size="lg">
-        {viewDeal && (
-          <div className="space-y-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">{viewDeal.title}</h3>
-                <p className="text-2xl font-bold mt-1">{formatCurrency(viewDeal.value, viewDeal.currency)}</p>
-              </div>
-              <span className={cn("slds-badge", stageColors[viewDeal.stage] ?? "")}>
-                {stageLabel(viewDeal.stage)}
-              </span>
-            </div>
-
-            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => setViewTab("details")}
-                className={cn(
-                  "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-                  viewTab === "details"
-                    ? "border-brand text-brand"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t("deals.dealDetails")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewTab("history")}
-                className={cn(
-                  "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-                  viewTab === "history"
-                    ? "border-brand text-brand"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t("audit.title")}
-              </button>
-            </div>
-
-            {viewTab === "details" ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="slds-label">{t("deals.dealName")}</label>
-                  <p className="text-sm">{viewDeal.title}</p>
-                </div>
-                <div>
-                  <label className="slds-label">{t("deals.amount")}</label>
-                  <p className="text-sm">{formatCurrency(viewDeal.value, viewDeal.currency)}</p>
-                </div>
-                <div>
-                  <label className="slds-label">{t("deals.stage")}</label>
-                  <p className="text-sm">{stageLabel(viewDeal.stage)}</p>
-                </div>
-                {viewDeal.expected_close_date && (
-                  <div>
-                    <label className="slds-label">{t("deals.expectedCloseDate")}</label>
-                    <p className="text-sm">{formatDate(viewDeal.expected_close_date)}</p>
-                  </div>
-                )}
-                {viewDeal.created_at && (
-                  <div>
-                    <label className="slds-label">{t("audit.date")}</label>
-                    <p className="text-sm">{formatDate(viewDeal.created_at)}</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-0">
-                {historyLoading ? (
-                  <div className="text-center py-8 text-sm text-muted-foreground">{t("app.loading")}</div>
-                ) : dealHistory.length === 0 ? (
-                  <EmptyState icon={List} title={t("audit.noEvents")} />
-                ) : (
-                  dealHistory.map((event) => (
-                    <div key={event.id} className="flex gap-3 py-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                      <div className="w-2 h-2 rounded-full bg-brand mt-1.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{event.action}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xs text-muted-foreground">{formatDateTime(event.created_at)}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
+      <DealDetailModal
+        deal={viewDeal}
+        isOpen={viewDealOpen}
+        onClose={() => setViewDealOpen(false)}
+        viewTab={viewTab}
+        onViewTabChange={setViewTab}
+        dealHistory={dealHistory}
+        historyLoading={historyLoading}
+      />
 
       <ConfirmDialog
         isOpen={deleteOpen}

@@ -6,6 +6,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::handlers::audit::insert_audit_log;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{Activity, CreateActivity, PaginationParams, UpdateActivity};
@@ -24,10 +25,10 @@ pub async fn list_activities(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<ActivityFilter>,
-) -> Result<Json<Vec<Activity>>, StatusCode> {
+) -> Result<Json<Vec<Activity>>, AppError> {
     perms
         .require("activities.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let per_page = params.pagination.per_page();
     let offset = params.pagination.offset();
 
@@ -74,10 +75,7 @@ pub async fn list_activities(
     }
     q = q.bind(per_page).bind(offset);
 
-    let activities = q
-        .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let activities = q.fetch_all(&state.db).await?;
 
     Ok(Json(activities))
 }
@@ -87,13 +85,11 @@ pub async fn create_activity(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<CreateActivity>,
-) -> Result<(StatusCode, Json<Activity>), StatusCode> {
+) -> Result<(StatusCode, Json<Activity>), AppError> {
     perms
         .require("activities.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    input
-        .validate()
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        .map_err(|_| AppError::Forbidden)?;
+    input.validate()?;
     let activity = sqlx::query_as::<_, Activity>(
         r#"
         INSERT INTO activities (activity_type, subject, description, contact_id, deal_id, company_id, due_date, recurrence_type, recurrence_interval, recurrence_end_date)
@@ -112,8 +108,7 @@ pub async fn create_activity(
     .bind(input.recurrence_interval.unwrap_or(1))
     .bind(input.recurrence_end_date)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
@@ -136,18 +131,17 @@ pub async fn update_activity(
     perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateActivity>,
-) -> Result<Json<Activity>, StatusCode> {
+) -> Result<Json<Activity>, AppError> {
     perms
         .require("activities.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let old = sqlx::query_as::<_, Activity>(
         "SELECT id, activity_type as \"activity_type: ActivityType\", subject, description, contact_id, deal_id, company_id, due_date, completed, created_at, updated_at FROM activities WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let activity = sqlx::query_as::<_, Activity>(
         r#"
@@ -178,9 +172,8 @@ pub async fn update_activity(
     .bind(input.recurrence_end_date)
     .bind(input.completed)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
@@ -202,26 +195,24 @@ pub async fn delete_activity(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("activities.delete")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let old = sqlx::query_as::<_, Activity>(
         "SELECT id, activity_type as \"activity_type: ActivityType\", subject, description, contact_id, deal_id, company_id, due_date, completed, created_at, updated_at FROM activities WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let result = sqlx::query("DELETE FROM activities WHERE id = $1")
         .bind(id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     if let Some(activity) = old {
@@ -246,10 +237,10 @@ pub async fn complete_activity(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<Json<Activity>, StatusCode> {
+) -> Result<Json<Activity>, AppError> {
     perms
         .require("activities.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let activity = sqlx::query_as::<_, Activity>(
         r#"
         UPDATE activities
@@ -260,9 +251,8 @@ pub async fn complete_activity(
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(

@@ -35,8 +35,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.97.1
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "backend -> target"
       - name: Format check
         run: cargo fmt -- --check
       - name: Clippy

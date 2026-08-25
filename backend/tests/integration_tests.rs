@@ -66,9 +66,9 @@ async fn test_health_check() {
         company_repo: std::sync::Arc::new(
             crm_backend::repositories::company_repo::PgCompanyRepo::new(pool.clone()),
         ),
-        lead_repo: std::sync::Arc::new(
-            crm_backend::repositories::lead_repo::PgLeadRepo::new(pool.clone()),
-        ),
+        lead_repo: std::sync::Arc::new(crm_backend::repositories::lead_repo::PgLeadRepo::new(
+            pool.clone(),
+        )),
         http_client: reqwest::Client::new(),
     };
 
@@ -137,9 +137,9 @@ async fn test_register_first_user() {
         company_repo: std::sync::Arc::new(
             crm_backend::repositories::company_repo::PgCompanyRepo::new(pool.clone()),
         ),
-        lead_repo: std::sync::Arc::new(
-            crm_backend::repositories::lead_repo::PgLeadRepo::new(pool.clone()),
-        ),
+        lead_repo: std::sync::Arc::new(crm_backend::repositories::lead_repo::PgLeadRepo::new(
+            pool.clone(),
+        )),
         http_client: reqwest::Client::new(),
     };
 
@@ -231,9 +231,9 @@ async fn test_register_second_user_forbidden() {
         company_repo: std::sync::Arc::new(
             crm_backend::repositories::company_repo::PgCompanyRepo::new(pool.clone()),
         ),
-        lead_repo: std::sync::Arc::new(
-            crm_backend::repositories::lead_repo::PgLeadRepo::new(pool.clone()),
-        ),
+        lead_repo: std::sync::Arc::new(crm_backend::repositories::lead_repo::PgLeadRepo::new(
+            pool.clone(),
+        )),
         http_client: reqwest::Client::new(),
     };
 

@@ -7,14 +7,14 @@ CREATE TABLE IF NOT EXISTS notifications (
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     type notification_type NOT NULL,
-    is_read BOOLEAN NOT NULL DEFAULT false,
+    read BOOLEAN NOT NULL DEFAULT false,
     entity_id UUID,
     entity_type VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id, read);
 
 DO $$
 BEGIN

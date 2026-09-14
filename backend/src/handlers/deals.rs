@@ -5,6 +5,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::handlers::audit::insert_audit_log;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{
@@ -18,10 +19,10 @@ pub async fn list_deals(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<PaginationParams>,
-) -> Result<Json<PaginatedResponse<Deal>>, StatusCode> {
+) -> Result<Json<PaginatedResponse<Deal>>, AppError> {
     perms
         .require("deals.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
 
     let page = params.page();
     let per_page = params.per_page();
@@ -60,13 +61,9 @@ pub async fn list_deals(
         sqlx::query_as(count_query)
             .bind(search)
             .fetch_one(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .await?
     } else {
-        sqlx::query_as(count_query)
-            .fetch_one(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        sqlx::query_as(count_query).fetch_one(&state.db).await?
     };
 
     let deals = if let Some(ref search) = search_filter {
@@ -75,21 +72,13 @@ pub async fn list_deals(
             .bind(per_page)
             .bind(offset)
             .fetch_all(&state.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("deals list error: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?
+            .await?
     } else {
         sqlx::query_as::<_, Deal>(&data_query)
             .bind(per_page)
             .bind(offset)
             .fetch_all(&state.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("deals list error: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?
+            .await?
     };
 
     Ok(Json(PaginatedResponse::new(deals, total.0, page, per_page)))
@@ -100,13 +89,11 @@ pub async fn create_deal(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<CreateDeal>,
-) -> Result<(StatusCode, Json<Deal>), StatusCode> {
+) -> Result<(StatusCode, Json<Deal>), AppError> {
     perms
         .require("deals.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    input
-        .validate()
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        .map_err(|_| AppError::Forbidden)?;
+    input.validate()?;
 
     let stage = input.stage.unwrap_or(DealStage::Lead);
     let currency = input.currency.unwrap_or_else(|| "USD".to_string());
@@ -123,11 +110,7 @@ pub async fn create_deal(
             input.expected_close_date,
             input.notes.as_deref(),
         )
-        .await
-        .map_err(|e| {
-            tracing::error!("create_deal error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
@@ -158,18 +141,17 @@ pub async fn get_deal(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<Json<Deal>, StatusCode> {
+) -> Result<Json<Deal>, AppError> {
     perms
         .require("deals.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
 
     state
         .deal_repo
         .find_by_id(id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .await?
         .map(Json)
-        .ok_or(StatusCode::NOT_FOUND)
+        .ok_or(AppError::NotFound)
 }
 
 pub async fn update_deal(
@@ -178,27 +160,23 @@ pub async fn update_deal(
     perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateDeal>,
-) -> Result<Json<Deal>, StatusCode> {
+) -> Result<Json<Deal>, AppError> {
     perms
         .require("deals.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    input
-        .validate()
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        .map_err(|_| AppError::Forbidden)?;
+    input.validate()?;
 
     let old = state
         .deal_repo
         .find_by_id(id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let deal = state
         .deal_repo
         .update(id, &input)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
@@ -230,17 +208,16 @@ pub async fn delete_deal(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("deals.delete")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
 
     let old = state
         .deal_repo
         .delete(id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(
@@ -271,16 +248,15 @@ pub async fn export_deals(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<PaginationParams>,
-) -> Result<(HeaderMap, String), StatusCode> {
+) -> Result<(HeaderMap, String), AppError> {
     perms
         .require("deals.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
 
     let deals = state
         .deal_repo
         .find_all_for_export(params.search.as_deref())
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let mut csv = String::from(
         "title,value,currency,stage,contact_id,company_id,expected_close_date,notes\n",
@@ -319,10 +295,10 @@ pub async fn import_deals(
     State(state): State<AppState>,
     perms: UserPermissions,
     body: String,
-) -> Result<Json<ImportResult>, StatusCode> {
+) -> Result<Json<ImportResult>, AppError> {
     perms
         .require("deals.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let rows = parse_csv_rows(&body);
 
     let mut imported = 0;
@@ -365,24 +341,22 @@ pub async fn update_deal_stage(
     perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateDealStage>,
-) -> Result<Json<Deal>, StatusCode> {
+) -> Result<Json<Deal>, AppError> {
     perms
         .require("deals.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
 
     let old = state
         .deal_repo
         .find_by_id(id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let deal = state
         .deal_repo
         .update_stage(id, input.stage, input.position)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
     let _ = insert_audit_log(

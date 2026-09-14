@@ -69,4 +69,7 @@ pub struct AppState {
     pub oauth: OAuthConfig,
     pub contact_repo: std::sync::Arc<repositories::contact_repo::PgContactRepo>,
     pub deal_repo: std::sync::Arc<repositories::deal_repo::PgDealRepo>,
+    pub company_repo: std::sync::Arc<repositories::company_repo::PgCompanyRepo>,
+    pub lead_repo: std::sync::Arc<repositories::lead_repo::PgLeadRepo>,
+    pub http_client: reqwest::Client,
 }

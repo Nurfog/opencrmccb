@@ -1,102 +1,62 @@
-use axum::http::StatusCode;
 use axum::{Json, extract::State};
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::UserPermissions;
 use crate::models::dashboard::*;
 
 pub async fn get_dashboard_stats(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<DashboardStats>, StatusCode> {
+) -> Result<Json<DashboardStats>, AppError> {
     perms
         .require("dashboard.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    let row: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM contacts")
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| {
-            tracing::error!("dashboard stats error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    let total_contacts = row.0;
+        .map_err(|_| AppError::Forbidden)?;
 
-    let row: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM companies")
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| {
-            tracing::error!("dashboard stats error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    let total_companies = row.0;
+    #[derive(sqlx::FromRow)]
+    struct StatsRow {
+        total_contacts: i64,
+        total_companies: i64,
+        total_deals: i64,
+        total_revenue: f64,
+        active_deals: i64,
+        won_deals: i64,
+        lost_deals: i64,
+    }
 
-    let row: (i64,) = sqlx::query_as("SELECT COUNT(*)::bigint FROM deals")
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| {
-            tracing::error!("dashboard stats error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    let total_deals = row.0;
-
-    let row: (f64,) = sqlx::query_as("SELECT COALESCE(SUM(value), 0)::double precision FROM deals")
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| {
-            tracing::error!("dashboard stats error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    let total_revenue = row.0;
-
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)::bigint FROM deals WHERE stage NOT IN ('closed_won', 'closed_lost')",
+    let row = sqlx::query_as::<_, StatsRow>(
+        r#"
+        SELECT
+            (SELECT COUNT(*)::bigint FROM contacts) AS total_contacts,
+            (SELECT COUNT(*)::bigint FROM companies) AS total_companies,
+            (SELECT COUNT(*)::bigint FROM deals) AS total_deals,
+            (SELECT COALESCE(SUM(value), 0)::double precision FROM deals) AS total_revenue,
+            (SELECT COUNT(*)::bigint FROM deals WHERE stage NOT IN ('closed_won', 'closed_lost')) AS active_deals,
+            (SELECT COUNT(*)::bigint FROM deals WHERE stage = 'closed_won') AS won_deals,
+            (SELECT COUNT(*)::bigint FROM deals WHERE stage = 'closed_lost') AS lost_deals
+        "#,
     )
     .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("dashboard stats error: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    let active_deals = row.0;
-
-    let row: (i64,) =
-        sqlx::query_as("SELECT COUNT(*)::bigint FROM deals WHERE stage = 'closed_won'")
-            .fetch_one(&state.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("dashboard stats error: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-    let won_deals = row.0;
-
-    let row: (i64,) =
-        sqlx::query_as("SELECT COUNT(*)::bigint FROM deals WHERE stage = 'closed_lost'")
-            .fetch_one(&state.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("dashboard stats error: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-    let lost_deals = row.0;
+    .await?;
 
     Ok(Json(DashboardStats {
-        total_contacts,
-        total_companies,
-        total_deals,
-        total_revenue,
-        active_deals,
-        won_deals,
-        lost_deals,
+        total_contacts: row.total_contacts,
+        total_companies: row.total_companies,
+        total_deals: row.total_deals,
+        total_revenue: row.total_revenue,
+        active_deals: row.active_deals,
+        won_deals: row.won_deals,
+        lost_deals: row.lost_deals,
     }))
 }
 
 pub async fn get_pipeline(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<PipelineResponse>, StatusCode> {
+) -> Result<Json<PipelineResponse>, AppError> {
     perms
         .require("dashboard.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     #[derive(sqlx::FromRow)]
     struct StageRow {
         stage: String,
@@ -121,8 +81,7 @@ pub async fn get_pipeline(
         "#,
     )
     .fetch_all(&state.db)
-    .await
-    .map_err(|e| { tracing::error!("pipeline error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    .await?;
 
     let stages: Vec<PipelineStage> = rows
         .into_iter()
@@ -139,10 +98,10 @@ pub async fn get_pipeline(
 pub async fn get_top_deals(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<TopDealsResponse>, StatusCode> {
+) -> Result<Json<TopDealsResponse>, AppError> {
     perms
         .require("dashboard.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     #[derive(sqlx::FromRow)]
     struct TopDealRow {
         id: uuid::Uuid,
@@ -165,8 +124,7 @@ pub async fn get_top_deals(
         "#,
     )
     .fetch_all(&state.db)
-    .await
-    .map_err(|e| { tracing::error!("top deals error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    .await?;
 
     let deals: Vec<TopDeal> = rows
         .into_iter()
@@ -186,10 +144,10 @@ pub async fn get_top_deals(
 pub async fn get_recent_activities(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<RecentActivitiesResponse>, StatusCode> {
+) -> Result<Json<RecentActivitiesResponse>, AppError> {
     perms
         .require("dashboard.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     #[derive(sqlx::FromRow)]
     struct ActivityRow {
         id: uuid::Uuid,
@@ -211,11 +169,7 @@ pub async fn get_recent_activities(
         "#,
     )
     .fetch_all(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("recent activities error: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
     let activities: Vec<RecentActivity> = rows
         .into_iter()

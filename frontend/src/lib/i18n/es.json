@@ -28,7 +28,8 @@
     "settings": "Configuración",
     "admin": "Administración",
     "help": "Ayuda",
-    "audit": "Auditoría"
+    "audit": "Auditoría",
+    "skipToContent": "Saltar al contenido principal"
   },
   "common": {
     "search": "Buscar...",

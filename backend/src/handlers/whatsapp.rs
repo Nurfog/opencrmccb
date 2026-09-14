@@ -236,7 +236,6 @@ pub async fn send_whatsapp_message(
     );
 
     // Send via WhatsApp Business API
-    let client = reqwest::Client::new();
     let url = format!(
         "https://graph.facebook.com/v21.0/{}/messages",
         config.phone_number_id
@@ -249,7 +248,8 @@ pub async fn send_whatsapp_message(
         "text": { "body": input.content }
     });
 
-    let resp = client
+    let resp = state
+        .http_client
         .post(&url)
         .header("Authorization", format!("Bearer {}", api_token))
         .header("Content-Type", "application/json")
@@ -374,23 +374,33 @@ pub async fn webhook_receive(
     headers: HeaderMap,
     body_bytes: Bytes,
 ) -> Result<StatusCode, StatusCode> {
-    // Verify HMAC signature if WHATSAPP_APP_SECRET is configured
-    if let Ok(app_secret) = std::env::var("WHATSAPP_APP_SECRET") {
-        let signature_header = headers
-            .get("x-hub-signature-256")
-            .and_then(|v| v.to_str().ok())
-            .ok_or(StatusCode::UNAUTHORIZED)?;
+    // Verify the HMAC-SHA256 signature of the raw request body. This is
+    // mandatory: without WHATSAPP_APP_SECRET we cannot authenticate the
+    // sender, so we refuse to ingest unverified webhooks (prevents forged
+    // inbound messages). The signature must be sent as
+    // `X-Hub-Signature-256: sha256=<hex>` using the Meta app secret.
+    let app_secret = std::env::var("WHATSAPP_APP_SECRET").map_err(|_| {
+        tracing::error!(
+            "WHATSAPP_APP_SECRET is not configured; refusing to accept unverified WhatsApp webhooks"
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
-        let sig = signature_header
-            .strip_prefix("sha256=")
-            .ok_or(StatusCode::UNAUTHORIZED)?;
+    let signature_header = headers
+        .get("x-hub-signature-256")
+        .and_then(|v| v.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        let mac = Hmac::<Sha256>::new_from_slice(app_secret.as_bytes())
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        let sig_bytes = hex::decode(sig).map_err(|_| StatusCode::UNAUTHORIZED)?;
-        mac.verify_slice(&sig_bytes)
-            .map_err(|_| StatusCode::UNAUTHORIZED)?;
-    }
+    let sig = signature_header
+        .strip_prefix("sha256=")
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let mut mac = Hmac::<Sha256>::new_from_slice(app_secret.as_bytes())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    mac.update(&body_bytes);
+    let sig_bytes = hex::decode(sig).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    mac.verify_slice(&sig_bytes)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     let body: IncomingWebhook =
         serde_json::from_slice(&body_bytes).map_err(|_| StatusCode::BAD_REQUEST)?;

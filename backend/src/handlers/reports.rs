@@ -1,8 +1,8 @@
 use axum::Json;
 use axum::extract::State;
-use axum::http::StatusCode;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::UserPermissions;
 use crate::models::{PipelineReport, PipelineReportItem, WinLossReport};
 
@@ -16,18 +16,14 @@ struct StageRow {
 pub async fn get_pipeline_report(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<PipelineReport>, StatusCode> {
+) -> Result<Json<PipelineReport>, AppError> {
     perms
         .require("reports.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let total_row: (i64, Option<f64>) =
         sqlx::query_as("SELECT COUNT(*), COALESCE(SUM(value)::double precision, 0.0) FROM deals")
             .fetch_one(&state.db)
-            .await
-            .map_err(|e| {
-                tracing::error!("pipeline report total error: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+            .await?;
 
     let total_deals = total_row.0;
     let total_value = total_row.1.unwrap_or(0.0);
@@ -49,11 +45,7 @@ pub async fn get_pipeline_report(
         "#,
     )
     .fetch_all(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("pipeline report stages error: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
     let stages: Vec<PipelineReportItem> = rows
         .into_iter()
@@ -88,23 +80,21 @@ pub async fn get_pipeline_report(
 pub async fn get_win_loss_report(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<WinLossReport>, StatusCode> {
+) -> Result<Json<WinLossReport>, AppError> {
     perms
         .require("reports.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let won_row: (i64, Option<f64>) = sqlx::query_as(
         "SELECT COUNT(*), COALESCE(SUM(value)::double precision, 0.0) FROM deals WHERE stage = 'closed_won'",
     )
     .fetch_one(&state.db)
-    .await
-    .map_err(|e| { tracing::error!("win/loss report won error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    .await?;
 
     let lost_row: (i64, Option<f64>) = sqlx::query_as(
         "SELECT COUNT(*), COALESCE(SUM(value)::double precision, 0.0) FROM deals WHERE stage = 'closed_lost'",
     )
     .fetch_one(&state.db)
-    .await
-    .map_err(|e| { tracing::error!("win/loss report lost error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    .await?;
 
     let won_count = won_row.0;
     let won_value = won_row.1.unwrap_or(0.0);

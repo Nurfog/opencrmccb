@@ -1,10 +1,10 @@
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::UserPermissions;
 use crate::models::{AuditFilter, AuditLog};
 
@@ -38,10 +38,10 @@ pub async fn list_audit_logs(
     State(state): State<AppState>,
     Query(params): Query<AuditFilter>,
     perms: UserPermissions,
-) -> Result<Json<Vec<AuditLog>>, StatusCode> {
+) -> Result<Json<Vec<AuditLog>>, AppError> {
     perms
         .require("audit.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let per_page = params.pagination.per_page();
     let offset = params.pagination.offset();
 
@@ -58,8 +58,7 @@ pub async fn list_audit_logs(
     .bind(per_page)
     .bind(offset)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(logs))
 }
@@ -68,18 +67,17 @@ pub async fn get_entity_history(
     State(state): State<AppState>,
     Path((entity_type, entity_id)): Path<(String, Uuid)>,
     perms: UserPermissions,
-) -> Result<Json<Vec<AuditLog>>, StatusCode> {
+) -> Result<Json<Vec<AuditLog>>, AppError> {
     perms
         .require("audit.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let logs = sqlx::query_as::<_, AuditLog>(
         "SELECT id, user_id, action, entity_type, entity_id, old_values, new_values, ip_address::text, created_at FROM audit_log WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC"
     )
     .bind(&entity_type)
     .bind(entity_id)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(logs))
 }

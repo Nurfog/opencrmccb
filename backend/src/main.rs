@@ -9,8 +9,10 @@ use crm_backend::config;
 use crm_backend::db;
 use crm_backend::middleware::metrics::{Metrics, track_metrics};
 use crm_backend::middleware::rate_limit::RateLimiter;
+use crm_backend::repositories::company_repo::PgCompanyRepo;
 use crm_backend::repositories::contact_repo::PgContactRepo;
 use crm_backend::repositories::deal_repo::PgDealRepo;
+use crm_backend::repositories::lead_repo::PgLeadRepo;
 use crm_backend::routes;
 use crm_backend::{AppState, AuthConfig, OAuthConfig, SmtpConfig, UploadConfig};
 
@@ -33,6 +35,8 @@ async fn main() {
 
     let contact_repo = PgContactRepo::new(pool.clone());
     let deal_repo = PgDealRepo::new(pool.clone());
+    let company_repo = PgCompanyRepo::new(pool.clone());
+    let lead_repo = PgLeadRepo::new(pool.clone());
 
     let state = AppState {
         db: pool,
@@ -64,6 +68,12 @@ async fn main() {
         },
         contact_repo: Arc::new(contact_repo),
         deal_repo: Arc::new(deal_repo),
+        company_repo: Arc::new(company_repo),
+        lead_repo: Arc::new(lead_repo),
+        http_client: reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to create HTTP client"),
     };
 
     let rate_limiter = if let Ok(redis_url) = std::env::var("REDIS_URL") {

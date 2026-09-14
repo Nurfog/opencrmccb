@@ -47,8 +47,8 @@ pub async fn google_callback(
     let redirect_uri = std::env::var("GOOGLE_REDIRECT_URI")
         .unwrap_or_else(|_| "http://localhost:8000/api/v1/calendar/google/callback".into());
 
-    let client = reqwest::Client::new();
-    let token_response = client
+    let token_response = state
+        .http_client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
             ("code", code.as_str()),
@@ -115,8 +115,8 @@ pub async fn microsoft_callback(
     let redirect_uri = std::env::var("MICROSOFT_REDIRECT_URI")
         .unwrap_or_else(|_| "http://localhost:8000/api/v1/calendar/microsoft/callback".into());
 
-    let client = reqwest::Client::new();
-    let token_response = client
+    let token_response = state
+        .http_client
         .post("https://login.microsoftonline.com/common/oauth2/v2.0/token")
         .form(&[
             ("code", code.as_str()),
@@ -364,12 +364,12 @@ pub async fn sync_google(
     );
 
     // Fetch events from Google Calendar API
-    let client = reqwest::Client::new();
     let now = Utc::now();
     let min_time = (now - chrono::Duration::days(90)).to_rfc3339();
     let max_time = (now + chrono::Duration::days(90)).to_rfc3339();
 
-    let response = client
+    let response = state
+        .http_client
         .get("https://www.googleapis.com/calendar/v3/calendars/primary/events")
         .bearer_auth(&access_token)
         .query(&[

@@ -43,6 +43,7 @@ fn get_provider_config<'a>(
     match provider {
         "google" => state.oauth.google.as_ref(),
         "microsoft" => state.oauth.microsoft.as_ref(),
+        "github" => state.oauth.github.as_ref(),
         _ => None,
     }
     .ok_or(StatusCode::NOT_FOUND)
@@ -75,13 +76,20 @@ pub async fn connect(
         );
     }
 
+    let consent_params = if provider == "google" {
+        "&access_type=offline&prompt=consent"
+    } else {
+        ""
+    };
+
     let auth_url = format!(
-        "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}&access_type=offline&prompt=consent",
+        "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}{}",
         cfg.auth_url,
         cfg.client_id,
         urlencode(&redirect_uri),
         urlencode(&cfg.scope),
         state_val,
+        consent_params,
     );
 
     Ok(Json(serde_json::json!({ "auth_url": auth_url })))
@@ -122,7 +130,6 @@ pub async fn callback(
         state.frontend_url, provider
     );
 
-    let client = reqwest::Client::new();
     let token_params = [
         ("client_id", &cfg.client_id),
         ("client_secret", &cfg.client_secret),
@@ -131,7 +138,8 @@ pub async fn callback(
         ("grant_type", &"authorization_code".to_string()),
     ];
 
-    let token_resp = client
+    let token_resp = state
+        .http_client
         .post(&cfg.token_url)
         .form(&token_params)
         .header("Accept", "application/json")
@@ -152,7 +160,8 @@ pub async fn callback(
     let expires_in = token_body["expires_in"].as_i64();
 
     // Fetch user info from provider
-    let userinfo_resp = client
+    let userinfo_resp = state
+        .http_client
         .get(&cfg.userinfo_url)
         .header("Authorization", format!("Bearer {}", access_token))
         .header("Accept", "application/json")
@@ -222,7 +231,7 @@ pub async fn list_integrations(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let configured = [("google", false), ("microsoft", false)];
+    let configured = [("google", false), ("microsoft", false), ("github", false)];
     let mut result: Vec<IntegrationStatus> = configured
         .iter()
         .map(|(p, _)| IntegrationStatus {

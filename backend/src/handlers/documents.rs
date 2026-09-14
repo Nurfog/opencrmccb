@@ -7,6 +7,7 @@ use tokio::fs;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::UserPermissions;
 use crate::models::escape_like;
 use crate::models::{Document, DocumentFilter};
@@ -27,10 +28,10 @@ pub async fn upload_document(
     claims: axum::extract::Extension<crate::middleware::auth::Claims>,
     perms: UserPermissions,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<UploadResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<UploadResponse>), AppError> {
     perms
         .require("documents.upload")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let mut original_name = String::new();
     let mut mime_type = Option::<String>::None;
     let mut file_size = 0i64;
@@ -40,7 +41,7 @@ pub async fn upload_document(
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
+        .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
     {
         let name = field.name().unwrap_or_default().to_string();
         match name.as_str() {
@@ -48,12 +49,18 @@ pub async fn upload_document(
                 original_name = field.file_name().unwrap_or("unknown").to_string();
                 mime_type = field.content_type().map(|m| m.to_string());
 
-                let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
                 file_size = data.len() as i64;
                 file_data = data.to_vec();
             }
             "folder" => {
-                let val = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                let val = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::BadRequest(format!("Failed to read folder: {e}")))?;
                 if !val.is_empty() {
                     folder = Some(val);
                 }
@@ -63,12 +70,12 @@ pub async fn upload_document(
     }
 
     if file_data.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::BadRequest("No file provided".into()));
     }
 
     let max_size = (state.upload.max_file_size_mb as i64) * 1024 * 1024;
     if file_size > max_size {
-        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+        return Err(AppError::BadRequest("File too large".into()));
     }
 
     let file_id = Uuid::new_v4();
@@ -79,14 +86,10 @@ pub async fn upload_document(
     let filename = format!("{}.{}", file_id, ext);
 
     let upload_dir = &state.upload.dir;
-    fs::create_dir_all(upload_dir)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    fs::create_dir_all(upload_dir).await?;
 
     let file_path = std::path::Path::new(upload_dir).join(&filename);
-    fs::write(&file_path, &file_data)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    fs::write(&file_path, &file_data).await?;
 
     let user_id = Uuid::parse_str(&claims.sub).ok();
 
@@ -104,8 +107,7 @@ pub async fn upload_document(
     .bind(&folder)
     .bind(user_id)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok((
         StatusCode::CREATED,
@@ -125,10 +127,10 @@ pub async fn list_documents(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<DocumentFilter>,
-) -> Result<Json<Vec<Document>>, StatusCode> {
+) -> Result<Json<Vec<Document>>, AppError> {
     perms
         .require("documents.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let mut query = String::from(
         "SELECT id, filename, original_name, mime_type, file_size, folder, uploaded_by, created_at, updated_at FROM documents WHERE 1=1",
     );
@@ -163,10 +165,7 @@ pub async fn list_documents(
         q = q.bind(val);
     }
 
-    let documents = q
-        .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let documents = q.fetch_all(&state.db).await?;
 
     Ok(Json(documents))
 }
@@ -175,23 +174,20 @@ pub async fn download_document(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<(HeaderMap, Vec<u8>), StatusCode> {
+) -> Result<(HeaderMap, Vec<u8>), AppError> {
     perms
         .require("documents.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let doc = sqlx::query_as::<_, Document>(
         "SELECT id, filename, original_name, mime_type, file_size, folder, uploaded_by, created_at, updated_at FROM documents WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let file_path = std::path::Path::new(&state.upload.dir).join(&doc.filename);
-    let data = fs::read(&file_path)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let data = fs::read(&file_path).await?;
 
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -223,18 +219,17 @@ pub async fn delete_document(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("documents.delete")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let doc = sqlx::query_as::<_, Document>(
         "SELECT id, filename, original_name, mime_type, file_size, folder, uploaded_by, created_at, updated_at FROM documents WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let file_path = std::path::Path::new(&state.upload.dir).join(&doc.filename);
     let _ = fs::remove_file(&file_path).await;
@@ -242,11 +237,10 @@ pub async fn delete_document(
     let result = sqlx::query("DELETE FROM documents WHERE id = $1")
         .bind(id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     Ok(StatusCode::NO_CONTENT)

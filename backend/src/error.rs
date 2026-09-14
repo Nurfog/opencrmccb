@@ -77,3 +77,10 @@ impl From<std::io::Error> for AppError {
         AppError::Internal("Internal server error".into())
     }
 }
+
+impl From<reqwest::Error> for AppError {
+    fn from(err: reqwest::Error) -> Self {
+        tracing::error!("HTTP client error: {:?}", err);
+        AppError::Internal("External service error".into())
+    }
+}

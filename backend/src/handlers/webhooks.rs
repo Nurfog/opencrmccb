@@ -5,22 +5,22 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::UserPermissions;
 use crate::models::{CreateWebhook, UpdateWebhook, Webhook, WebhookDelivery};
 
 pub async fn list_webhooks(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<Vec<Webhook>>, StatusCode> {
+) -> Result<Json<Vec<Webhook>>, AppError> {
     perms
         .require("webhooks.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let webhooks = sqlx::query_as::<_, Webhook>(
         "SELECT id, url, event as \"event: WebhookEvent\", secret, active, created_at, updated_at FROM webhooks ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(webhooks))
 }
@@ -29,13 +29,13 @@ pub async fn create_webhook(
     State(state): State<AppState>,
     perms: UserPermissions,
     Json(input): Json<CreateWebhook>,
-) -> Result<(StatusCode, Json<Webhook>), StatusCode> {
+) -> Result<(StatusCode, Json<Webhook>), AppError> {
     perms
         .require("webhooks.manage")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     input
         .validate()
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        .map_err(|_| AppError::Validation("Invalid webhook data".into()))?;
 
     let webhook = sqlx::query_as::<_, Webhook>(
         r#"
@@ -48,8 +48,7 @@ pub async fn create_webhook(
     .bind(input.event)
     .bind(&input.secret)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok((StatusCode::CREATED, Json(webhook)))
 }
@@ -59,13 +58,13 @@ pub async fn update_webhook(
     perms: UserPermissions,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateWebhook>,
-) -> Result<Json<Webhook>, StatusCode> {
+) -> Result<Json<Webhook>, AppError> {
     perms
         .require("webhooks.manage")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     input
         .validate()
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        .map_err(|_| AppError::Validation("Invalid webhook data".into()))?;
 
     // Check webhook exists
     let existing = sqlx::query_as::<_, Webhook>(
@@ -73,10 +72,9 @@ pub async fn update_webhook(
     )
     .bind(id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
-    let existing = existing.ok_or(StatusCode::NOT_FOUND)?;
+    let existing = existing.ok_or(AppError::NotFound)?;
 
     let new_url = input.url.as_deref().unwrap_or(&existing.url);
     let new_active = input.active.unwrap_or(existing.active);
@@ -98,8 +96,7 @@ pub async fn update_webhook(
     .bind(&new_secret)
     .bind(id)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(webhook))
 }
@@ -108,19 +105,18 @@ pub async fn list_deliveries(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<WebhookDelivery>>, StatusCode> {
+) -> Result<Json<Vec<WebhookDelivery>>, AppError> {
     perms
         .require("webhooks.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     // Verify webhook exists
     let exists = sqlx::query_scalar::<_, i64>("SELECT 1 FROM webhooks WHERE id = $1")
         .bind(id)
         .fetch_optional(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if exists.is_none() {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     let deliveries = sqlx::query_as::<_, WebhookDelivery>(
@@ -135,8 +131,7 @@ pub async fn list_deliveries(
     )
     .bind(id)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(deliveries))
 }
@@ -145,18 +140,17 @@ pub async fn delete_webhook(
     State(state): State<AppState>,
     perms: UserPermissions,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("webhooks.manage")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let result = sqlx::query("DELETE FROM webhooks WHERE id = $1")
         .bind(id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     Ok(StatusCode::NO_CONTENT)

@@ -47,6 +47,18 @@ impl IntoResponse for AppError {
 
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> Self {
+        if let sqlx::Error::Database(db_err) = &err {
+            match db_err.code().as_deref() {
+                Some("23505") => return AppError::Conflict("Resource already exists".into()),
+                Some("23503") => {
+                    return AppError::BadRequest("Referenced resource does not exist".into());
+                }
+                Some("22P02") | Some("22P04") => {
+                    return AppError::BadRequest("Invalid input syntax".into());
+                }
+                _ => {}
+            }
+        }
         tracing::error!("Database error: {:?}", err);
         AppError::Internal("Database error".into())
     }

@@ -20,23 +20,31 @@ export class ApiError extends Error {
 
 // Token state: stored in memory for Authorization header fallback.
 // The backend also sets httpOnly cookies (access_token, refresh_token, csrf_token).
+// Auth is cookie-first; the in-memory access token is only a fallback for
+// Authorization header. Refresh goes via httpOnly cookie (credentials:include).
 let accessToken: string | null = null;
-let refreshToken: string | null = null;
 let csrfToken: string | null = null;
 let onLogout: (() => void) | null = null;
 
-if (typeof window !== "undefined") {
-  const cookies = document.cookie.split(";").reduce((acc, c) => {
-    const [key, val] = c.trim().split("=");
-    if (key) acc[key] = val ?? "";
+function parseCookies(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  return document.cookie.split(";").reduce((acc, c) => {
+    const idx = c.indexOf("=");
+    if (idx === -1) return acc;
+    const key = c.slice(0, idx).trim();
+    const val = decodeURIComponent(c.slice(idx + 1).trim());
+    if (key) acc[key] = val;
     return acc;
   }, {} as Record<string, string>);
-  csrfToken = cookies["csrf_token"] ?? null;
 }
 
-export function setTokens(access: string, refresh: string): void {
+if (typeof window !== "undefined") {
+  csrfToken = parseCookies()["csrf_token"] ?? null;
+}
+
+export function setTokens(access: string, _refresh?: string): void {
+  // `_refresh` kept for backwards compat; refresh travels via httpOnly cookie.
   accessToken = access;
-  refreshToken = refresh;
 }
 
 export function getAccessToken(): string | null {
@@ -46,19 +54,13 @@ export function getAccessToken(): string | null {
 export function getCsrfToken(): string | null {
   if (csrfToken) return csrfToken;
   if (typeof window !== "undefined") {
-    const cookies = document.cookie.split(";").reduce((acc, c) => {
-      const [key, val] = c.trim().split("=");
-      if (key) acc[key] = val ?? "";
-      return acc;
-    }, {} as Record<string, string>);
-    csrfToken = cookies["csrf_token"] ?? null;
+    csrfToken = parseCookies()["csrf_token"] ?? null;
   }
   return csrfToken;
 }
 
 export function clearTokens(): void {
   accessToken = null;
-  refreshToken = null;
   csrfToken = null;
 }
 
@@ -76,6 +78,7 @@ async function refreshAccessToken(): Promise<string | null> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({}),
       });
       if (!res.ok) {
         clearTokens();
@@ -83,18 +86,9 @@ async function refreshAccessToken(): Promise<string | null> {
         return null;
       }
       const data = await res.json();
-      accessToken = data.access_token ?? data.access;
-      const newRefresh = data.refresh_token ?? data.refresh;
-      if (newRefresh) {
-        refreshToken = newRefresh;
-      }
+      accessToken = data.access_token ?? data.access ?? null;
       if (typeof window !== "undefined") {
-        const cookies = document.cookie.split(";").reduce((acc, c) => {
-          const [key, val] = c.trim().split("=");
-          if (key) acc[key] = val ?? "";
-          return acc;
-        }, {} as Record<string, string>);
-        csrfToken = cookies["csrf_token"] ?? null;
+        csrfToken = parseCookies()["csrf_token"] ?? null;
       }
       return accessToken;
     } catch {
@@ -126,13 +120,16 @@ export async function request<T>(
     if (qs) url += `?${qs}`;
   }
 
-  const bodyIsFormData = options.body instanceof FormData;
+  const bodyIsFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+  const hasBody = options.body !== undefined && options.body !== null;
 
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> | undefined),
   };
 
-  if (!bodyIsFormData) {
+  // Only force JSON when there is a body (avoids useless CORS preflights on GET).
+  if (hasBody && !bodyIsFormData && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -171,9 +168,11 @@ export async function request<T>(
     } catch {
       errorData = { message: res.statusText };
     }
+    const errObj = errorData as Record<string, unknown>;
     const message =
-      (errorData as Record<string, unknown>)?.message as string ??
-      (errorData as Record<string, unknown>)?.detail as string ??
+      (errObj?.error as string) ??
+      (errObj?.message as string) ??
+      (errObj?.detail as string) ??
       res.statusText;
     throw new ApiError(message, res.status, errorData);
   }
@@ -186,13 +185,7 @@ export async function request<T>(
 export async function downloadFile(
   endpoint: string,
   params?: Record<string, string | number | boolean | undefined>
-): Promise<Blob | null> {
-  let token = accessToken;
-  if (!token) {
-    token = await refreshAccessToken();
-    if (!token) return null;
-  }
-
+): Promise<Blob> {
   let url = `${API_BASE_URL}${endpoint}`;
   if (params) {
     const searchParams = new URLSearchParams();
@@ -205,22 +198,36 @@ export async function downloadFile(
     if (qs) url += `?${qs}`;
   }
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    credentials: "include",
-  });
+  const doFetch = async (): Promise<Response> => {
+    const headers: Record<string, string> = {};
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const csrf = getCsrfToken();
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+    return fetch(url, { headers, credentials: "include" });
+  };
+
+  let res = await doFetch();
 
   if (res.status === 401) {
-    token = await refreshAccessToken();
-    if (!token) return null;
-    const retry = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      credentials: "include",
-    });
-    if (!retry.ok) return null;
-    return retry.blob();
+    const newToken = await refreshAccessToken();
+    if (!newToken && !accessToken) {
+      throw new ApiError("Unauthorized", 401, null);
+    }
+    res = await doFetch();
   }
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    let errorData: unknown = null;
+    try {
+      errorData = await res.clone().json();
+    } catch {
+      // binary error body — keep null
+    }
+    const msg =
+      (errorData as Record<string, unknown> | null)?.error as string ??
+      (errorData as Record<string, unknown> | null)?.message as string ??
+      res.statusText;
+    throw new ApiError(msg, res.status, errorData);
+  }
   return res.blob();
 }

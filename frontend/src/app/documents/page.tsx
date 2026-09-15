@@ -117,17 +117,21 @@ export default function DocumentsPage() {
   const handleDragLeave = () => setDragOver(false)
 
   const handleDownload = async (doc: Document) => {
-    const blob = await documentsApi.download(doc.id)
-    if (!blob) {
+    try {
+      const blob = await documentsApi.download(doc.id)
+      if (!blob) {
+        error(t("toast.error", { action: "download", entity: t("documents.title") }))
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = doc.original_name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
       error(t("toast.error", { action: "download", entity: t("documents.title") }))
-      return
     }
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = doc.original_name
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   const handleUpload = async (e: React.FormEvent) => {

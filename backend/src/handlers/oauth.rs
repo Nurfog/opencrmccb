@@ -49,6 +49,8 @@ fn get_provider_config<'a>(
     .ok_or(StatusCode::NOT_FOUND)
 }
 
+const OAUTH_STATE_TTL: chrono::Duration = chrono::Duration::minutes(10);
+
 /// Authenticated endpoint: returns the OAuth authorize URL for a provider
 pub async fn connect(
     State(state): State<AppState>,
@@ -66,12 +68,15 @@ pub async fn connect(
 
     {
         let mut store = state.oauth.state_store.write().await;
+        // Opportunistic purge of expired entries to bound memory.
+        let now = Utc::now();
+        store.retain(|_, v| now.signed_duration_since(v.created_at) < OAUTH_STATE_TTL);
         store.insert(
             state_val.clone(),
             crate::OAuthPendingState {
                 provider: provider.clone(),
                 user_id,
-                created_at: Utc::now(),
+                created_at: now,
             },
         );
     }
@@ -114,11 +119,14 @@ pub async fn callback(
     let code = query.code.as_ref().ok_or(StatusCode::BAD_REQUEST)?;
     let state_param = query.state.as_ref().ok_or(StatusCode::BAD_REQUEST)?;
 
-    // Verify state and recover user_id
+    // Verify state (single-use) and recover user_id
     let user_id = {
         let mut store = state.oauth.state_store.write().await;
         let pending = store.remove(state_param).ok_or(StatusCode::UNAUTHORIZED)?;
         if pending.provider != provider {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+        if Utc::now().signed_duration_since(pending.created_at) >= OAUTH_STATE_TTL {
             return Err(StatusCode::UNAUTHORIZED);
         }
         pending.user_id

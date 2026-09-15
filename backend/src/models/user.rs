@@ -42,7 +42,7 @@ pub struct CreateUser {
     #[validate(email(message = "Email must be valid"))]
     pub email: String,
 
-    #[validate(length(min = 6, message = "Password must be at least 6 characters"))]
+    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
     pub password: String,
 
     #[validate(length(min = 1, max = 50, message = "First name must be 1-50 characters"))]
@@ -84,7 +84,7 @@ pub struct ChangePassword {
     #[validate(length(min = 1, message = "Current password is required"))]
     pub current_password: String,
 
-    #[validate(length(min = 6, message = "New password must be at least 6 characters"))]
+    #[validate(length(min = 8, message = "New password must be at least 8 characters"))]
     pub new_password: String,
 }
 

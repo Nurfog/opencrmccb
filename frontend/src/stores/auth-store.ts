@@ -19,7 +19,7 @@ interface AuthState {
   loadUser: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
   clearError: () => void;
-  initialize: () => void;
+  initialize: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
 }
 

@@ -442,27 +442,37 @@ pub fn admin_routes() -> Router<AppState> {
         )
 }
 
+#[allow(clippy::result_large_err)]
 pub async fn admin_only_middleware(
     axum::extract::State(state): axum::extract::State<crate::AppState>,
     mut request: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
+) -> Result<axum::response::Response, axum::response::Response> {
+    use axum::response::IntoResponse;
+    let json_err = |status: axum::http::StatusCode, msg: &str| {
+        (status, axum::Json(serde_json::json!({ "error": msg }))).into_response()
+    };
     let claims = request
         .extensions()
         .get::<crate::middleware::auth::Claims>()
         .cloned()
-        .ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
+        .ok_or_else(|| json_err(axum::http::StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
-    let user_id =
-        uuid::Uuid::parse_str(&claims.sub).map_err(|_| axum::http::StatusCode::UNAUTHORIZED)?;
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|_| json_err(axum::http::StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
     let permissions = crate::middleware::auth::load_permissions(&state, user_id)
         .await
-        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| {
+            json_err(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error",
+            )
+        })?;
 
     let has_admin = permissions.iter().any(|p| p.as_str() == "admin.access");
     if !has_admin {
-        return Err(axum::http::StatusCode::FORBIDDEN);
+        return Err(json_err(axum::http::StatusCode::FORBIDDEN, "Forbidden"));
     }
 
     request

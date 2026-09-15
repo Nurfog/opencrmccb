@@ -65,13 +65,12 @@ export function Sidebar({ onClose }: SidebarProps) {
     return pathname.startsWith(href);
   }
 
-  // Filter nav items based on permissions
-  // If user has no permissions (not loaded / no migration yet), show all items
-  const hasPermissionsLoaded = user && user.permissions?.length > 0;
+  // Filter nav items based on permissions (fail-closed: hide until loaded).
+  const hasPermissionsLoaded = !!user && Array.isArray(user.permissions);
 
   const filteredMainNav = mainNav.filter((item) => {
     if (item.href === "/dashboard") return true;
-    if (!hasPermissionsLoaded) return true;
+    if (!hasPermissionsLoaded) return false;
     const permissionMap: Record<string, string> = {
       "/contacts": "contacts.view",
       "/companies": "companies.view",
@@ -89,7 +88,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   });
 
   const filteredBottomNav = bottomNav.filter((item) => {
-    if (!hasPermissionsLoaded) return true;
+    if (!hasPermissionsLoaded) return item.href === "/settings" || item.href === "/help";
     if (item.href === "/settings") return true;
     if (item.href === "/help") return true;
     if (item.href === "/admin") return hasPermission("admin.access");

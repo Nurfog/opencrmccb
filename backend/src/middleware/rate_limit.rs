@@ -12,7 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use redis::AsyncCommands;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tower::{Layer, Service};
 
@@ -87,11 +87,14 @@ impl RateLimiter {
         match &*self.inner {
             RateLimiterInner::Redis { conn } => {
                 let key = format!("rate_limit:{}", ip);
-                let now = Instant::now();
-                let window_start_ms = (now - Duration::from_secs(WINDOW_SECS))
-                    .elapsed()
-                    .as_millis() as u64;
-                let now_ms = now.elapsed().as_millis() as u64;
+                // Use wall-clock time so window math is correct across processes.
+                let now_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                let window_start_ms = now_ms.saturating_sub(WINDOW_SECS * 1000);
+                // Unique member per request so ZCARD actually counts requests.
+                let member = format!("{}-{}", now_ms, uuid::Uuid::new_v4());
 
                 let mut conn = conn.clone();
                 // Remove expired entries, add current, set TTL, count
@@ -99,11 +102,11 @@ impl RateLimiter {
                     .zrembyscore(&key, 0, window_start_ms)
                     .await
                     .unwrap_or(());
-                let _: () = conn.zadd(&key, &key, now_ms).await.unwrap_or(());
+                let _: () = conn.zadd(&key, member, now_ms).await.unwrap_or(());
                 let _: () = conn.expire(&key, WINDOW_SECS as i64).await.unwrap_or(());
                 let count: i64 = conn.zcard(&key).await.unwrap_or(0);
 
-                count >= MAX_REQUESTS as i64
+                count > MAX_REQUESTS as i64
             }
             RateLimiterInner::Memory { state } => {
                 let mut state = state.write().await;
@@ -140,13 +143,9 @@ impl RateLimiter {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0);
 
+        // With zero trusted proxies, never trust spoofable headers.
+        // Every direct connection shares one bucket (fail-closed, no bypass).
         if trusted_hops == 0 {
-            if let Some(real_ip) = req.headers().get("x-real-ip")
-                && let Ok(s) = real_ip.to_str()
-                && let Ok(ip) = s.parse::<IpAddr>()
-            {
-                return ip;
-            }
             return "127.0.0.1".parse().unwrap();
         }
 
@@ -160,6 +159,13 @@ impl RateLimiter {
             {
                 return ip;
             }
+        }
+
+        if let Some(real_ip) = req.headers().get("x-real-ip")
+            && let Ok(s) = real_ip.to_str()
+            && let Ok(ip) = s.trim().parse::<IpAddr>()
+        {
+            return ip;
         }
 
         "127.0.0.1".parse().unwrap()
@@ -221,7 +227,8 @@ where
 
         Box::pin(async move {
             if limiter.check_ip(ip).await.is_err() {
-                return Ok(StatusCode::TOO_MANY_REQUESTS.into_response());
+                let body = serde_json::json!({ "error": "Too many requests" });
+                return Ok((StatusCode::TOO_MANY_REQUESTS, axum::Json(body)).into_response());
             }
             inner.call(req).await
         })

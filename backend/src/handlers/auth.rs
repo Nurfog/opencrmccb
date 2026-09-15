@@ -4,10 +4,39 @@ use axum::extract::{Path, State};
 use axum::http::{StatusCode, header::SET_COOKIE};
 use axum::response::Response;
 use bcrypt::{DEFAULT_COST, hash, verify};
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use validator::Validate;
+
+fn normalize_email(email: &str) -> String {
+    email.trim().to_lowercase()
+}
+
+async fn hash_password(password: String) -> Result<String, AppError> {
+    tokio::task::spawn_blocking(move || hash(&password, DEFAULT_COST))
+        .await
+        .map_err(|_| AppError::Internal("Password hashing failed".into()))?
+        .map_err(|e| {
+            tracing::error!("bcrypt hash error: {:?}", e);
+            AppError::Internal("Password hashing failed".into())
+        })
+}
+
+async fn verify_password(password: String, hash_str: String) -> Result<bool, AppError> {
+    tokio::task::spawn_blocking(move || verify(&password, &hash_str))
+        .await
+        .map_err(|_| AppError::Internal("Password verification failed".into()))?
+        .map_err(|e| {
+            tracing::error!("bcrypt verify error: {:?}", e);
+            AppError::Internal("Password verification failed".into())
+        })
+}
+
+fn internal_db(e: impl std::fmt::Debug) -> AppError {
+    tracing::error!("Database error: {:?}", e);
+    AppError::Internal("Database error".into())
+}
 
 use crate::AppState;
 use crate::error::AppError;
@@ -107,22 +136,18 @@ pub async fn register(
     Json(input): Json<CreateUser>,
 ) -> Result<Response, AppError> {
     input.validate()?;
+    let email = normalize_email(&input.email);
 
-    let mut tx = state
-        .db
-        .begin()
-        .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+    let mut tx = state.db.begin().await.map_err(internal_db)?;
 
     // Atomically check if any users exist inside a transaction
     let existing: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users LIMIT 1")
         .fetch_optional(&mut *tx)
-        .await?;
+        .await
+        .map_err(internal_db)?;
 
     if existing.is_some() {
-        tx.rollback()
-            .await
-            .map_err(|_| AppError::Internal("Database error".into()))?;
+        tx.rollback().await.map_err(internal_db)?;
         return Err(AppError::Forbidden);
     }
 
@@ -130,10 +155,10 @@ pub async fn register(
     let admin_profile_id: Option<Uuid> =
         sqlx::query_scalar("SELECT id FROM profiles WHERE name = 'Administrador' LIMIT 1")
             .fetch_optional(&mut *tx)
-            .await?;
+            .await
+            .map_err(internal_db)?;
 
-    let password_hash =
-        hash(&input.password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let password_hash = hash_password(input.password.clone()).await?;
 
     let user = sqlx::query_as::<_, User>(
         r#"
@@ -142,10 +167,10 @@ pub async fn register(
         RETURNING id, email, password_hash, first_name, last_name, profile_id, created_at, updated_at
         "#,
     )
-    .bind(&input.email)
+    .bind(&email)
     .bind(&password_hash)
-    .bind(&input.first_name)
-    .bind(&input.last_name)
+    .bind(input.first_name.trim())
+    .bind(input.last_name.trim())
     .bind(admin_profile_id)
     .fetch_one(&mut *tx)
     .await
@@ -154,7 +179,7 @@ pub async fn register(
             && db_err.code().as_deref() == Some("23505") {
             return AppError::Conflict("Email already exists".into());
         }
-        AppError::Internal(e.to_string())
+        internal_db(e)
     })?;
 
     tx.commit()
@@ -206,7 +231,7 @@ pub async fn register(
             permissions,
         },
     })
-    .map_err(|e| AppError::Internal(e.to_string()))?;
+    .map_err(internal_db)?;
 
     let response = Response::builder()
         .status(StatusCode::CREATED)
@@ -218,7 +243,7 @@ pub async fn register(
         )
         .header(SET_COOKIE, csrf_cookie(&csrf, access_max))
         .body(Body::from(body))
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(internal_db)?;
 
     Ok(response)
 }
@@ -228,13 +253,15 @@ pub async fn login(
     Json(input): Json<LoginRequest>,
 ) -> Result<Response, AppError> {
     input.validate()?;
+    let email = normalize_email(&input.email);
 
     let user = sqlx::query_as::<_, User>(
         "SELECT id, email, password_hash, first_name, last_name, profile_id, created_at, updated_at FROM users WHERE email = $1"
     )
-    .bind(&input.email)
+    .bind(&email)
     .fetch_optional(&state.db)
-    .await?;
+    .await
+    .map_err(internal_db)?;
 
     let user = match user {
         Some(u) => u,
@@ -244,14 +271,15 @@ pub async fn login(
         }
     };
 
-    let valid = verify(&input.password, &user.password_hash).map_err(|_| AppError::Unauthorized)?;
+    let valid = verify_password(input.password.clone(), user.password_hash.clone()).await?;
+    drop(email);
 
     if !valid {
         tracing::warn!("Failed login attempt (invalid password)");
         return Err(AppError::Unauthorized);
     }
 
-    tracing::info!("Successful login");
+    tracing::info!(user_id = %user.id, "Successful login");
 
     let role = fetch_user_role(&state, user.id).await;
 
@@ -298,7 +326,7 @@ pub async fn login(
             permissions,
         },
     })
-    .map_err(|e| AppError::Internal(e.to_string()))?;
+    .map_err(internal_db)?;
 
     let response = Response::builder()
         .header("content-type", "application/json")
@@ -309,7 +337,7 @@ pub async fn login(
         )
         .header(SET_COOKIE, csrf_cookie(&csrf, access_max))
         .body(Body::from(body))
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(internal_db)?;
 
     Ok(response)
 }
@@ -317,9 +345,10 @@ pub async fn login(
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(input): Json<RefreshTokenRequest>,
+    body: Option<Json<RefreshTokenRequest>>,
 ) -> Result<Response, AppError> {
-    // Try cookie first, then body
+    // Cookie-first (HttpOnly). Body fallback kept for backwards compat
+    // but cookie wins when present.
     let refresh_token_str = headers
         .get("cookie")
         .and_then(|h| h.to_str().ok())
@@ -330,19 +359,28 @@ pub async fn refresh_token(
             })
         })
         .or_else(|| {
-            if input.refresh_token.is_empty() {
-                None
-            } else {
-                Some(input.refresh_token.clone())
-            }
+            body.as_ref().and_then(|Json(input)| {
+                if input.refresh_token.trim().is_empty() {
+                    None
+                } else {
+                    Some(input.refresh_token.clone())
+                }
+            })
         })
         .ok_or(AppError::Unauthorized)?;
 
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = true;
     let token_data = decode::<serde_json::Value>(
         &refresh_token_str,
         &DecodingKey::from_secret(state.auth.refresh_token_secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )?;
+
+    // Pin token type: only `type == "refresh"` is accepted here.
+    if token_data.claims.get("type").and_then(|v| v.as_str()) != Some("refresh") {
+        return Err(AppError::Unauthorized);
+    }
 
     let user_id = token_data.claims["sub"]
         .as_str()
@@ -385,17 +423,13 @@ pub async fn refresh_token(
     .await?
     .ok_or(AppError::Unauthorized)?;
 
-    let mut tx = state
-        .db
-        .begin()
-        .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+    let mut tx = state.db.begin().await.map_err(internal_db)?;
 
     sqlx::query("UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1")
         .bind(&token_hash)
         .execute(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+        .map_err(internal_db)?;
 
     let new_refresh_token = create_refresh_token_string(
         &user.id,
@@ -413,11 +447,9 @@ pub async fn refresh_token(
         .bind(new_refresh_token_expires_at)
         .execute(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+        .map_err(internal_db)?;
 
-    tx.commit()
-        .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+    tx.commit().await.map_err(internal_db)?;
 
     let role = fetch_user_role(&state, user.id).await;
 
@@ -457,7 +489,7 @@ pub async fn refresh_token(
             permissions,
         },
     })
-    .map_err(|e| AppError::Internal(e.to_string()))?;
+    .map_err(internal_db)?;
 
     let response = Response::builder()
         .header("content-type", "application/json")
@@ -471,7 +503,7 @@ pub async fn refresh_token(
         )
         .header(SET_COOKIE, csrf_cookie(&csrf, access_max))
         .body(Body::from(body))
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(internal_db)?;
 
     Ok(response)
 }
@@ -520,6 +552,7 @@ pub async fn update_profile(
     input.validate()?;
 
     let user_id = Uuid::parse_str(&claims.sub)?;
+    let normalized_email = input.email.as_ref().map(|e| normalize_email(e));
 
     let user = sqlx::query_as::<_, UserSafe>(
         r#"
@@ -533,7 +566,7 @@ pub async fn update_profile(
         "#,
     )
     .bind(user_id)
-    .bind(&input.email)
+    .bind(&normalized_email)
     .bind(&input.first_name)
     .bind(&input.last_name)
     .fetch_optional(&state.db)
@@ -544,7 +577,7 @@ pub async fn update_profile(
         {
             return AppError::Conflict("Email already exists".into());
         }
-        AppError::Internal(e.to_string())
+        internal_db(e)
     })?
     .ok_or(AppError::NotFound)?;
 
@@ -585,15 +618,13 @@ pub async fn change_password(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let valid =
-        verify(&input.current_password, &user.password_hash).map_err(|_| AppError::Unauthorized)?;
+    let valid = verify_password(input.current_password.clone(), user.password_hash.clone()).await?;
 
     if !valid {
         return Err(AppError::Unauthorized);
     }
 
-    let new_hash =
-        hash(&input.new_password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let new_hash = hash_password(input.new_password.clone()).await?;
 
     sqlx::query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1")
         .bind(user_id)
@@ -624,9 +655,7 @@ pub async fn logout(
     for cookie in clear_auth_cookies() {
         builder = builder.header(SET_COOKIE, cookie);
     }
-    let response = builder
-        .body(Body::from(""))
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let response = builder.body(Body::from("")).map_err(internal_db)?;
     Ok(response)
 }
 
@@ -635,9 +664,9 @@ pub async fn create_user(
     Json(input): Json<CreateUser>,
 ) -> Result<(StatusCode, Json<UserResponse>), AppError> {
     input.validate()?;
+    let email = normalize_email(&input.email);
 
-    let password_hash =
-        hash(&input.password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let password_hash = hash_password(input.password.clone()).await?;
 
     // Default new users to Vendedor profile
     let default_profile_id: Option<Uuid> =
@@ -652,10 +681,10 @@ pub async fn create_user(
         RETURNING id, email, first_name, last_name, profile_id, created_at, updated_at
         "#,
     )
-    .bind(&input.email)
+    .bind(&email)
     .bind(&password_hash)
-    .bind(&input.first_name)
-    .bind(&input.last_name)
+    .bind(input.first_name.trim())
+    .bind(input.last_name.trim())
     .bind(default_profile_id)
     .fetch_one(&state.db)
     .await
@@ -665,7 +694,7 @@ pub async fn create_user(
         {
             return AppError::Conflict("Email already exists".into());
         }
-        AppError::Internal(e.to_string())
+        internal_db(e)
     })?;
 
     let permissions: Vec<String> = sqlx::query_scalar(
@@ -757,6 +786,8 @@ pub async fn delete_user(
         return Err(AppError::NotFound);
     }
 
+    crate::middleware::auth::invalidate_user_permissions(&id).await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -792,6 +823,8 @@ pub async fn update_user_profile(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    crate::middleware::auth::invalidate_user_permissions(&id).await;
+
     let permissions: Vec<String> = sqlx::query_scalar(
         "SELECT pp.permission FROM profile_permissions pp \
          JOIN users u ON u.profile_id = pp.profile_id \
@@ -814,14 +847,17 @@ pub async fn update_user_profile(
 
 // ─── Password Reset ──────────────────────────────────────────────
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, validator::Validate)]
 pub struct ForgotPasswordRequest {
+    #[validate(email(message = "Email must be valid"))]
     pub email: String,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, validator::Validate)]
 pub struct ResetPasswordRequest {
+    #[validate(length(min = 1, message = "Token is required"))]
     pub token: String,
+    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
     pub password: String,
 }
 
@@ -829,10 +865,12 @@ pub async fn forgot_password(
     State(state): State<AppState>,
     Json(input): Json<ForgotPasswordRequest>,
 ) -> Result<StatusCode, AppError> {
+    input.validate()?;
+    let email = normalize_email(&input.email);
     let user = sqlx::query_as::<_, UserSafe>(
         "SELECT id, email, first_name, last_name, profile_id, created_at, updated_at FROM users WHERE email = $1"
     )
-    .bind(&input.email)
+    .bind(&email)
     .fetch_optional(&state.db)
     .await?;
 
@@ -879,7 +917,8 @@ pub async fn reset_password(
     State(state): State<AppState>,
     Json(input): Json<ResetPasswordRequest>,
 ) -> Result<StatusCode, AppError> {
-    let token_hash = hash_token(&input.token);
+    input.validate()?;
+    let token_hash = hash_token(input.token.trim());
 
     let reset_token: Option<ResetTokenRow> = sqlx::query_as(
         "SELECT id, user_id, token_hash, expires_at, used FROM password_reset_tokens WHERE token_hash = $1"
@@ -901,37 +940,32 @@ pub async fn reset_password(
         return Err(AppError::BadRequest("Token expired".into()));
     }
 
-    let new_hash =
-        hash(&input.password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let new_hash = hash_password(input.password.clone()).await?;
 
-    let mut tx = state
-        .db
-        .begin()
-        .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+    let mut tx = state.db.begin().await.map_err(internal_db)?;
 
     sqlx::query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1")
         .bind(reset_token.user_id)
         .bind(&new_hash)
         .execute(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+        .map_err(internal_db)?;
 
     sqlx::query("UPDATE password_reset_tokens SET used = TRUE WHERE token_hash = $1")
         .bind(&token_hash)
         .execute(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+        .map_err(internal_db)?;
 
     sqlx::query("UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1 AND revoked = FALSE")
         .bind(reset_token.user_id)
         .execute(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+        .map_err(internal_db)?;
 
-    tx.commit()
-        .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
+    tx.commit().await.map_err(internal_db)?;
+
+    crate::middleware::auth::invalidate_user_permissions(&reset_token.user_id).await;
 
     Ok(StatusCode::OK)
 }

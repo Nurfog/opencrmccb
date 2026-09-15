@@ -79,8 +79,12 @@ impl Config {
             server: ServerConfig {
                 host: std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".into()),
                 port: std::env::var("SERVER_PORT")
-                    .unwrap_or_else(|_| "8000".into())
-                    .parse()
+                    .map(|v| {
+                        v.parse().unwrap_or_else(|_| {
+                            tracing::warn!("Invalid SERVER_PORT='{}', falling back to 8000", v);
+                            8000
+                        })
+                    })
                     .unwrap_or(8000),
                 cors_origins: std::env::var("CORS_ORIGINS")
                     .unwrap_or_else(|_| "http://localhost:3000".into()),
@@ -117,14 +121,24 @@ impl Config {
         }
 
         let token_encryption_key = std::env::var("TOKEN_ENCRYPTION_KEY").ok().and_then(|k| {
-            let decoded =
-                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &k).ok()?;
-            if decoded.len() == 32 {
-                Some(decoded)
-            } else {
-                None
+            if k.trim().is_empty() {
+                return None;
+            }
+            match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, k.trim()) {
+                Ok(decoded) if decoded.len() == 32 => Some(decoded),
+                _ => {
+                    tracing::warn!(
+                        "TOKEN_ENCRYPTION_KEY is set but not valid 32-byte base64; tokens will be stored in PLAINTEXT until fixed"
+                    );
+                    None
+                }
             }
         });
+        if token_encryption_key.is_none() {
+            tracing::warn!(
+                "TOKEN_ENCRYPTION_KEY not set: OAuth/WhatsApp tokens stored in PLAINTEXT (dev only)"
+            );
+        }
 
         AuthConfig {
             jwt_secret,

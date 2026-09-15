@@ -2,13 +2,14 @@ use axum::{
     extract::{FromRequestParts, Request, State},
     http::{StatusCode, request::Parts},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::AppState;
@@ -18,6 +19,7 @@ use crate::AppState;
 // (and twice on admin routes). Short TTL keeps RBAC changes visible
 // within seconds while drastically cutting DB round-trips.
 const PERM_TTL: Duration = Duration::from_secs(60);
+const PERM_MAX_ENTRIES: usize = 10_000;
 
 struct PermCacheEntry {
     perms: Vec<String>,
@@ -29,16 +31,22 @@ fn perm_cache() -> &'static Mutex<HashMap<Uuid, PermCacheEntry>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn json_error(status: StatusCode, msg: &str) -> Response {
+    (status, axum::Json(serde_json::json!({ "error": msg }))).into_response()
+}
+
 /// Load a user's permissions from the DB, using a short-lived in-memory cache.
 pub(crate) async fn load_permissions(
     state: &AppState,
     user_id: Uuid,
 ) -> Result<Vec<String>, StatusCode> {
-    if let Ok(guard) = perm_cache().lock()
-        && let Some(entry) = guard.get(&user_id)
-        && entry.fetched_at.elapsed() < PERM_TTL
     {
-        return Ok(entry.perms.clone());
+        let guard = perm_cache().lock().await;
+        if let Some(entry) = guard.get(&user_id)
+            && entry.fetched_at.elapsed() < PERM_TTL
+        {
+            return Ok(entry.perms.clone());
+        }
     }
 
     let perms: Vec<String> = sqlx::query_scalar(
@@ -51,7 +59,17 @@ pub(crate) async fn load_permissions(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Ok(mut guard) = perm_cache().lock() {
+    {
+        let mut guard = perm_cache().lock().await;
+        // Bound memory: evict half when full (simple LRU-ish by age).
+        if guard.len() >= PERM_MAX_ENTRIES {
+            let mut entries: Vec<(Uuid, Instant)> =
+                guard.iter().map(|(k, v)| (*k, v.fetched_at)).collect();
+            entries.sort_by_key(|(_, t)| *t);
+            for (k, _) in entries.into_iter().take(PERM_MAX_ENTRIES / 2) {
+                guard.remove(&k);
+            }
+        }
         guard.insert(
             user_id,
             PermCacheEntry {
@@ -62,6 +80,11 @@ pub(crate) async fn load_permissions(
     }
 
     Ok(perms)
+}
+
+/// Invalidate cached permissions for a user. Call after profile/role changes.
+pub async fn invalidate_user_permissions(user_id: &Uuid) {
+    perm_cache().lock().await.remove(user_id);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,26 +98,50 @@ pub struct Claims {
 
 // ─── Cookie Helpers ──────────────────────────────────────────────
 
+fn cookie_secure_flag() -> &'static str {
+    // Only emit `Secure` in production (HTTPS). On plain localhost HTTP,
+    // `Secure` cookies are never sent and login would silently break.
+    match std::env::var("COOKIE_SECURE").as_deref() {
+        Ok("true") | Ok("1") => "; Secure",
+        _ => "",
+    }
+}
+
 pub fn access_token_cookie(value: &str, max_age_secs: i64) -> String {
-    format!("access_token={value}; Path=/; HttpOnly; SameSite=Strict; Max-Age={max_age_secs}")
+    format!(
+        "access_token={value}; Path=/; HttpOnly; SameSite=Lax{}; Max-Age={max_age_secs}",
+        cookie_secure_flag()
+    )
 }
 
 pub fn refresh_token_cookie(value: &str, max_age_secs: i64) -> String {
     format!(
-        "refresh_token={value}; Path=/api/v1/auth/refresh; HttpOnly; SameSite=Strict; Max-Age={max_age_secs}"
+        "refresh_token={value}; Path=/api/v1/auth/refresh; HttpOnly; SameSite=Lax{}; Max-Age={max_age_secs}",
+        cookie_secure_flag()
     )
 }
 
 pub fn csrf_cookie(value: &str, max_age_secs: i64) -> String {
-    format!("csrf_token={value}; Path=/; SameSite=Strict; Max-Age={max_age_secs}")
+    format!(
+        "csrf_token={value}; Path=/; SameSite=Lax{}; Max-Age={max_age_secs}",
+        cookie_secure_flag()
+    )
 }
 
 pub fn clear_auth_cookies() -> Vec<String> {
     vec![
-        "access_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".to_string(),
-        "refresh_token=; Path=/api/v1/auth/refresh; HttpOnly; SameSite=Strict; Max-Age=0"
-            .to_string(),
-        "csrf_token=; Path=/; SameSite=Strict; Max-Age=0".to_string(),
+        format!(
+            "access_token=; Path=/; HttpOnly; SameSite=Lax{}; Max-Age=0",
+            cookie_secure_flag()
+        ),
+        format!(
+            "refresh_token=; Path=/api/v1/auth/refresh; HttpOnly; SameSite=Lax{}; Max-Age=0",
+            cookie_secure_flag()
+        ),
+        format!(
+            "csrf_token=; Path=/; SameSite=Lax{}; Max-Age=0",
+            cookie_secure_flag()
+        ),
     ]
 }
 
@@ -104,11 +151,12 @@ pub fn generate_csrf_token() -> String {
 
 // ─── Auth Middleware ──────────────────────────────────────────────
 
+#[allow(clippy::result_large_err)]
 pub async fn auth_middleware(
     State(state): State<AppState>,
     mut request: Request,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, Response> {
     // Try Authorization header first, then cookie
     let token = request
         .headers()
@@ -132,7 +180,7 @@ pub async fn auth_middleware(
 
     let token = match token {
         Some(t) => t,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => return Err(json_error(StatusCode::UNAUTHORIZED, "Unauthorized")),
     };
 
     let token_data = decode::<Claims>(
@@ -140,12 +188,15 @@ pub async fn auth_middleware(
         &DecodingKey::from_secret(state.auth.jwt_secret.as_bytes()),
         &Validation::new(Algorithm::HS256),
     )
-    .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    .map_err(|_| json_error(StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
     // Load permissions once and attach to request extensions
-    let user_id = Uuid::parse_str(&token_data.claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let user_id = Uuid::parse_str(&token_data.claims.sub)
+        .map_err(|_| json_error(StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
-    let permissions = load_permissions(&state, user_id).await?;
+    let permissions = load_permissions(&state, user_id)
+        .await
+        .map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"))?;
 
     request.extensions_mut().insert(token_data.claims);
     request
@@ -157,7 +208,8 @@ pub async fn auth_middleware(
 
 // ─── CSRF Middleware ──────────────────────────────────────────────
 
-pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
+#[allow(clippy::result_large_err)]
+pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, Response> {
     let method = request.method().clone();
 
     // Only check CSRF on state-changing methods
@@ -176,7 +228,7 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, S
         || path.starts_with("/api/v1/auth/forgot-password")
         || path.starts_with("/api/v1/auth/reset-password")
         || path.starts_with("/api/v1/integrations/whatsapp/webhook")
-        || path.starts_with("/api/v1/integrations/") && path.ends_with("/callback")
+        || (path.starts_with("/api/v1/integrations/") && path.ends_with("/callback"))
     {
         return Ok(next.run(request).await);
     }
@@ -200,8 +252,10 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, S
         });
 
     match (header_csrf, cookie_csrf) {
-        (Some(header), Some(cookie)) if header == cookie => Ok(next.run(request).await),
-        _ => Err(StatusCode::FORBIDDEN),
+        (Some(header), Some(cookie)) if !header.is_empty() && header == cookie => {
+            Ok(next.run(request).await)
+        }
+        _ => Err(json_error(StatusCode::FORBIDDEN, "CSRF validation failed")),
     }
 }
 
@@ -228,7 +282,7 @@ impl UserPermissions {
 }
 
 impl FromRequestParts<AppState> for UserPermissions {
-    type Rejection = StatusCode;
+    type Rejection = Response;
 
     async fn from_request_parts(
         parts: &mut Parts,
@@ -243,11 +297,14 @@ impl FromRequestParts<AppState> for UserPermissions {
             .extensions
             .get::<Claims>()
             .cloned()
-            .ok_or(StatusCode::UNAUTHORIZED)?;
+            .ok_or_else(|| json_error(StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
-        let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+        let user_id = Uuid::parse_str(&claims.sub)
+            .map_err(|_| json_error(StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
-        let permissions = load_permissions(state, user_id).await?;
+        let permissions = load_permissions(state, user_id)
+            .await
+            .map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"))?;
 
         Ok(UserPermissions(permissions))
     }

@@ -23,6 +23,14 @@ pub struct UploadResponse {
     pub created_at: chrono::DateTime<Utc>,
 }
 
+const ALLOWED_EXTENSIONS: &[&str] = &[
+    "pdf", "png", "jpg", "jpeg", "gif", "webp", "txt", "csv", "doc", "docx", "xls", "xlsx", "ppt",
+    "pptx", "odt", "ods", "zip",
+];
+const BLOCKED_EXTENSIONS: &[&str] = &[
+    "html", "htm", "svg", "js", "php", "exe", "sh", "bat", "msi", "dll", "so",
+];
+
 pub async fn upload_document(
     State(state): State<AppState>,
     claims: axum::extract::Extension<crate::middleware::auth::Claims>,
@@ -37,8 +45,9 @@ pub async fn upload_document(
     let mut file_size = 0i64;
     let mut file_data = Vec::new();
     let mut folder = Some("general".to_string());
+    let max_size = (state.upload.max_file_size_mb as i64) * 1024 * 1024;
 
-    while let Some(field) = multipart
+    while let Some(mut field) = multipart
         .next_field()
         .await
         .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
@@ -49,12 +58,20 @@ pub async fn upload_document(
                 original_name = field.file_name().unwrap_or("unknown").to_string();
                 mime_type = field.content_type().map(|m| m.to_string());
 
-                let data = field
-                    .bytes()
+                // Stream chunks and enforce size limit *while* reading (no OOM).
+                let mut buf = Vec::new();
+                while let Some(chunk) = field
+                    .chunk()
                     .await
-                    .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
-                file_size = data.len() as i64;
-                file_data = data.to_vec();
+                    .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?
+                {
+                    if (buf.len() as i64) + (chunk.len() as i64) > max_size {
+                        return Err(AppError::BadRequest("File too large".into()));
+                    }
+                    buf.extend_from_slice(&chunk);
+                }
+                file_size = buf.len() as i64;
+                file_data = buf;
             }
             "folder" => {
                 let val = field
@@ -73,17 +90,30 @@ pub async fn upload_document(
         return Err(AppError::BadRequest("No file provided".into()));
     }
 
-    let max_size = (state.upload.max_file_size_mb as i64) * 1024 * 1024;
     if file_size > max_size {
         return Err(AppError::BadRequest("File too large".into()));
     }
 
     let file_id = Uuid::new_v4();
-    let ext = std::path::Path::new(&original_name)
+    let raw_ext = std::path::Path::new(&original_name)
         .extension()
         .and_then(|e| e.to_str())
-        .unwrap_or("bin");
-    let filename = format!("{}.{}", file_id, ext);
+        .unwrap_or("bin")
+        .to_lowercase();
+    // Block executable / active-content types even if allowlisted elsewhere.
+    if BLOCKED_EXTENSIONS.contains(&raw_ext.as_str()) {
+        return Err(AppError::BadRequest("File type not allowed".into()));
+    }
+    if !ALLOWED_EXTENSIONS.contains(&raw_ext.as_str()) {
+        return Err(AppError::BadRequest("File type not allowed".into()));
+    }
+    // Sanitize folder to prevent path traversal.
+    if let Some(ref f) = folder
+        && (f.contains('/') || f.contains('\\') || f.contains(".."))
+    {
+        return Err(AppError::BadRequest("Invalid folder".into()));
+    }
+    let filename = format!("{}.{}", file_id, raw_ext);
 
     let upload_dir = &state.upload.dir;
     fs::create_dir_all(upload_dir).await?;
@@ -209,7 +239,12 @@ pub async fn download_document(
     );
     headers.insert(
         "Content-Length",
-        HeaderValue::from_str(&doc.file_size.to_string()).unwrap(),
+        HeaderValue::from_str(&doc.file_size.to_string())
+            .unwrap_or_else(|_| HeaderValue::from_static("0")),
+    );
+    headers.insert(
+        "X-Content-Type-Options",
+        HeaderValue::from_static("nosniff"),
     );
 
     Ok((headers, data))

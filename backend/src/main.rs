@@ -88,6 +88,11 @@ async fn main() {
         .filter_map(|origin| axum::http::HeaderValue::from_str(origin).ok())
         .collect();
 
+    if cors_origins.iter().any(|o| o == "*") {
+        panic!(
+            "CORS_ORIGINS='*' is not allowed with allow_credentials(true). Set explicit origins."
+        );
+    }
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origin_headers))
         .allow_credentials(true)
@@ -104,12 +109,12 @@ async fn main() {
             axum::http::header::AUTHORIZATION,
             axum::http::header::ACCEPT,
             axum::http::header::HeaderName::from_static("x-csrf-token"),
-            axum::http::header::HeaderName::from_static("cookie"),
-        ]);
+        ])
+        .max_age(std::time::Duration::from_secs(600));
 
     let app = routes::public_routes()
         .merge(routes::whatsapp_webhook_routes().layer(rate_limiter.layer()))
-        .merge(routes::integration_callback_routes())
+        .merge(routes::integration_callback_routes().layer(rate_limiter.layer()))
         .merge(routes::login_routes().layer(rate_limiter.layer()))
         .merge(routes::register_routes().layer(rate_limiter.layer()))
         .merge(routes::refresh_routes().layer(rate_limiter.layer()))

@@ -2,11 +2,18 @@ use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
 /// Encrypt a plaintext string using AES-256-GCM.
-/// Returns `nonce_hex:ciphertext_hex` or the original value if no key is provided.
+/// Returns `nonce_hex:ciphertext_hex`.
+/// Falls back to plaintext ONLY for local dev and logs a warning —
+/// configure `TOKEN_ENCRYPTION_KEY` in production.
 pub fn encrypt(plaintext: &str, key: Option<&[u8]>) -> String {
     let key = match key {
         Some(k) if k.len() == 32 => k,
-        _ => return plaintext.to_string(),
+        _ => {
+            tracing::warn!(
+                "TOKEN_ENCRYPTION_KEY missing/invalid: storing OAuth/WhatsApp token in PLAINTEXT. Set a 32-byte base64 key for production."
+            );
+            return plaintext.to_string();
+        }
     };
 
     let cipher = Aes256Gcm::new_from_slice(key).expect("valid 32-byte key");

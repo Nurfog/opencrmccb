@@ -15,21 +15,33 @@ services:
       timeout: 5s
       retries: 5
 
+  redis-test:
+    image: redis:7-alpine
+    command: redis-server --requirepass test_redis_password_123
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "test_redis_password_123", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend-test:
     build:
       context: ./backend
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgres://crm_user:crm_password@db-test:5432/crm_db_test
-      JWT_SECRET: test-secret-key
+      REDIS_URL: redis://:test_redis_password_123@redis-test:6379
+      JWT_SECRET: test-jwt-secret-key-must-be-32-chars-minimum-123456
+      REFRESH_TOKEN_SECRET: test-refresh-secret-key-must-differ-32-chars-min-789
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
     depends_on:
       db-test:
         condition: service_healthy
+      redis-test:
+        condition: service_healthy
     command: cargo test
     volumes:
-      - ./backend:/app
       - cargo-registry:/usr/local/cargo/registry
       - cargo-target:/app/target
 

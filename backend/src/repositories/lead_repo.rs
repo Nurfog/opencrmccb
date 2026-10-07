@@ -156,50 +156,48 @@ impl PgLeadRepo {
     }
 
     pub async fn get_stats(&self) -> Result<LeadStats, AppError> {
-        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads")
-            .fetch_one(&self.pool)
-            .await?;
+        #[derive(sqlx::FromRow)]
+        struct StatsRow {
+            total: i64,
+            new: i64,
+            contacted: i64,
+            qualified: i64,
+            converted: i64,
+        }
+        let counts_fut = sqlx::query_as::<_, StatsRow>(
+            "SELECT COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE status = 'new') AS new,
+                    COUNT(*) FILTER (WHERE status = 'contacted') AS contacted,
+                    COUNT(*) FILTER (WHERE status = 'qualified') AS qualified,
+                    COUNT(*) FILTER (WHERE status = 'converted') AS converted
+             FROM leads",
+        )
+        .fetch_one(&self.pool);
+        let by_source_fut = sqlx::query_as::<_, (String, i64)>(
+            "SELECT lead_source::text, COUNT(*) FROM leads GROUP BY lead_source ORDER BY COUNT(*) DESC",
+        )
+        .fetch_all(&self.pool);
+        let (counts, by_source_rows) = tokio::join!(counts_fut, by_source_fut);
+        let counts = counts?;
+        let by_source_rows = by_source_rows?;
 
-        let new: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'new'")
-            .fetch_one(&self.pool)
-            .await?;
-
-        let contacted: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'contacted'")
-                .fetch_one(&self.pool)
-                .await?;
-
-        let qualified: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'qualified'")
-                .fetch_one(&self.pool)
-                .await?;
-
-        let converted: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'converted'")
-                .fetch_one(&self.pool)
-                .await?;
-
-        let conversion_rate = if total.0 > 0 {
-            (converted.0 as f64 / total.0 as f64) * 100.0
+        let conversion_rate = if counts.total > 0 {
+            (counts.converted as f64 / counts.total as f64) * 100.0
         } else {
             0.0
         };
 
-        let by_source = sqlx::query_as::<_, (String, i64)>(
-            "SELECT lead_source::text, COUNT(*) FROM leads GROUP BY lead_source ORDER BY COUNT(*) DESC",
-        )
-        .fetch_all(&self.pool)
-        .await?
-        .into_iter()
-        .map(|(source, count)| SourceCount { source, count })
-        .collect();
+        let by_source = by_source_rows
+            .into_iter()
+            .map(|(source, count)| SourceCount { source, count })
+            .collect();
 
         Ok(LeadStats {
-            total: total.0,
-            new: new.0,
-            contacted: contacted.0,
-            qualified: qualified.0,
-            converted: converted.0,
+            total: counts.total,
+            new: counts.new,
+            contacted: counts.contacted,
+            qualified: counts.qualified,
+            converted: counts.converted,
             conversion_rate,
             by_source,
         })

@@ -1,4 +1,5 @@
 use axum::{Json, extract::State};
+use rust_decimal::prelude::ToPrimitive;
 
 use crate::AppState;
 use crate::error::AppError;
@@ -18,7 +19,8 @@ pub async fn get_dashboard_stats(
         total_contacts: i64,
         total_companies: i64,
         total_deals: i64,
-        total_revenue: f64,
+        // NUMERIC in Postgres → Decimal in Rust (no float rounding in SUM).
+        total_revenue: Option<rust_decimal::Decimal>,
         active_deals: i64,
         won_deals: i64,
         lost_deals: i64,
@@ -30,7 +32,7 @@ pub async fn get_dashboard_stats(
             (SELECT COUNT(*)::bigint FROM contacts) AS total_contacts,
             (SELECT COUNT(*)::bigint FROM companies) AS total_companies,
             (SELECT COUNT(*)::bigint FROM deals) AS total_deals,
-            (SELECT COALESCE(SUM(value), 0)::double precision FROM deals) AS total_revenue,
+            (SELECT COALESCE(SUM(value), 0) FROM deals) AS total_revenue,
             (SELECT COUNT(*)::bigint FROM deals WHERE stage NOT IN ('closed_won', 'closed_lost')) AS active_deals,
             (SELECT COUNT(*)::bigint FROM deals WHERE stage = 'closed_won') AS won_deals,
             (SELECT COUNT(*)::bigint FROM deals WHERE stage = 'closed_lost') AS lost_deals
@@ -43,7 +45,7 @@ pub async fn get_dashboard_stats(
         total_contacts: row.total_contacts,
         total_companies: row.total_companies,
         total_deals: row.total_deals,
-        total_revenue: row.total_revenue,
+        total_revenue: row.total_revenue.and_then(|d| d.to_f64()).unwrap_or(0.0),
         active_deals: row.active_deals,
         won_deals: row.won_deals,
         lost_deals: row.lost_deals,
@@ -61,12 +63,12 @@ pub async fn get_pipeline(
     struct StageRow {
         stage: String,
         count: i64,
-        total_value: f64,
+        total_value: Option<rust_decimal::Decimal>,
     }
 
     let rows = sqlx::query_as::<_, StageRow>(
         r#"
-        SELECT stage::text AS stage, COUNT(*)::bigint AS count, COALESCE(SUM(value), 0)::double precision AS total_value
+        SELECT stage::text AS stage, COUNT(*)::bigint AS count, COALESCE(SUM(value), 0) AS total_value
         FROM deals
         GROUP BY stage
         ORDER BY CASE stage
@@ -88,7 +90,7 @@ pub async fn get_pipeline(
         .map(|r| PipelineStage {
             stage: r.stage,
             count: r.count,
-            total_value: r.total_value,
+            total_value: r.total_value.and_then(|d| d.to_f64()).unwrap_or(0.0),
         })
         .collect();
 
@@ -106,7 +108,7 @@ pub async fn get_top_deals(
     struct TopDealRow {
         id: uuid::Uuid,
         title: String,
-        value: f64,
+        value: rust_decimal::Decimal,
         stage: String,
         company_name: Option<String>,
         expected_close_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -114,7 +116,7 @@ pub async fn get_top_deals(
 
     let rows = sqlx::query_as::<_, TopDealRow>(
         r#"
-        SELECT d.id, d.title, d.value::double precision, d.stage::text AS stage,
+        SELECT d.id, d.title, d.value, d.stage::text AS stage,
                c.name AS company_name, d.expected_close_date
         FROM deals d
         LEFT JOIN companies c ON d.company_id = c.id
@@ -131,7 +133,7 @@ pub async fn get_top_deals(
         .map(|r| TopDeal {
             id: r.id,
             title: r.title,
-            value: r.value,
+            value: r.value.to_f64().unwrap_or(0.0),
             stage: r.stage,
             company_name: r.company_name,
             expected_close_date: r.expected_close_date,

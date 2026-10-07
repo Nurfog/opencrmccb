@@ -89,17 +89,17 @@ export function PipelinesSection() {
         </div>
         <div className="space-y-4">
           {pipelines.map(pw => (
-            <div key={pw.pipeline.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div key={pw.pipeline.id} className="border border-border rounded-xl p-4 bg-card">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold">{pw.pipeline.name}</h3>
-                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
-                      pw.pipeline.entity_type === "person" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[13.5px] font-semibold tracking-tight">{pw.pipeline.name}</h3>
+                    <span className={cn("slds-tag",
+                      pw.pipeline.entity_type === "person" ? "slds-tag--info" : "slds-tag--violet"
                     )}>
                       {pw.pipeline.entity_type === "person" ? t("admin.person") : t("admin.company")}
                     </span>
-                    {pw.pipeline.is_default && <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">{t("admin.default")}</span>}
+                    {pw.pipeline.is_default && <span className="slds-tag slds-tag--success">{t("admin.default")}</span>}
                   </div>
                   {pw.pipeline.description && <p className="text-xs text-muted-foreground mt-0.5">{pw.pipeline.description}</p>}
                 </div>
@@ -119,7 +119,7 @@ export function PipelinesSection() {
                   </div>
                 ))}
                 <div className="flex items-center gap-1">
-                  <input className="w-28 px-2 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 text-xs bg-transparent"
+                  <input className="w-28 px-3 py-1.5 rounded-full border border-border bg-card text-xs placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
                     value={newStageNames[pw.pipeline.id] ?? ""} onChange={(e) => setNewStageNames(prev => ({ ...prev, [pw.pipeline.id]: e.target.value }))}
                     placeholder={t("admin.addStage")} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddStage(pw.pipeline.id, pw.stages) } }} />
                 </div>
@@ -150,7 +150,7 @@ export function PipelinesSection() {
               <option value="company">{t("admin.company")}</option>
             </select>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="slds-modal__footer">
             <button type="button" onClick={() => setPipeModal(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
             <button type="submit" className="slds-btn slds-btn--brand">{t("common.save")}</button>
           </div>

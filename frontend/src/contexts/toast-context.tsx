@@ -9,6 +9,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { useI18n } from "./i18n-context";
 
 type ToastType = "success" | "error" | "warning" | "info";
 
@@ -71,6 +72,70 @@ const icons: Record<ToastType, string> = {
   warning: "⚠",
   info: "ℹ",
 };
+
+function ToastViewport({
+  toasts,
+  removeToast,
+}: {
+  toasts: Toast[];
+  removeToast: (id: string) => void;
+}) {
+  let closeLabel = "Close";
+  try {
+    // ToastViewport always renders inside I18nProvider in the app layout;
+    // keep a safe fallback for standalone usage.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const i18n = useI18n();
+    closeLabel = i18n.t("common.close", "Close");
+  } catch {
+    closeLabel = "Close";
+  }
+  return (
+    <div
+      aria-label="Notifications"
+      className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2 max-w-sm w-full pointer-events-none"
+    >
+      {toasts.map((toast) => {
+        const style = typeStyles[toast.type];
+        return (
+          <div
+            key={toast.id}
+            role="alert"
+            className={[
+              "pointer-events-auto flex items-start gap-3 rounded-lg border p-4 shadow-lg",
+              "transition-all duration-300 ease-in-out",
+              "animate-in slide-in-from-right-2 fade-in",
+              style.bg,
+              style.border,
+            ].join(" ")}
+          >
+            <span className={`mt-0.5 text-lg font-bold ${style.icon}`}>
+              {icons[toast.type]}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                {toast.title}
+              </p>
+              {toast.message && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {toast.message}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => removeToast(toast.id)}
+              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={closeLabel}
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -145,50 +210,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     >
       {children}
 
-      <div
-        aria-live="polite"
-        aria-label="Notifications"
-        className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2 max-w-sm w-full pointer-events-none"
-      >
-        {toasts.map((toast) => {
-          const style = typeStyles[toast.type];
-          return (
-            <div
-              key={toast.id}
-              role="alert"
-              className={[
-                "pointer-events-auto flex items-start gap-3 rounded-lg border p-4 shadow-lg",
-                "transition-all duration-300 ease-in-out",
-                "animate-in slide-in-from-right-2 fade-in",
-                style.bg,
-                style.border,
-              ].join(" ")}
-            >
-              <span className={`mt-0.5 text-lg font-bold ${style.icon}`}>
-                {icons[toast.type]}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {toast.title}
-                </p>
-                {toast.message && (
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {toast.message}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeToast(toast.id)}
-                className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      <ToastViewport toasts={toasts} removeToast={removeToast} />
     </ToastContext.Provider>
   );
 }

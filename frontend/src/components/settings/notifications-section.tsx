@@ -50,10 +50,10 @@ export function NotificationsSection() {
           { key: "weekly_digest", label: t("settings.dealStageChanges"), desc: t("settings.dealStageChangesDesc"), value: weeklyDigest, onChange: setWeeklyDigest },
           { key: "marketing_emails", label: t("settings.activityReminders"), desc: t("settings.activityRemindersDesc"), value: marketingEmails, onChange: setMarketingEmails },
         ].map((item, idx) => (
-          <label key={idx} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+          <label key={idx} className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card cursor-pointer">
             <div>
-              <p className="text-sm font-medium">{item.label}</p>
-              <p className="text-xs text-muted-foreground">{item.desc}</p>
+              <p className="text-[13.5px] font-medium">{item.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
             </div>
             <button
               type="button"
@@ -62,8 +62,8 @@ export function NotificationsSection() {
               disabled={notifPrefsLoading}
               onClick={() => handleNotifToggle(item.key, item.value, item.onChange)}
               className={cn(
-                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                item.value ? "bg-brand" : "bg-gray-300 dark:bg-gray-600",
+                "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors",
+                item.value ? "bg-primary" : "bg-input",
                 notifPrefsLoading && "opacity-50 cursor-not-allowed"
               )}
             >

@@ -3,14 +3,27 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
 /// Encrypt a plaintext string using AES-256-GCM.
 /// Returns `nonce_hex:ciphertext_hex`.
-/// Falls back to plaintext ONLY for local dev and logs a warning —
-/// configure `TOKEN_ENCRYPTION_KEY` in production.
+/// FAIL-CLOSED in production: if `TOKEN_ENCRYPTION_KEY` is missing/invalid and
+/// `ENV` is neither `development` nor `test`, this panics instead of storing
+/// plaintext. In dev/test it falls back to plaintext with warn + error logs —
+/// configure a 32-byte base64 `TOKEN_ENCRYPTION_KEY` for production.
 pub fn encrypt(plaintext: &str, key: Option<&[u8]>) -> String {
     let key = match key {
         Some(k) if k.len() == 32 => k,
         _ => {
+            // Logical column: distinguish envs. Production must never silently
+            // store OAuth/WhatsApp tokens in plaintext.
+            let env = std::env::var("ENV").unwrap_or_else(|_| "development".into());
+            if env != "development" && env != "test" {
+                panic!(
+                    "TOKEN_ENCRYPTION_KEY missing/invalid in ENV='{env}': refusing to store tokens in PLAINTEXT. Set a 32-byte base64 key."
+                );
+            }
             tracing::warn!(
                 "TOKEN_ENCRYPTION_KEY missing/invalid: storing OAuth/WhatsApp token in PLAINTEXT. Set a 32-byte base64 key for production."
+            );
+            tracing::error!(
+                "plaintext token storage active (ENV='{env}'): dev-only fallback, fix TOKEN_ENCRYPTION_KEY before deploying"
             );
             return plaintext.to_string();
         }

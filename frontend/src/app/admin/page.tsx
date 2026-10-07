@@ -37,13 +37,13 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap gap-1 border-b border-border">
           {tabs.map(tab => {
             const Icon = tab.icon
             return (
               <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-                className={cn("flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-                  activeTab === tab.id ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground"
+                className={cn("flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] font-medium border-b-2 -mb-px transition-colors",
+                  activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                 )}>
                 <Icon className="h-4 w-4" />
                 {tab.label}

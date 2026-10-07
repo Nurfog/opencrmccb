@@ -10,7 +10,6 @@ export function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
 
@@ -82,7 +81,7 @@ export function NotificationCenter() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-white/80 hover:text-white transition-colors"
+        className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
@@ -93,8 +92,8 @@ export function NotificationCenter() {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50">
-          <div className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <div className="absolute top-full right-0 mt-2 w-80 bg-popover border border-border rounded-xl shadow-pop z-50">
+          <div className="p-3 border-b border-border/70 flex items-center justify-between">
             <h3 className="font-semibold text-sm">{t("settings.notifications")}</h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
@@ -110,7 +109,7 @@ export function NotificationCenter() {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -119,7 +118,7 @@ export function NotificationCenter() {
 
           <div className="max-h-[60vh] overflow-auto">
             {notifications.length === 0 ? (
-              <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+              <div className="p-6 text-center text-muted-foreground">
                 {t("common.noResults")}
               </div>
             ) : (
@@ -127,27 +126,27 @@ export function NotificationCenter() {
                 <div
                   key={notif.id}
                   className={cn(
-                    "p-3 border-b border-gray-100 dark:border-gray-800 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-800",
+                    "p-3 border-b border-border/70 flex items-start gap-3 hover:bg-muted",
                     !notif.read && "bg-brand/5"
                   )}
                 >
                   <div className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                    notif.read ? "bg-gray-100 dark:bg-gray-800" : "bg-brand/10"
+                    notif.read ? "bg-muted" : "bg-brand/10"
                   )}>
-                    <Bell className={cn("h-4 w-4", notif.read ? "text-gray-400" : "text-brand")} />
+                    <Bell className={cn("h-4 w-4", notif.read ? "text-muted-foreground" : "text-brand")} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={cn("text-sm", !notif.read && "font-medium")}>{notif.title}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{notif.message}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{formatDate(notif.created_at)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{formatDate(notif.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     {!notif.read && (
                       <button
                         type="button"
                         onClick={() => handleMarkAsRead(notif.id)}
-                        className="p-1 text-gray-400 hover:text-green-600"
+                        className="p-1 text-muted-foreground hover:text-green-600"
                         title={t("common.markAllRead")}
                       >
                         <Check className="h-4 w-4" />
@@ -156,7 +155,7 @@ export function NotificationCenter() {
                     <button
                       type="button"
                       onClick={() => handleDelete(notif.id)}
-                      className="p-1 text-gray-400 hover:text-red-600"
+                      className="p-1 text-muted-foreground hover:text-red-600"
                       title={t("common.delete")}
                     >
                       <Trash2 className="h-4 w-4" />

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -90,7 +91,11 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
 
   if (!isOpen) return null
 
-  return (
+  // Render in a portal so the dialog escapes stacking contexts and sits
+  // alongside other overlays. `inert` handling for background content is left
+  // to the app layout (see comment: add `inert` to main content when modal
+  // open if focus-trapping alone proves insufficient).
+  const modalNode = (
     <div
       ref={overlayRef}
       className="slds-modal-backdrop"
@@ -110,14 +115,19 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Close"
+            className="flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Close dialog"
           >
-            <X className="h-5 w-5" />
+            <X className="h-[18px] w-[18px]" />
           </button>
         </div>
         <div className="slds-modal__body">{children}</div>
       </div>
     </div>
   )
+
+  if (typeof document !== "undefined") {
+    return createPortal(modalNode, document.body)
+  }
+  return modalNode
 }

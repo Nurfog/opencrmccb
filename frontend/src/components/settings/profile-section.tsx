@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useRef, useCallback, useState, useEffect } from "react"
 import { Camera, Save } from "lucide-react"
 import { useI18n } from "@/contexts/i18n-context"
@@ -45,27 +46,37 @@ export function ProfileSection() {
   const handleAvatarChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!file.type.startsWith("image/")) {
+      error(t("toast.error", { action: "update", entity: t("settings.profile") }))
+      e.target.value = ""
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      error(t("toast.error", { action: "update", entity: t("settings.profile") }))
+      e.target.value = ""
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => setAvatarPreview(reader.result as string)
     reader.readAsDataURL(file)
     success(t("toast.updated", { entity: t("settings.profile") }))
-  }, [success, t])
+  }, [success, error, t])
 
   return (
     <form onSubmit={handleProfileSubmit} className="space-y-6">
       <div className="flex items-center gap-6">
         <div className="relative">
           {avatarPreview ? (
-            <img src={avatarPreview} alt="Avatar" className="w-20 h-20 rounded-full object-cover" />
+            <Image src={avatarPreview} alt="Avatar" width={80} height={80} className="w-20 h-20 rounded-full object-cover" />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-brand flex items-center justify-center text-white text-2xl font-semibold">
+            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-semibold">
               {user ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}` : "U"}
             </div>
           )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-card border border-border flex items-center justify-center shadow-sm hover:bg-muted transition-colors"
           >
             <Camera className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
@@ -76,7 +87,7 @@ export function ProfileSection() {
           <p className="text-xs text-muted-foreground">
             {user?.permissions?.length ? `${user.permissions.length} permisos` : "Sin perfil"}
           </p>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs text-brand hover:underline mt-1">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs text-primary font-medium hover:brightness-90 mt-1">
             {t("settings.changePhoto")}
           </button>
         </div>

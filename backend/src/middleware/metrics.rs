@@ -76,7 +76,9 @@ pub async fn track_metrics(
     next: axum::middleware::Next,
 ) -> Response {
     let method = req.method().to_string();
-    let path = req.uri().path().to_string();
+    let raw_path = req.uri().path().to_string();
+    // Normalize to route templates to bound cardinality (no UUID/int explosion).
+    let path = normalize_path(&raw_path);
     let start = Instant::now();
 
     let response = next.run(req).await;
@@ -94,4 +96,47 @@ pub async fn track_metrics(
         .observe(elapsed);
 
     response
+}
+
+/// Normalize a request path to its route template for metrics labels:
+/// replaces UUIDs and pure-integer segments with `:id`.
+/// e.g. `/api/v1/contacts/550e8400-...` → `/api/v1/contacts/:id`.
+pub fn normalize_path(path: &str) -> String {
+    path.split('/')
+        .map(|seg| {
+            if seg.is_empty() {
+                return String::new();
+            }
+            // Pure integers → :id
+            if !seg.is_empty() && seg.bytes().all(|b| b.is_ascii_digit()) {
+                return ":id".to_string();
+            }
+            // UUIDs (8-4-4-4-12 hex) → :id (cheap check without regex dep)
+            if is_uuid_like(seg) {
+                return ":id".to_string();
+            }
+            seg.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn is_uuid_like(s: &str) -> bool {
+    if s.len() != 36 {
+        return false;
+    }
+    let b = s.as_bytes();
+    // 8-4-4-4-12 with dashes at 8,13,18,23, all other hex
+    if b[8] != b'-' || b[13] != b'-' || b[18] != b'-' || b[23] != b'-' {
+        return false;
+    }
+    for (i, &c) in b.iter().enumerate() {
+        if i == 8 || i == 13 || i == 18 || i == 23 {
+            continue;
+        }
+        if !c.is_ascii_hexdigit() {
+            return false;
+        }
+    }
+    true
 }

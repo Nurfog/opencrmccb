@@ -3,7 +3,7 @@
 import { type Deal } from "@/lib/api"
 import { formatCurrency } from "@/lib/utils"
 import { KanbanBoard } from "@/components/kanban/kanban-board"
-import { STAGE_CONFIG, stageColors } from "./deals-constants"
+import { STAGE_CONFIG } from "./deals-constants"
 
 interface DealsKanbanViewProps {
   deals: Deal[]
@@ -22,7 +22,7 @@ export function DealsKanbanView({
 }: DealsKanbanViewProps) {
   return (
     <KanbanBoard
-      stages={STAGE_CONFIG.map((s) => ({ id: s.id, name: s.name, color: stageColors[s.id] }))}
+      stages={STAGE_CONFIG.map((s) => ({ id: s.id, name: s.name, color: s.color }))}
       deals={deals}
       onStageChange={onStageChange}
       formatCurrency={(value: number, currency: string) => formatCurrency(value, currency)}
@@ -39,14 +39,14 @@ export function DealsKanbanSkeleton() {
       {STAGE_CONFIG.map((stage) => (
         <div key={stage.id} className="slds-kanban__column space-y-2">
           <div className="slds-kanban__column-header">
-            <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
+            <div className="h-5 w-24 bg-muted animate-pulse rounded-md" />
           </div>
           <div className="slds-kanban__column-body min-h-[200px]">
             {Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="slds-kanban__card space-y-2">
-                <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
-                <div className="h-3 w-1/2 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
-                <div className="h-3 w-2/3 bg-gray-200 dark:bg-gray-700 animate-pulse rounded" />
+                <div className="h-4 w-3/4 bg-muted animate-pulse rounded-md" />
+                <div className="h-3 w-1/2 bg-muted animate-pulse rounded-md" />
+                <div className="h-3 w-2/3 bg-muted animate-pulse rounded-md" />
               </div>
             ))}
           </div>

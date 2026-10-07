@@ -20,24 +20,24 @@ export function LogsPanel({ logs, loading, onPageChange }: LogsPanelProps) {
   return (
     <section className="slds-card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px]">
+        <table className="slds-table min-w-[720px]">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+            <tr>
+              <th>
                 {t("email.logStatus")}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+              <th>
                 {t("email.logTo")}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+              <th>
                 {t("email.logSubject")}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+              <th>
                 {t("email.logDate")}
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody>
             {loading ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
@@ -52,13 +52,13 @@ export function LogsPanel({ logs, loading, onPageChange }: LogsPanelProps) {
               </tr>
             ) : (
               logs.data.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-4 py-3">
+                <tr key={log.id}>
+                  <td>
                     <StatusIcon status={log.status} />
                   </td>
-                  <td className="px-4 py-3 text-sm text-foreground">{log.to_email}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{log.subject}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{formatDate(log.created_at)}</td>
+                  <td className="text-sm text-foreground">{log.to_email}</td>
+                  <td className="text-sm text-muted-foreground">{log.subject}</td>
+                  <td className="text-sm text-muted-foreground">{formatDate(log.created_at)}</td>
                 </tr>
               ))
             )}
@@ -67,7 +67,7 @@ export function LogsPanel({ logs, loading, onPageChange }: LogsPanelProps) {
       </div>
 
       {logs && logs.total_pages > 1 && (
-        <div className="border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="border-t border-border px-4 py-3">
           <Pagination
             page={logs.page}
             totalPages={logs.total_pages}

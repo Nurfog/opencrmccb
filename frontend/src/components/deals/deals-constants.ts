@@ -9,16 +9,16 @@ export interface AuditEvent {
 }
 
 export const STAGE_CONFIG = [
-  { id: "lead", name: "Lead", color: "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600" },
-  { id: "qualified", name: "Qualified", color: "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600" },
-  { id: "proposal", name: "Proposal", color: "bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-600" },
-  { id: "negotiation", name: "Negotiation", color: "bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-600" },
-  { id: "closed_won", name: "Closed Won", color: "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600" },
-  { id: "closed_lost", name: "Closed Lost", color: "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600" },
+  { id: "lead", name: "Lead", color: "#64748B" },
+  { id: "qualified", name: "Qualified", color: "#3B82F6" },
+  { id: "proposal", name: "Proposal", color: "#8B5CF6" },
+  { id: "negotiation", name: "Negotiation", color: "#F59E0B" },
+  { id: "closed_won", name: "Closed Won", color: "#10B981" },
+  { id: "closed_lost", name: "Closed Lost", color: "#F43F5E" },
 ]
 
 export const stageColors: Record<string, string> = {
-  lead: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
+  lead: "bg-muted text-muted-foreground",
   qualified: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
   proposal: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
   negotiation: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",

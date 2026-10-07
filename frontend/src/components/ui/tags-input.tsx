@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { X, Plus, Tag as TagIcon } from "lucide-react"
+import { X, Plus } from "lucide-react"
 import { tagsApi, type Tag } from "@/lib/api"
-import { cn } from "@/lib/utils"
 import { useI18n } from "@/contexts/i18n-context"
+import { useToast } from "@/contexts/toast-context"
 
 interface TagsInputProps {
   entityType: string
@@ -21,6 +21,7 @@ export function TagsInput({ entityType, entityId, onChange }: TagsInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
+  const { error } = useToast()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,8 +32,8 @@ export function TagsInput({ entityType, entityId, onChange }: TagsInputProps) {
         ])
         setTags(entityTags)
         setAllTags(allTagsData)
-      } catch {
-        // Ignore errors
+      } catch (err: unknown) {
+        console.error("Failed to load tags", err)
       }
     }
     fetchData()
@@ -61,8 +62,9 @@ export function TagsInput({ entityType, entityId, onChange }: TagsInputProps) {
       setInputValue("")
       setIsOpen(false)
       onChange?.()
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      console.error("Failed to assign tag", err)
+      error(t("toast.error", { action: "update", entity: "tag" }))
     }
   }
 
@@ -71,8 +73,9 @@ export function TagsInput({ entityType, entityId, onChange }: TagsInputProps) {
       await tagsApi.remove(tag.id, entityType, entityId)
       setTags(tags.filter((t) => t.id !== tag.id))
       onChange?.()
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      console.error("Failed to remove tag", err)
+      error(t("toast.error", { action: "delete", entity: "tag" }))
     }
   }
 
@@ -83,8 +86,9 @@ export function TagsInput({ entityType, entityId, onChange }: TagsInputProps) {
       const newTag = await tagsApi.create({ name: inputValue.trim() })
       setAllTags([...allTags, newTag])
       await handleAssign(newTag)
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      console.error("Failed to create tag", err)
+      error(t("toast.error", { action: "create", entity: "tag" }))
     } finally {
       setLoading(false)
     }

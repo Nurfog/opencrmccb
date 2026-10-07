@@ -6,6 +6,9 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isLoadingLogin: boolean;
+  isLoadingUser: boolean;
+  isInitialized: boolean;
   error: string | null;
 
   login: (email: string, password: string) => Promise<void>;
@@ -25,14 +28,19 @@ interface AuthState {
 
 // Tokens are managed via httpOnly cookies, not localStorage
 
+let initializePromise: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  isLoadingLogin: false,
+  isLoadingUser: false,
+  isInitialized: false,
   error: null,
 
   login: async (email: string, password: string) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, isLoadingLogin: true, error: null });
     try {
       const response = await authApi.login({ email, password });
       setTokens(response.access_token, response.refresh_token);
@@ -40,18 +48,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: response.user,
         isAuthenticated: true,
         isLoading: false,
+        isLoadingLogin: false,
         error: null,
       });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Login failed. Please try again.";
-      set({ isLoading: false, error: message });
+      set({ isLoading: false, isLoadingLogin: false, error: message });
       throw err;
     }
   },
 
   register: async (data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, isLoadingLogin: true, error: null });
     try {
       const response = await authApi.register(data);
       setTokens(response.access_token, response.refresh_token);
@@ -59,18 +68,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: response.user,
         isAuthenticated: true,
         isLoading: false,
+        isLoadingLogin: false,
         error: null,
       });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Registration failed. Please try again.";
-      set({ isLoading: false, error: message });
+      set({ isLoading: false, isLoadingLogin: false, error: message });
       throw err;
     }
   },
 
   logout: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, isLoadingLogin: true });
     try {
       await authApi.logout();
     } catch {
@@ -81,19 +91,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         isAuthenticated: false,
         isLoading: false,
+        isLoadingLogin: false,
         error: null,
       });
+      // Guaranteed redirect even if API/logout handler fails.
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
   },
 
   loadUser: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, isLoadingUser: true });
     try {
       const user = await authApi.me();
-      set({ user, isAuthenticated: true, isLoading: false, error: null });
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        isLoadingUser: false,
+        isInitialized: true,
+        error: null,
+      });
     } catch {
       clearTokens();
-      set({ user: null, isAuthenticated: false, isLoading: false, error: null });
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isLoadingUser: false,
+        isInitialized: true,
+        error: null,
+      });
     }
   },
 
@@ -113,10 +142,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
+    if (get().isInitialized) return;
+    if (initializePromise) return initializePromise;
     setLogoutHandler(() => {
       set({ user: null, isAuthenticated: false });
     });
 
-    await get().loadUser();
+    initializePromise = get()
+      .loadUser()
+      .finally(() => {
+        set({ isInitialized: true });
+        initializePromise = null;
+      });
+    return initializePromise;
   },
 }));

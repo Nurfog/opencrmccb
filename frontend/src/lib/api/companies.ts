@@ -1,14 +1,17 @@
-import { request } from "../api-client";
+import { request, downloadFile } from "../api-client";
 import type { Company, Contact, Deal, PaginatedResponse } from "../types";
 
 export const companiesApi = {
-  list: (params?: {
-    page?: number;
-    per_page?: number;
-    search?: string;
-    sort_by?: string;
-    sort_order?: string;
-  }) => request<PaginatedResponse<Company>>("/api/v1/companies", { params }),
+  list: (
+    params?: {
+      page?: number;
+      per_page?: number;
+      search?: string;
+      sort_by?: string;
+      sort_order?: string;
+    },
+    signal?: AbortSignal
+  ) => request<PaginatedResponse<Company>>("/api/v1/companies", { params, signal }),
 
   get: (id: string) => request<Company>(`/api/v1/companies/${id}`),
 
@@ -38,7 +41,7 @@ export const companiesApi = {
     request<void>(`/api/v1/companies/${id}`, { method: "DELETE" }),
 
   exportCsv: (params?: { search?: string }) =>
-    request<string>(`/api/v1/companies/export`, { params }),
+    downloadFile(`/api/v1/companies/export`, params),
 
   importCsv: (body: string) =>
     request<{ imported: number; errors: string[] }>("/api/v1/companies/import", {

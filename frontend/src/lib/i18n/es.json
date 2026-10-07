@@ -668,7 +668,8 @@
       "october": "Octubre",
       "november": "Noviembre",
       "december": "Diciembre"
-    }
+    },
+    "endBeforeStart": "La fecha de fin debe ser posterior a la de inicio"
   },
   "tags": {
     "placeholder": "Agregar etiquetas..."

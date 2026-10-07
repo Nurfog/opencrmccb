@@ -1,14 +1,17 @@
-import { request } from "../api-client";
+import { request, downloadFile } from "../api-client";
 import type { Contact, Deal, Activity, PaginatedResponse } from "../types";
 
 export const contactsApi = {
-  list: (params?: {
-    page?: number;
-    per_page?: number;
-    search?: string;
-    sort_by?: string;
-    sort_order?: string;
-  }) => request<PaginatedResponse<Contact>>("/api/v1/contacts", { params }),
+  list: (
+    params?: {
+      page?: number;
+      per_page?: number;
+      search?: string;
+      sort_by?: string;
+      sort_order?: string;
+    },
+    signal?: AbortSignal
+  ) => request<PaginatedResponse<Contact>>("/api/v1/contacts", { params, signal }),
 
   get: (id: string) => request<Contact>(`/api/v1/contacts/${id}`),
 
@@ -36,7 +39,7 @@ export const contactsApi = {
     request<void>(`/api/v1/contacts/${id}`, { method: "DELETE" }),
 
   exportCsv: (params?: { search?: string }) =>
-    request<string>(`/api/v1/contacts/export`, { params }),
+    downloadFile(`/api/v1/contacts/export`, params),
 
   importCsv: (body: string) =>
     request<{ imported: number; errors: string[] }>("/api/v1/contacts/import", {

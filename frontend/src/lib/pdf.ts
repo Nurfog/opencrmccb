@@ -1,8 +1,16 @@
-import jsPDF from "jspdf"
-import autoTable from "jspdf-autotable"
 import type { Contact, Company, Deal } from "./api"
+import type { Activity } from "./api"
 
-export function exportContactsToPdf(contacts: Contact[]) {
+async function loadPdfDeps() {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    await import("jspdf"),
+    await import("jspdf-autotable"),
+  ]);
+  return { jsPDF, autoTable };
+}
+
+export async function exportContactsToPdf(contacts: Contact[]) {
+  const { jsPDF, autoTable } = await loadPdfDeps()
   const doc = new jsPDF()
 
   doc.setFontSize(18)
@@ -27,7 +35,8 @@ export function exportContactsToPdf(contacts: Contact[]) {
   doc.save("contacts.pdf")
 }
 
-export function exportCompaniesToPdf(companies: Company[]) {
+export async function exportCompaniesToPdf(companies: Company[]) {
+  const { jsPDF, autoTable } = await loadPdfDeps()
   const doc = new jsPDF()
 
   doc.setFontSize(18)
@@ -53,7 +62,8 @@ export function exportCompaniesToPdf(companies: Company[]) {
   doc.save("companies.pdf")
 }
 
-export function exportDealsToPdf(deals: Deal[]) {
+export async function exportDealsToPdf(deals: Deal[]) {
+  const { jsPDF, autoTable } = await loadPdfDeps()
   const doc = new jsPDF()
 
   doc.setFontSize(18)
@@ -81,8 +91,10 @@ export function exportDealsToPdf(deals: Deal[]) {
   doc.save("deals.pdf")
 }
 
-export function exportContactDetailToPdf(contact: Contact, deals: Deal[], activities: any[]) {
+export async function exportContactDetailToPdf(contact: Contact, deals: Deal[], activities: Activity[] | Record<string, unknown>[]) {
+  const { jsPDF, autoTable } = await loadPdfDeps()
   const doc = new jsPDF()
+  void activities
 
   // Header
   doc.setFontSize(20)

@@ -19,6 +19,7 @@ pub struct ServerConfig {
     pub port: u16,
     pub cors_origins: String,
     pub frontend_url: String,
+    pub backend_url: String,
 }
 
 #[derive(Clone)]
@@ -90,6 +91,11 @@ impl Config {
                     .unwrap_or_else(|_| "http://localhost:3000".into()),
                 frontend_url: std::env::var("FRONTEND_URL")
                     .unwrap_or_else(|_| "http://localhost:3000".into()),
+                // OAuth callbacks must point at the backend (not the frontend SPA):
+                // BACKEND_URL takes precedence, then API_URL, then localhost fallback.
+                backend_url: std::env::var("BACKEND_URL")
+                    .or_else(|_| std::env::var("API_URL"))
+                    .unwrap_or_else(|_| "http://localhost:8000".into()),
             },
             auth,
             smtp,
@@ -130,13 +136,27 @@ impl Config {
                     tracing::warn!(
                         "TOKEN_ENCRYPTION_KEY is set but not valid 32-byte base64; tokens will be stored in PLAINTEXT until fixed"
                     );
+                    tracing::error!(
+                        "invalid TOKEN_ENCRYPTION_KEY format: expected 32-byte base64 (dev fallback to plaintext)"
+                    );
                     None
                 }
             }
         });
         if token_encryption_key.is_none() {
+            // Fail-closed in production: never run without encryption outside dev/test.
+            // In dev/test keep the warn fallback so local workflows still work.
+            let env = std::env::var("ENV").unwrap_or_else(|_| "development".into());
+            if env != "development" && env != "test" {
+                panic!(
+                    "TOKEN_ENCRYPTION_KEY not set/invalid in ENV='{env}': refusing to start with PLAINTEXT token storage. Generate with: openssl rand -base64 32"
+                );
+            }
             tracing::warn!(
                 "TOKEN_ENCRYPTION_KEY not set: OAuth/WhatsApp tokens stored in PLAINTEXT (dev only)"
+            );
+            tracing::error!(
+                "plaintext token storage active (ENV='{env}'): dev-only fallback, set TOKEN_ENCRYPTION_KEY before deploying"
             );
         }
 

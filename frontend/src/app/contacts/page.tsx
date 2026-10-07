@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AdvancedFilters, ActiveFilters, type FilterField } from "@/components/ui/advanced-filters"
 import Link from "next/link"
-import { formatDate, getInitials, cn } from "@/lib/utils"
+import { getInitials, cn } from "@/lib/utils"
 
 type SortField = "first_name" | "last_name" | "email" | "phone" | "position"
 type SortDir = "asc" | "desc"
@@ -174,14 +174,15 @@ export default function ContactsPage() {
 
   const handleCsvExport = async () => {
     try {
-      const res = await contactsApi.exportCsv()
-      const blob = new Blob([res as unknown as string], { type: "text/csv;charset=utf-8;" })
+      const { blob, filename } = await contactsApi.exportCsv()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = "contacts.csv"
+      a.download = filename ?? "contacts.csv"
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t("toast.error", { action: "export", entity: t("contacts.title") })
       error(msg)
@@ -304,7 +305,7 @@ export default function ContactsPage() {
                       <th className="w-10">
                         <input
                           type="checkbox"
-                          className="rounded border-gray-300 dark:border-gray-600"
+                          className="rounded border-border"
                           checked={selectedIds.size === data.data.length && data.data.length > 0}
                           onChange={toggleSelectAll}
                         />
@@ -338,7 +339,7 @@ export default function ContactsPage() {
                         <td>
                           <input
                             type="checkbox"
-                            className="rounded border-gray-300 dark:border-gray-600"
+                            className="rounded border-border"
                             checked={selectedIds.has(contact.id)}
                             onChange={() => toggleSelect(contact.id)}
                           />

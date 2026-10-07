@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -14,6 +15,8 @@ export function ProtectedRoute({ children, requiredPermission }: ProtectedRouteP
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const isLoadingUser = useAuthStore((s) => s.isLoadingUser);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const loadUser = useAuthStore((s) => s.loadUser);
   const [mounted, setMounted] = useState(false);
@@ -43,16 +46,34 @@ export function ProtectedRoute({ children, requiredPermission }: ProtectedRouteP
     }
   }, [mounted, isLoading, isAuthenticated, requiredPermission, permissionsLoaded, hasPermission, router]);
 
-  if (!mounted || isLoading) {
+  const showSkeleton = !mounted || !isInitialized || isLoading || isLoadingUser;
+
+  if (showSkeleton) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div className="flex min-h-screen flex-col gap-4 p-6" aria-busy="true" aria-label="Loading">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-40 w-full" />
       </div>
     );
   }
 
-  if (!isAuthenticated) return null;
-  if (requiredPermission && permissionsLoaded && !hasPermission(requiredPermission)) return null;
+  if (!isAuthenticated) {
+    return (
+      <div className="flex min-h-screen flex-col gap-4 p-6" aria-busy="true" aria-label="Redirecting to login">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+  if (requiredPermission && permissionsLoaded && !hasPermission(requiredPermission)) {
+    return (
+      <div className="flex min-h-screen flex-col gap-4 p-6" aria-busy="true" aria-label="Checking permissions">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }

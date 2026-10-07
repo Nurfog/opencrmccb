@@ -107,17 +107,19 @@ impl PgDealRepo {
     }
 
     pub async fn find_all_for_export(&self, search: Option<&str>) -> Result<Vec<Deal>, AppError> {
+        // TODO: stream CSV instead of loading all rows into memory.
+        // Capped at 10k rows to bound memory/time; paginate or stream for larger exports.
         let deals = if let Some(search) = search {
             let pattern = format!("%{}%", crate::models::escape_like(search));
             sqlx::query_as::<_, Deal>(&format!(
-                "{DEAL_SELECT} WHERE d.title ILIKE $1 ESCAPE '\\' ORDER BY d.created_at DESC LIMIT 100000"
+                "{DEAL_SELECT} WHERE d.title ILIKE $1 ESCAPE '\\' ORDER BY d.created_at DESC LIMIT 10000"
             ))
             .bind(pattern)
             .fetch_all(&self.pool)
             .await?
         } else {
             sqlx::query_as::<_, Deal>(&format!(
-                "{DEAL_SELECT} ORDER BY d.created_at DESC LIMIT 100000"
+                "{DEAL_SELECT} ORDER BY d.created_at DESC LIMIT 10000"
             ))
             .fetch_all(&self.pool)
             .await?

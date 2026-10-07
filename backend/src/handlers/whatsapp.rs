@@ -8,6 +8,7 @@ use sha2::Sha256;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::services::crypto::{decrypt, encrypt};
 
@@ -147,16 +148,15 @@ pub async fn get_whatsapp_config(
     State(state): State<AppState>,
     _claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
-) -> Result<Json<WhatsAppConfigResponse>, StatusCode> {
+) -> Result<Json<WhatsAppConfigResponse>, AppError> {
     perms
-        .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .require("admin.access")
+        .map_err(|_| AppError::Forbidden)?;
     let config = sqlx::query_as::<_, WhatsAppConfig>(
         "SELECT * FROM whatsapp_config WHERE is_active = true ORDER BY created_at DESC LIMIT 1",
     )
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     match config {
         Some(c) => Ok(Json(WhatsAppConfigResponse {
@@ -166,7 +166,7 @@ pub async fn get_whatsapp_config(
             is_active: c.is_active,
             webhook_verify_token: c.webhook_verify_token,
         })),
-        None => Err(StatusCode::NOT_FOUND),
+        None => Err(AppError::NotFound),
     }
 }
 
@@ -176,10 +176,10 @@ pub async fn update_whatsapp_config(
     _claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<WhatsAppConfigInput>,
-) -> Result<Json<WhatsAppConfigResponse>, StatusCode> {
+) -> Result<Json<WhatsAppConfigResponse>, AppError> {
     perms
-        .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .require("admin.access")
+        .map_err(|_| AppError::Forbidden)?;
     let singleton_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
     let key = state.auth.token_encryption_key.as_deref();
     let enc_token = encrypt(&input.api_token, key);
@@ -198,8 +198,7 @@ pub async fn update_whatsapp_config(
     .bind(&enc_token)
     .bind(&input.phone_number)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(WhatsAppConfigResponse {
         phone_number_id: config.phone_number_id,
@@ -216,19 +215,18 @@ pub async fn send_whatsapp_message(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<SendMessageInput>,
-) -> Result<Json<MessageResponse>, StatusCode> {
+) -> Result<Json<MessageResponse>, AppError> {
     perms
-        .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    let agent_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+        .require("contacts.create")
+        .map_err(|_| AppError::Forbidden)?;
+    let agent_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
 
     let config = sqlx::query_as::<_, WhatsAppConfig>(
         "SELECT * FROM whatsapp_config WHERE is_active = true ORDER BY created_at DESC LIMIT 1",
     )
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let api_token = decrypt(
         &config.api_token,
@@ -283,7 +281,7 @@ pub async fn send_whatsapp_message(
     .bind(if wa_message_id.is_some() { "sent" } else { "failed" })
     .fetch_one(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    ?;
 
     Ok(Json(MessageResponse {
         id: msg.0,
@@ -302,10 +300,10 @@ pub async fn get_messages(
     _claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Query(params): Query<MessageFilter>,
-) -> Result<Json<Vec<MessageResponse>>, StatusCode> {
+) -> Result<Json<Vec<MessageResponse>>, AppError> {
     perms
         .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let messages = if let Some(cid) = params.contact_id {
         sqlx::query_as::<_, (Uuid, String, String, String, String, String, chrono::DateTime<chrono::Utc>)>(
             "SELECT id, direction, from_number, to_number, content, status, created_at FROM whatsapp_messages WHERE contact_id = $1 ORDER BY created_at DESC LIMIT 100"
@@ -313,14 +311,14 @@ pub async fn get_messages(
         .bind(cid)
         .fetch_all(&state.db)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        ?
     } else {
         sqlx::query_as::<_, (Uuid, String, String, String, String, String, chrono::DateTime<chrono::Utc>)>(
             "SELECT id, direction, from_number, to_number, content, status, created_at FROM whatsapp_messages ORDER BY created_at DESC LIMIT 50"
         )
         .fetch_all(&state.db)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        ?
     };
 
     Ok(Json(
@@ -348,14 +346,13 @@ pub struct MessageFilter {
 pub async fn webhook_verify(
     State(state): State<AppState>,
     Query(query): Query<WebhookQuery>,
-) -> Result<String, StatusCode> {
+) -> Result<String, AppError> {
     let config = sqlx::query_as::<_, WhatsAppConfig>(
         "SELECT * FROM whatsapp_config WHERE is_active = true ORDER BY created_at DESC LIMIT 1",
     )
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     match (query.mode, query.verify_token, query.challenge) {
         (Some(mode), Some(token), Some(challenge))
@@ -364,7 +361,7 @@ pub async fn webhook_verify(
         {
             Ok(challenge)
         }
-        _ => Err(StatusCode::FORBIDDEN),
+        _ => Err(AppError::Forbidden),
     }
 }
 
@@ -373,7 +370,7 @@ pub async fn webhook_receive(
     State(state): State<AppState>,
     headers: HeaderMap,
     body_bytes: Bytes,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     // Verify the HMAC-SHA256 signature of the raw request body. This is
     // mandatory: without WHATSAPP_APP_SECRET we cannot authenticate the
     // sender, so we refuse to ingest unverified webhooks (prevents forged
@@ -383,35 +380,34 @@ pub async fn webhook_receive(
         tracing::error!(
             "WHATSAPP_APP_SECRET is not configured; refusing to accept unverified WhatsApp webhooks"
         );
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Internal("internal error".into())
     })?;
 
     let signature_header = headers
         .get("x-hub-signature-256")
         .and_then(|v| v.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+        .ok_or(AppError::Unauthorized)?;
 
     let sig = signature_header
         .strip_prefix("sha256=")
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+        .ok_or(AppError::Unauthorized)?;
 
     let mut mac = Hmac::<Sha256>::new_from_slice(app_secret.as_bytes())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| AppError::Internal("internal error".into()))?;
     mac.update(&body_bytes);
-    let sig_bytes = hex::decode(sig).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let sig_bytes = hex::decode(sig).map_err(|_| AppError::Unauthorized)?;
     mac.verify_slice(&sig_bytes)
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+        .map_err(|_| AppError::Unauthorized)?;
 
-    let body: IncomingWebhook =
-        serde_json::from_slice(&body_bytes).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let body: IncomingWebhook = serde_json::from_slice(&body_bytes)
+        .map_err(|_| AppError::BadRequest("Invalid payload".into()))?;
 
     let config = sqlx::query_as::<_, WhatsAppConfig>(
         "SELECT * FROM whatsapp_config WHERE is_active = true ORDER BY created_at DESC LIMIT 1",
     )
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     if let Some(entries) = body.entry {
         for entry in entries {
@@ -576,16 +572,16 @@ pub async fn get_lead_assignment_config(
     State(state): State<AppState>,
     _claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
-) -> Result<Json<LeadAssignmentConfig>, StatusCode> {
+) -> Result<Json<LeadAssignmentConfig>, AppError> {
     perms
         .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let config = sqlx::query_as::<_, (String, i32, bool, bool)>(
         "SELECT strategy, max_active_leads, territory_enabled, notify_on_assign FROM lead_assignment_config LIMIT 1"
     )
     .fetch_optional(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    ?
     .unwrap_or(("round_robin".into(), 10, false, true));
 
     Ok(Json(LeadAssignmentConfig {
@@ -602,10 +598,10 @@ pub async fn update_lead_assignment_config(
     _claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<LeadAssignmentInput>,
-) -> Result<Json<LeadAssignmentConfig>, StatusCode> {
+) -> Result<Json<LeadAssignmentConfig>, AppError> {
     perms
         .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let strategy = input.strategy.unwrap_or_else(|| "round_robin".into());
     let max_leads = input.max_active_leads.unwrap_or(10);
     let territory = input.territory_enabled.unwrap_or(false);
@@ -627,7 +623,7 @@ pub async fn update_lead_assignment_config(
     .bind(notify)
     .execute(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    ?;
 
     Ok(Json(LeadAssignmentConfig {
         strategy,
@@ -643,10 +639,10 @@ pub async fn assign_lead(
     _claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<AssignLeadInput>,
-) -> Result<Json<AgentAssignment>, StatusCode> {
+) -> Result<Json<AgentAssignment>, AppError> {
     perms
         .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let agent_id = assign_lead_to_agent(
         &state,
         &input.lead_type,
@@ -654,15 +650,14 @@ pub async fn assign_lead(
         input.source.as_deref().unwrap_or("manual"),
     )
     .await
-    .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    .ok_or(AppError::Internal("internal error".into()))?;
 
     let agent_name = sqlx::query_scalar::<_, String>(
         "SELECT first_name || ' ' || last_name FROM users WHERE id = $1",
     )
     .bind(agent_id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .await?
     .unwrap_or_default();
 
     Ok(Json(AgentAssignment {
@@ -680,10 +675,10 @@ pub async fn list_conversations(
     State(state): State<AppState>,
     _claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
-) -> Result<Json<Vec<ConversationSummary>>, StatusCode> {
+) -> Result<Json<Vec<ConversationSummary>>, AppError> {
     perms
         .require("contacts.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let rows = sqlx::query_as::<_, ConversationRow>(
         r#"
         SELECT DISTINCT ON (wm.from_number)
@@ -702,7 +697,7 @@ pub async fn list_conversations(
     )
     .fetch_all(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    ?;
 
     Ok(Json(
         rows.into_iter()

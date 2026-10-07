@@ -10,7 +10,7 @@
 - [x] Proyecto Rust con edición 2024, compilación clean con clippy -D warnings
 - [x] Framework web Axum 0.8 con tower middleware
 - [x] Conexión a PostgreSQL 17 con pool de conexiones SQLx
-- [x] 31 migraciones de base de datos (users, companies, contacts, deals, activities, documents, audit_log, webhooks, leads, tags, notifications, email, calendar, RBAC, webhooks deliveries)
+- [x] 34 migraciones de base de datos (users, companies, contacts, deals, activities, documents, audit_log, webhooks, leads, tags, notifications, email, calendar, RBAC, webhooks deliveries)
 - [x] Endpoints REST API:
   - **Auth:** register, login, refresh (rate limited), logout, profile, change password
   - **Contacts:** CRUD, bulk delete, CSV export/import
@@ -272,7 +272,7 @@ _Siguiente tarea: Notificaciones in-app en tiempo real (WebSockets/SSE)_
 
 | Capa | Tecnología | Versión |
 |------|------------|---------|
-| Backend | Rust + Axum | 1.88 / 0.8 |
+| Backend | Rust + Axum | 1.88+ (Dockerfile 1.88-slim, CI toolchain 1.97.1) / Axum 0.8 |
 | Frontend | Next.js + React | 15.1 / 19 |
 | CSS | Tailwind CSS | 3.4 |
 | Charts | Recharts | 2.x |

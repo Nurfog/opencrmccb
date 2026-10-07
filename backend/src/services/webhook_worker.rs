@@ -13,6 +13,62 @@ use tracing::{error, info, warn};
 type HmacSha256 = Hmac<Sha256>;
 
 const MAX_ATTEMPTS: i32 = 3;
+const MAX_RESPONSE_BODY_CHARS: usize = 4000;
+
+/// SSRF guard: only allow public http/https webhook URLs.
+/// Blocks metadata endpoints, loopback and RFC1918 private ranges.
+pub fn is_webhook_url_allowed(url: &str) -> bool {
+    let parsed = match reqwest::Url::parse(url) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => return false,
+    }
+    let host = match parsed.host_str() {
+        Some(h) => h.to_lowercase(),
+        None => return false,
+    };
+    // Explicit blocklist.
+    if host == "169.254.169.254"
+        || host == "127.0.0.1"
+        || host == "::1"
+        || host == "localhost"
+        || host == "0.0.0.0"
+    {
+        return false;
+    }
+    // RFC1918 / private ranges (string-prefix check covers common forms).
+    if host.starts_with("10.") || host.starts_with("192.168.") || host == "10" || host == "0.0.0.0"
+    {
+        return false;
+    }
+    if host.starts_with("172.") {
+        // 172.16.0.0/12
+        if let Some(second) = host.split('.').nth(1).and_then(|s| s.parse::<u8>().ok())
+            && (16..=31).contains(&second)
+        {
+            return false;
+        }
+    }
+    // Block single-label / .local / .internal names conservatively.
+    if !host.contains('.') && host != "localhost" {
+        // Allow only if it looks like a public single-label? Be conservative: block.
+        // (Most legit webhooks use FQDNs.)
+        return false;
+    }
+    true
+}
+
+fn truncate_response_body(s: Option<String>) -> Option<String> {
+    s.map(|mut v| {
+        if v.len() > MAX_RESPONSE_BODY_CHARS {
+            v.truncate(MAX_RESPONSE_BODY_CHARS);
+        }
+        v
+    })
+}
 
 /// Helper function to enqueue a webhook event
 pub async fn enqueue_event(
@@ -81,14 +137,16 @@ async fn process_pending_deliveries(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use sqlx::Row;
 
-    // Select up to 50 pending deliveries that are due
+    // Select up to 50 pending deliveries that are due.
+    // FOR UPDATE SKIP LOCKED lets multiple workers claim disjoint rows safely.
     let rows = sqlx::query(
         "SELECT d.id, d.webhook_id, d.payload, d.attempts, w.url, w.secret 
          FROM webhook_deliveries d
          JOIN webhooks w ON d.webhook_id = w.id
          WHERE d.status = 'pending' AND d.next_attempt_at <= NOW()
          ORDER BY d.next_attempt_at ASC
-         LIMIT 50",
+         LIMIT 50
+         FOR UPDATE SKIP LOCKED",
     )
     .fetch_all(pool)
     .await?;
@@ -105,13 +163,35 @@ async fn process_pending_deliveries(
         let url: String = row.get("url");
         let secret: Option<String> = row.get("secret");
 
-        // Mark as processing
-        sqlx::query(
-            "UPDATE webhook_deliveries SET status = 'processing', updated_at = NOW() WHERE id = $1",
+        // Mark as processing only if still pending (claim the row).
+        let claimed = sqlx::query(
+            "UPDATE webhook_deliveries SET status = 'processing', updated_at = NOW() WHERE id = $1 AND status = 'pending'",
         )
         .bind(delivery_id)
         .execute(pool)
         .await?;
+        if claimed.rows_affected() == 0 {
+            // Another worker claimed it via SKIP LOCKED race — skip.
+            continue;
+        }
+
+        // SSRF guard: never dispatch to internal/metadata URLs.
+        if !is_webhook_url_allowed(&url) {
+            warn!(
+                "Blocked webhook delivery {} to disallowed URL host",
+                delivery_id
+            );
+            sqlx::query(
+                "UPDATE webhook_deliveries
+                 SET status = 'failed', attempts = $1, response_body = 'blocked: disallowed URL (SSRF guard)', updated_at = NOW()
+                 WHERE id = $2",
+            )
+            .bind(attempts + 1)
+            .bind(delivery_id)
+            .execute(pool)
+            .await?;
+            continue;
+        }
 
         // Prepare request
         let payload_str = payload.to_string();
@@ -174,6 +254,9 @@ async fn process_pending_deliveries(
             WebhookStatus::Success => "success",
             WebhookStatus::Failed => "failed",
         };
+
+        // Truncate response_body to 4000 chars to bound DB growth.
+        let response_body = truncate_response_body(response_body);
 
         // Update record
         sqlx::query(

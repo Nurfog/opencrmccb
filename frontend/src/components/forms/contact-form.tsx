@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react"
 import { Modal } from "@/components/ui/modal"
 import { CompanyAsyncSelect } from "@/components/ui/company-async-select"
-import { type Company } from "@/lib/api"
+import { type Company, type Contact } from "@/lib/api"
 import { useI18n } from "@/contexts/i18n-context"
 
 interface ContactFormProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: any) => void
-  initialData?: any
+  onSubmit: (data: Record<string, unknown>) => void | Promise<void>
+  initialData?: (Partial<Contact> & { company_name?: string }) | undefined
 }
 
 export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactFormProps) {
@@ -147,11 +147,11 @@ export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactF
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="slds-btn">
+        <div className="slds-modal__footer">
+          <button type="button" onClick={onClose} className="slds-btn slds-btn--neutral">
             {t("common.cancel")}
           </button>
-          <button type="submit" disabled={loading} className="slds-btn slds-btn--brand">
+          <button type="submit" disabled={loading} className="slds-btn slds-btn--brand disabled:opacity-50">
             {loading ? (initialData ? t("contacts.updating") : t("contacts.creating")) : (initialData ? t("contacts.editContact") : t("contacts.newContact"))}
           </button>
         </div>

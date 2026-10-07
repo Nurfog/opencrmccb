@@ -103,7 +103,7 @@ export function CompanyAsyncSelect({
     <div ref={containerRef} className="relative">
       <label className="slds-label">{t("contacts.company")}</label>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           className={cn("slds-input pl-10", error && "border-red-500")}
           value={search}
@@ -118,7 +118,7 @@ export function CompanyAsyncSelect({
           <button
             type="button"
             onClick={clearSelection}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -127,7 +127,7 @@ export function CompanyAsyncSelect({
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
       {dropdownOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-popover border border-border rounded-xl shadow-pop max-h-48 overflow-y-auto">
           {isCreating ? (
             <div className="p-2">
               <input
@@ -172,9 +172,9 @@ export function CompanyAsyncSelect({
                       key={company.id}
                       type="button"
                       onClick={() => selectCompany(company)}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
+                      className="w-[calc(100%-8px)] flex items-center gap-3 px-3 py-2 mx-1 text-sm hover:bg-muted text-left rounded-lg"
                     >
-                      <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span>{company.name}</span>
                       {company.industry && (
                         <span className="text-xs text-muted-foreground ml-auto">{company.industry}</span>
@@ -189,7 +189,7 @@ export function CompanyAsyncSelect({
                   setNewCompanyName(search)
                   setIsCreating(true)
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-brand hover:bg-gray-50 dark:hover:bg-gray-700 text-left border-t border-gray-200 dark:border-gray-700"
+                className="w-[calc(100%-8px)] flex items-center gap-3 px-3 py-2 mx-1 text-sm text-brand hover:bg-muted text-left rounded-lg border-t border-border"
               >
                 <Plus className="h-4 w-4" />
                 <span>{t("admin.newCompany") ?? "Create new company"}</span>

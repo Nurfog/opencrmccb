@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, Plus, Calendar, DollarSign, Phone, Mail, User, Building2 } from "lucide-react"
+import { ArrowLeft, Edit, Trash2, Calendar, DollarSign, Phone, Mail, User, Building2 } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -133,8 +133,8 @@ export default function DealDetailPage() {
           <div className="flex-1">
             <h1 className="slds-header__title">{deal.title}</h1>
             <div className="flex items-center gap-3 mt-1">
-              <span className={cn("px-2 py-1 text-xs rounded-full", stageColors[deal.stage] || "bg-gray-100 text-gray-800")}>
-                {t(`stages.${deal.stage}` as any) || deal.stage}
+              <span className={cn("slds-tag", stageColors[deal.stage] || "bg-muted text-muted-foreground")}>
+                {t(`stages.${deal.stage}`) || deal.stage}
               </span>
               <span className="text-lg font-semibold text-green-600 dark:text-green-400">
                 {formatCurrency(deal.value, deal.currency)}
@@ -290,7 +290,7 @@ export default function DealDetailPage() {
                       </p>
                     </div>
                     {activity.completed && (
-                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                      <span className="slds-tag slds-tag--success">
                         {t("activities.completed")}
                       </span>
                     )}

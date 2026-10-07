@@ -299,6 +299,11 @@ pub async fn import_deals(
     perms
         .require("deals.create")
         .map_err(|_| AppError::Forbidden)?;
+    if body.len() > 2 * 1024 * 1024 {
+        return Err(AppError::BadRequest(
+            "Import body too large (max 2MB)".into(),
+        ));
+    }
     let rows = parse_csv_rows(&body);
 
     let mut imported = 0;

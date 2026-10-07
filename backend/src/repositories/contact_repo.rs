@@ -44,31 +44,28 @@ impl PgContactRepo {
             format!("{BASE_SELECT} ORDER BY {sort_col} {sort_dir} LIMIT $1 OFFSET $2")
         };
 
-        let total: (i64,) = if let Some(ref search) = search_filter {
-            sqlx::query_as(&count_query)
-                .bind(search)
-                .fetch_one(&self.pool)
-                .await?
-        } else {
-            sqlx::query_as(&count_query).fetch_one(&self.pool).await?
-        };
-
-        let contacts = if let Some(ref search) = search_filter {
-            sqlx::query_as::<_, Contact>(&data_query)
+        // Run COUNT + SELECT concurrently instead of sequentially.
+        if let Some(search) = search_filter {
+            let search_clone = search.clone();
+            let count_fut = sqlx::query_as::<_, (i64,)>(&count_query)
+                .bind(search_clone)
+                .fetch_one(&self.pool);
+            let data_fut = sqlx::query_as::<_, Contact>(&data_query)
                 .bind(search)
                 .bind(per_page)
                 .bind(offset)
-                .fetch_all(&self.pool)
-                .await?
+                .fetch_all(&self.pool);
+            let (total, contacts) = tokio::join!(count_fut, data_fut);
+            Ok((contacts?, total?.0))
         } else {
-            sqlx::query_as::<_, Contact>(&data_query)
+            let count_fut = sqlx::query_as::<_, (i64,)>(&count_query).fetch_one(&self.pool);
+            let data_fut = sqlx::query_as::<_, Contact>(&data_query)
                 .bind(per_page)
                 .bind(offset)
-                .fetch_all(&self.pool)
-                .await?
-        };
-
-        Ok((contacts, total.0))
+                .fetch_all(&self.pool);
+            let (total, contacts) = tokio::join!(count_fut, data_fut);
+            Ok((contacts?, total?.0))
+        }
     }
 
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Contact>, AppError> {
@@ -165,17 +162,19 @@ impl PgContactRepo {
         &self,
         search: Option<&str>,
     ) -> Result<Vec<Contact>, AppError> {
+        // TODO: stream CSV instead of loading all rows into memory.
+        // Capped at 10k rows to bound memory/time; paginate or stream for larger exports.
         let contacts = if let Some(search) = search {
             let pattern = format!("%{}%", crate::models::escape_like(search));
             sqlx::query_as::<_, Contact>(&format!(
-                "{BASE_SELECT} WHERE first_name ILIKE $1 ESCAPE '\\' OR last_name ILIKE $1 ESCAPE '\\' OR email ILIKE $1 ESCAPE '\\' ORDER BY created_at DESC LIMIT 100000"
+                "{BASE_SELECT} WHERE first_name ILIKE $1 ESCAPE '\\' OR last_name ILIKE $1 ESCAPE '\\' OR email ILIKE $1 ESCAPE '\\' ORDER BY created_at DESC LIMIT 10000"
             ))
             .bind(pattern)
             .fetch_all(&self.pool)
             .await?
         } else {
             sqlx::query_as::<_, Contact>(&format!(
-                "{BASE_SELECT} ORDER BY created_at DESC LIMIT 100000"
+                "{BASE_SELECT} ORDER BY created_at DESC LIMIT 10000"
             ))
             .fetch_all(&self.pool)
             .await?

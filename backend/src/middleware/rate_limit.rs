@@ -16,13 +16,21 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tower::{Layer, Service};
 
-const MAX_REQUESTS: usize = 5;
-const WINDOW_SECS: u64 = 60;
+/// Strict brute-force budget for login/register/refresh (shared by all
+/// callers of `RateLimiter::new()` / `with_redis()`).
+const STRICT_MAX_REQUESTS: usize = 5;
+const STRICT_WINDOW_SECS: u64 = 60;
+/// Lenient budget for normal authenticated traffic: a single dashboard mount
+/// fires ~5 parallel requests, so the strict budget would lock users out.
+const GENERAL_MAX_REQUESTS: usize = 300;
+const GENERAL_WINDOW_SECS: u64 = 60;
 const CLEANUP_INTERVAL_SECS: u64 = 120;
 
 #[derive(Clone)]
 pub struct RateLimiter {
     inner: Arc<RateLimiterInner>,
+    max_requests: usize,
+    window_secs: u64,
 }
 
 enum RateLimiterInner {
@@ -46,7 +54,13 @@ impl Default for RateLimiter {
 }
 
 impl RateLimiter {
+    /// Strict limiter (5 req/min): login/register/refresh brute-force guard.
     pub fn new() -> Self {
+        Self::with_limits(STRICT_MAX_REQUESTS, STRICT_WINDOW_SECS)
+    }
+
+    /// Custom-budget in-memory limiter (e.g. general authenticated traffic).
+    pub fn with_limits(max_requests: usize, window_secs: u64) -> Self {
         Self {
             inner: Arc::new(RateLimiterInner::Memory {
                 state: Arc::new(RwLock::new(MemoryRateLimitState {
@@ -54,10 +68,41 @@ impl RateLimiter {
                     last_cleanup: Instant::now(),
                 })),
             }),
+            max_requests,
+            window_secs,
+        }
+    }
+
+    /// General limiter (300 req/min) backed by memory.
+    pub fn new_general() -> Self {
+        Self::with_limits(GENERAL_MAX_REQUESTS, GENERAL_WINDOW_SECS)
+    }
+
+    /// Build from env: Redis when `REDIS_URL` is set, memory otherwise.
+    /// Pass `general = true` for the lenient authenticated-traffic budget.
+    pub async fn from_env(general: bool) -> Self {
+        let (max, window) = if general {
+            (GENERAL_MAX_REQUESTS, GENERAL_WINDOW_SECS)
+        } else {
+            (STRICT_MAX_REQUESTS, STRICT_WINDOW_SECS)
+        };
+        if let Ok(redis_url) = std::env::var("REDIS_URL") {
+            Self::with_redis_and_limits(&redis_url, max, window).await
+        } else {
+            Self::with_limits(max, window)
         }
     }
 
     pub async fn with_redis(redis_url: &str) -> Self {
+        Self::with_redis_and_limits(redis_url, STRICT_MAX_REQUESTS, STRICT_WINDOW_SECS).await
+    }
+
+    pub async fn with_redis_and_limits(
+        redis_url: &str,
+        max_requests: usize,
+        window_secs: u64,
+    ) -> Self {
+        let make_memory = || Self::with_limits(max_requests, window_secs);
         let client = match redis::Client::open(redis_url) {
             Ok(c) => c,
             Err(e) => {
@@ -65,7 +110,7 @@ impl RateLimiter {
                     "Failed to create Redis client, falling back to memory: {}",
                     e
                 );
-                return Self::new();
+                return make_memory();
             }
         };
 
@@ -74,16 +119,20 @@ impl RateLimiter {
                 tracing::info!("Redis rate limiter connected");
                 Self {
                     inner: Arc::new(RateLimiterInner::Redis { conn }),
+                    max_requests,
+                    window_secs,
                 }
             }
             Err(e) => {
                 tracing::warn!("Redis connection failed, falling back to memory: {}", e);
-                Self::new()
+                make_memory()
             }
         }
     }
 
     pub async fn is_rate_limited(&self, ip: IpAddr) -> bool {
+        let max_requests = self.max_requests;
+        let window_secs = self.window_secs;
         match &*self.inner {
             RateLimiterInner::Redis { conn } => {
                 let key = format!("rate_limit:{}", ip);
@@ -92,7 +141,7 @@ impl RateLimiter {
                     .duration_since(UNIX_EPOCH)
                     .map(|d| d.as_millis() as u64)
                     .unwrap_or(0);
-                let window_start_ms = now_ms.saturating_sub(WINDOW_SECS * 1000);
+                let window_start_ms = now_ms.saturating_sub(window_secs * 1000);
                 // Unique member per request so ZCARD actually counts requests.
                 let member = format!("{}-{}", now_ms, uuid::Uuid::new_v4());
 
@@ -103,20 +152,20 @@ impl RateLimiter {
                     .await
                     .unwrap_or(());
                 let _: () = conn.zadd(&key, member, now_ms).await.unwrap_or(());
-                let _: () = conn.expire(&key, WINDOW_SECS as i64).await.unwrap_or(());
+                let _: () = conn.expire(&key, window_secs as i64).await.unwrap_or(());
                 let count: i64 = conn.zcard(&key).await.unwrap_or(0);
 
-                count > MAX_REQUESTS as i64
+                count > max_requests as i64
             }
             RateLimiterInner::Memory { state } => {
                 let mut state = state.write().await;
                 let now = Instant::now();
-                let window_start = now - Duration::from_secs(WINDOW_SECS);
+                let window_start = now - Duration::from_secs(window_secs);
 
                 let timestamps = state.requests.entry(ip).or_insert_with(Vec::new);
                 timestamps.retain(|t| *t > window_start);
 
-                if timestamps.len() >= MAX_REQUESTS {
+                if timestamps.len() >= max_requests {
                     return true;
                 }
 
@@ -124,7 +173,7 @@ impl RateLimiter {
 
                 // Periodic cleanup
                 if now - state.last_cleanup > Duration::from_secs(CLEANUP_INTERVAL_SECS) {
-                    let cutoff = now - Duration::from_secs(WINDOW_SECS * 2);
+                    let cutoff = now - Duration::from_secs(window_secs * 2);
                     state.requests.retain(|_, ts| {
                         ts.retain(|t| *t > cutoff);
                         !ts.is_empty()
@@ -138,10 +187,15 @@ impl RateLimiter {
     }
 
     pub fn extract_client_ip(req: &Request) -> IpAddr {
+        // How many right-most X-Forwarded-For hops to trust.
+        // Default is 1 (single reverse proxy / load balancer in front).
+        // Set TRUSTED_PROXY_HOPS=0 to never trust spoofable headers (fail-closed,
+        // all direct connections share one bucket). Set higher if multiple
+        // trusted proxies prepend hops.
         let trusted_hops: usize = std::env::var("TRUSTED_PROXY_HOPS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(0);
+            .unwrap_or(1);
 
         // With zero trusted proxies, never trust spoofable headers.
         // Every direct connection shares one bucket (fail-closed, no bypass).
@@ -226,9 +280,15 @@ where
         let ip = RateLimiter::extract_client_ip(&req);
 
         Box::pin(async move {
+            let window_secs = limiter.window_secs;
             if limiter.check_ip(ip).await.is_err() {
                 let body = serde_json::json!({ "error": "Too many requests" });
-                return Ok((StatusCode::TOO_MANY_REQUESTS, axum::Json(body)).into_response());
+                let mut resp = (StatusCode::TOO_MANY_REQUESTS, axum::Json(body)).into_response();
+                // Tell clients when to retry (mirrors the fixed window).
+                if let Ok(v) = window_secs.to_string().parse() {
+                    resp.headers_mut().insert("Retry-After", v);
+                }
+                return Ok(resp);
             }
             inner.call(req).await
         })

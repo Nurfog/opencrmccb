@@ -1,6 +1,7 @@
 use axum::Json;
 use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::AppState;
 use crate::error::AppError;
@@ -8,8 +9,9 @@ use crate::middleware::auth::UserPermissions;
 use crate::models::escape_like;
 use rust_decimal::Decimal;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SearchParams {
+    #[validate(length(max = 200, message = "Search query must be at most 200 characters"))]
     pub q: String,
 }
 
@@ -34,9 +36,11 @@ pub async fn global_search(
     Query(params): Query<SearchParams>,
     perms: UserPermissions,
 ) -> Result<Json<SearchResponse>, AppError> {
+    use validator::Validate;
     perms
         .require("search.view")
         .map_err(|_| AppError::Forbidden)?;
+    params.validate()?;
     let query = params.q.trim();
     if query.is_empty() {
         return Ok(Json(SearchResponse {
@@ -49,7 +53,8 @@ pub async fn global_search(
     let search_pattern = format!("%{}%", escape_like(query));
     let limit: i64 = 5;
 
-    let contacts = sqlx::query_as::<_, (uuid::Uuid, String, String, Option<String>)>(
+    // Run the 3 entity queries concurrently instead of sequentially.
+    let contacts_fut = sqlx::query_as::<_, (uuid::Uuid, String, String, Option<String>)>(
         r#"
         SELECT id, first_name, last_name, email
         FROM contacts
@@ -62,22 +67,9 @@ pub async fn global_search(
     )
     .bind(&search_pattern)
     .bind(limit)
-    .fetch_all(&state.db)
-    .await?
-    .into_iter()
-    .map(|(id, first_name, last_name, email)| {
-        let label = format!("{} {}", first_name, last_name);
-        let subtitle = email.unwrap_or_default();
-        SearchResult {
-            id: id.to_string(),
-            entity_type: "contact".to_string(),
-            label,
-            subtitle,
-        }
-    })
-    .collect();
+    .fetch_all(&state.db);
 
-    let companies = sqlx::query_as::<_, (uuid::Uuid, String, Option<String>)>(
+    let companies_fut = sqlx::query_as::<_, (uuid::Uuid, String, Option<String>)>(
         r#"
         SELECT id, name, industry
         FROM companies
@@ -89,21 +81,9 @@ pub async fn global_search(
     )
     .bind(&search_pattern)
     .bind(limit)
-    .fetch_all(&state.db)
-    .await?
-    .into_iter()
-    .map(|(id, name, industry)| {
-        let subtitle = industry.unwrap_or_default();
-        SearchResult {
-            id: id.to_string(),
-            entity_type: "company".to_string(),
-            label: name,
-            subtitle,
-        }
-    })
-    .collect();
+    .fetch_all(&state.db);
 
-    let deals = sqlx::query_as::<_, (uuid::Uuid, String, Decimal, String)>(
+    let deals_fut = sqlx::query_as::<_, (uuid::Uuid, String, Decimal, String)>(
         r#"
         SELECT id, title, value, stage::text
         FROM deals
@@ -114,19 +94,50 @@ pub async fn global_search(
     )
     .bind(&search_pattern)
     .bind(limit)
-    .fetch_all(&state.db)
-    .await?
-    .into_iter()
-    .map(|(id, title, value, stage)| {
-        let subtitle = format!("${} - {}", value.round_dp(0), stage);
-        SearchResult {
-            id: id.to_string(),
-            entity_type: "deal".to_string(),
-            label: title,
-            subtitle,
-        }
-    })
-    .collect();
+    .fetch_all(&state.db);
+
+    let (contacts_rows, companies_rows, deals_rows) =
+        tokio::join!(contacts_fut, companies_fut, deals_fut);
+
+    let contacts = contacts_rows?
+        .into_iter()
+        .map(|(id, first_name, last_name, email)| {
+            let label = format!("{} {}", first_name, last_name);
+            let subtitle = email.unwrap_or_default();
+            SearchResult {
+                id: id.to_string(),
+                entity_type: "contact".to_string(),
+                label,
+                subtitle,
+            }
+        })
+        .collect();
+
+    let companies = companies_rows?
+        .into_iter()
+        .map(|(id, name, industry)| {
+            let subtitle = industry.unwrap_or_default();
+            SearchResult {
+                id: id.to_string(),
+                entity_type: "company".to_string(),
+                label: name,
+                subtitle,
+            }
+        })
+        .collect();
+
+    let deals = deals_rows?
+        .into_iter()
+        .map(|(id, title, value, stage)| {
+            let subtitle = format!("${} - {}", value.round_dp(0), stage);
+            SearchResult {
+                id: id.to_string(),
+                entity_type: "deal".to_string(),
+                label: title,
+                subtitle,
+            }
+        })
+        .collect();
 
     Ok(Json(SearchResponse {
         contacts,

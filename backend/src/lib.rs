@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_cast, clippy::let_and_return)]
-
 pub mod config;
 pub mod db;
 pub mod envelope;
@@ -18,6 +16,8 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 pub type OAuthStateStore = Arc<RwLock<HashMap<String, OAuthPendingState>>>;
+// TODO: replace in-memory HashMap state_store with Redis (shared across replicas,
+// TTL natively, bounded memory). Current cap: 1000 entries, 10-min TTL, opportunistic purge.
 
 #[derive(Clone)]
 pub struct OAuthPendingState {
@@ -66,6 +66,7 @@ pub struct AppState {
     pub smtp: SmtpConfig,
     pub upload: UploadConfig,
     pub frontend_url: String,
+    pub backend_url: String,
     pub oauth: OAuthConfig,
     pub contact_repo: std::sync::Arc<repositories::contact_repo::PgContactRepo>,
     pub deal_repo: std::sync::Arc<repositories::deal_repo::PgDealRepo>,

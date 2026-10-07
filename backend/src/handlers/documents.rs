@@ -184,8 +184,9 @@ pub async fn list_documents(
     }
 
     if let Some(ref mime) = params.mime_type {
-        query.push_str(&format!(" AND mime_type ILIKE ${}", param_idx));
-        bind_values.push(format!("{}%", mime));
+        // Escape LIKE wildcards in user-supplied mime filter to avoid unintended matches.
+        query.push_str(&format!(" AND mime_type ILIKE ${} ESCAPE '\\'", param_idx));
+        bind_values.push(format!("{}%", escape_like(mime)));
     }
 
     query.push_str(" ORDER BY created_at DESC");

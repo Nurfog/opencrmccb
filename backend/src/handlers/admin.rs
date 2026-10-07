@@ -160,15 +160,14 @@ pub async fn delete_pipeline(
     State(state): State<AppState>,
     _claims: axum::extract::Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     let result = sqlx::query("DELETE FROM pipelines WHERE id = $1 AND is_default = false")
         .bind(id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::BadRequest("Cannot delete pipeline".into()));
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -199,7 +198,10 @@ pub async fn create_stage(
     .bind(input.probability)
     .fetch_one(&state.db)
     .await
-    .map_err(|e| AppError::Internal(e.to_string()))?;
+    .map_err(|e| {
+        tracing::error!("create_stage DB error: {:?}", e);
+        AppError::Internal("internal error".into())
+    })?;
 
     Ok((StatusCode::CREATED, Json(stage)))
 }
@@ -208,15 +210,14 @@ pub async fn delete_stage(
     State(state): State<AppState>,
     _claims: axum::extract::Extension<Claims>,
     Path((_pipeline_id, stage_id)): Path<(Uuid, Uuid)>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     let result = sqlx::query("DELETE FROM pipeline_stages WHERE id = $1 AND is_default = false")
         .bind(stage_id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::BadRequest("Cannot delete stage".into()));
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -310,15 +311,20 @@ pub async fn create_profile(
     .map_err(|_| AppError::Conflict("Profile already exists".into()))?;
 
     if let Some(perms) = &input.permissions {
+        // Insert permissions atomically; use tx so partial failures don't
+        // leave the profile half-populated.
+        let mut tx = state.db.begin().await?;
         for perm in perms {
-            let _ = sqlx::query(
+            sqlx::query(
                 "INSERT INTO profile_permissions (profile_id, permission) VALUES ($1, $2) ON CONFLICT DO NOTHING"
             )
             .bind(profile.id)
             .bind(perm)
-            .execute(&state.db)
-            .await;
+            .execute(&mut *tx)
+            .await?;
         }
+        tx.commit().await?;
+        crate::middleware::auth::invalidate_users_by_profile(&state.db, &profile.id).await;
     }
 
     Ok((
@@ -351,19 +357,22 @@ pub async fn update_profile(
     .ok_or(AppError::NotFound)?;
 
     if let Some(perms) = &input.permissions {
-        let _ = sqlx::query("DELETE FROM profile_permissions WHERE profile_id = $1")
+        // Replace permissions atomically in a tx: DELETE + INSERTs either all
+        // commit or all roll back, avoiding a window with zero permissions.
+        let mut tx = state.db.begin().await?;
+        sqlx::query("DELETE FROM profile_permissions WHERE profile_id = $1")
             .bind(id)
-            .execute(&state.db)
-            .await;
+            .execute(&mut *tx)
+            .await?;
         for perm in perms {
-            let _ = sqlx::query(
-                "INSERT INTO profile_permissions (profile_id, permission) VALUES ($1, $2)",
-            )
-            .bind(id)
-            .bind(perm)
-            .execute(&state.db)
-            .await;
+            sqlx::query("INSERT INTO profile_permissions (profile_id, permission) VALUES ($1, $2)")
+                .bind(id)
+                .bind(perm)
+                .execute(&mut *tx)
+                .await?;
         }
+        tx.commit().await?;
+        crate::middleware::auth::invalidate_users_by_profile(&state.db, &id).await;
     }
 
     Ok(Json(serde_json::json!({
@@ -451,7 +460,10 @@ pub async fn update_branding(
         .bind(&input.custom_domain)
         .execute(&state.db)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("update_branding UPDATE DB error: {:?}", e);
+            AppError::Internal("internal error".into())
+        })?;
     } else {
         sqlx::query(
             r#"
@@ -468,7 +480,10 @@ pub async fn update_branding(
         .bind(&input.custom_domain)
         .execute(&state.db)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("update_branding INSERT DB error: {:?}", e);
+            AppError::Internal("internal error".into())
+        })?;
     }
 
     get_branding(State(state)).await

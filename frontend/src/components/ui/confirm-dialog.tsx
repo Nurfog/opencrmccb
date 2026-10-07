@@ -26,22 +26,22 @@ export function ConfirmDialog({
   const { t } = useI18n()
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3.5">
         <div
-          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+          className={`flex-shrink-0 w-10 h-10 rounded-[12px] border flex items-center justify-center ${
             variant === "danger"
-              ? "bg-red-100 dark:bg-red-900/30 text-red-600"
-              : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600"
+              ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900"
+              : "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
           }`}
         >
           {variant === "danger" ? (
-            <Trash2 className="h-5 w-5" />
+            <Trash2 className="h-[18px] w-[18px]" />
           ) : (
-            <AlertTriangle className="h-5 w-5" />
+            <AlertTriangle className="h-[18px] w-[18px]" />
           )}
         </div>
-        <div className="flex-1">
-          <p className="text-sm text-muted-foreground">{message}</p>
+        <div className="flex-1 pt-1">
+          <p className="text-[13.5px] text-muted-foreground leading-relaxed">{message}</p>
         </div>
       </div>
       <div className="slds-modal__footer">
@@ -54,7 +54,7 @@ export function ConfirmDialog({
           className={
             variant === "danger"
               ? "slds-btn slds-btn--destructive"
-              : "slds-btn bg-yellow-500 text-white hover:bg-yellow-600"
+              : "slds-btn text-white hover:brightness-95 bg-[hsl(var(--warning))]"
           }
         >
           {confirmLabel}

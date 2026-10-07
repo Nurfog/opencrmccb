@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -16,6 +19,43 @@ use crm_backend::repositories::lead_repo::PgLeadRepo;
 use crm_backend::routes;
 use crm_backend::{AppState, AuthConfig, OAuthConfig, SmtpConfig, UploadConfig};
 
+/// Security headers middleware: HSTS, CSP, anti-clickjacking, MIME sniffing guard.
+async fn security_headers_middleware(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let mut resp = next.run(req).await;
+    let headers = resp.headers_mut();
+    // Only send HSTS when behind HTTPS (COOKIE_SECURE=true) to avoid breaking localhost.
+    if matches!(
+        std::env::var("COOKIE_SECURE").as_deref(),
+        Ok("true") | Ok("1")
+    ) && !headers.contains_key("strict-transport-security")
+    {
+        headers.insert(
+            "strict-transport-security",
+            axum::http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        );
+    }
+    headers.insert(
+        "content-security-policy",
+        axum::http::HeaderValue::from_static("default-src 'self'; frame-ancestors 'none'"),
+    );
+    headers.insert(
+        "x-frame-options",
+        axum::http::HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        "x-content-type-options",
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "referrer-policy",
+        axum::http::HeaderValue::from_static("no-referrer"),
+    );
+    resp
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
@@ -29,9 +69,10 @@ async fn main() {
     let config = config::Config::from_env();
     let cors_origins = config.parse_cors_origins();
     let pool = db::create_pool(&config.database.url).await;
-    tokio::spawn(crm_backend::services::webhook_worker::start_worker(
+    let webhook_handle = tokio::spawn(crm_backend::services::webhook_worker::start_worker(
         pool.clone(),
     ));
+    let webhook_abort = webhook_handle.abort_handle();
 
     let contact_repo = PgContactRepo::new(pool.clone());
     let deal_repo = PgDealRepo::new(pool.clone());
@@ -60,6 +101,7 @@ async fn main() {
             max_file_size_mb: config.upload.max_file_size_mb,
         },
         frontend_url: config.server.frontend_url.clone(),
+        backend_url: config.server.backend_url.clone(),
         oauth: OAuthConfig {
             google: config.oauth.google.clone(),
             microsoft: config.oauth.microsoft.clone(),
@@ -76,11 +118,12 @@ async fn main() {
             .expect("Failed to create HTTP client"),
     };
 
-    let rate_limiter = if let Ok(redis_url) = std::env::var("REDIS_URL") {
-        RateLimiter::with_redis(&redis_url).await
-    } else {
-        RateLimiter::new()
-    };
+    // Two-tier rate limiting: strict (5/min) for brute-forceable auth
+    // endpoints, lenient (300/min) for normal authenticated traffic.
+    // A single dashboard mount fires ~5 parallel requests, so sharing one
+    // strict bucket would lock users out in a retry loop.
+    let strict_limiter = RateLimiter::from_env(false).await;
+    let general_limiter = RateLimiter::from_env(true).await;
     let metrics = Arc::new(Metrics::new());
 
     let origin_headers: Vec<axum::http::HeaderValue> = cors_origins
@@ -113,13 +156,16 @@ async fn main() {
         .max_age(std::time::Duration::from_secs(600));
 
     let app = routes::public_routes()
-        .merge(routes::whatsapp_webhook_routes().layer(rate_limiter.layer()))
-        .merge(routes::integration_callback_routes().layer(rate_limiter.layer()))
-        .merge(routes::login_routes().layer(rate_limiter.layer()))
-        .merge(routes::register_routes().layer(rate_limiter.layer()))
-        .merge(routes::refresh_routes().layer(rate_limiter.layer()))
+        .merge(routes::whatsapp_webhook_routes().layer(strict_limiter.layer()))
+        .merge(routes::integration_callback_routes().layer(strict_limiter.layer()))
+        .merge(routes::login_routes().layer(strict_limiter.layer()))
+        .merge(routes::register_routes().layer(strict_limiter.layer()))
+        .merge(routes::refresh_routes().layer(strict_limiter.layer()))
         .merge(
             routes::auth_routes()
+                // Lenient global rate-limit for authenticated heavy endpoints
+                // (search/email/import/export/documents all live under auth_routes).
+                .layer(general_limiter.layer())
                 .layer(axum::middleware::from_fn(
                     crm_backend::middleware::auth::csrf_middleware,
                 ))
@@ -142,6 +188,17 @@ async fn main() {
                     crm_backend::middleware::auth::auth_middleware,
                 )),
         )
+        .layer(axum::middleware::from_fn(security_headers_middleware))
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(30),
+        ))
+        // Explicit body limit: disable axum default, then enforce a global
+        // ceiling aligned with nginx `client_max_body_size 12m`. Per-file
+        // upload limits are enforced while streaming in documents.rs via
+        // MAX_FILE_SIZE_MB (default 10), so this stays slightly above that.
+        .layer(RequestBodyLimitLayer::new(12 * 1024 * 1024))
+        .layer(axum::extract::DefaultBodyLimit::disable())
         .layer(cors)
         .layer(axum::middleware::from_fn(track_metrics))
         .layer(axum::extract::Extension(metrics))
@@ -180,5 +237,7 @@ async fn main() {
         .await
         .unwrap_or_else(|e| panic!("Server error: {}", e));
 
+    webhook_abort.abort();
+    tracing::info!("Webhook worker aborted on shutdown");
     tracing::info!("Server shutdown complete");
 }

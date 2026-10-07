@@ -61,23 +61,23 @@ export default function RegisterPage() {
   const displayError = validationError || error;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 p-8">
-          <div className="flex flex-col items-center mb-8">
-            <div className="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center mb-4">
-              <span className="text-white text-xl font-bold">O</span>
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-[380px]">
+        <div className="bg-card rounded-2xl shadow-card border border-border p-8">
+          <div className="flex flex-col items-center mb-7">
+            <div className="h-11 w-11 rounded-[12px] bg-primary flex items-center justify-center mb-4 shadow-sm">
+              <span className="text-white text-lg font-bold">O</span>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-[20px] font-semibold tracking-tight text-foreground">
               {t("auth.register.title", "Crear cuenta")}
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-[13.5px] text-muted-foreground mt-1">
               {t("auth.register.subtitle", "Regístrate en OpenCRM")}
             </p>
           </div>
 
           {displayError && (
-            <div className="mb-4 p-3 rounded-md bg-red-50 dark:bg-red-900/30 border border-red-400 dark:border-red-600 text-sm text-red-700 dark:text-red-300">
+            <div className="mb-4 p-3 rounded-[10px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-[13px] text-red-700 dark:text-red-300">
               {displayError}
             </div>
           )}
@@ -87,7 +87,7 @@ export default function RegisterPage() {
               <div>
                 <label
                   htmlFor="firstName"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  className="slds-label"
                 >
                   {t("auth.firstName", "Nombre")}
                 </label>
@@ -99,13 +99,13 @@ export default function RegisterPage() {
                   placeholder="Juan"
                   autoComplete="given-name"
                   required
-                  className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  className="slds-input"
                 />
               </div>
               <div>
                 <label
                   htmlFor="lastName"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  className="slds-label"
                 >
                   {t("auth.lastName", "Apellido")}
                 </label>
@@ -117,7 +117,7 @@ export default function RegisterPage() {
                   placeholder="Pérez"
                   autoComplete="family-name"
                   required
-                  className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  className="slds-input"
                 />
               </div>
             </div>
@@ -125,7 +125,7 @@ export default function RegisterPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                className="slds-label"
               >
                 {t("auth.email", "Correo electrónico")}
               </label>
@@ -137,14 +137,14 @@ export default function RegisterPage() {
                 placeholder="nombre@ejemplo.cl"
                 autoComplete="email"
                 required
-                className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                className="slds-input"
               />
             </div>
 
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                className="slds-label"
               >
                 {t("auth.password", "Contraseña")}
               </label>
@@ -157,15 +157,15 @@ export default function RegisterPage() {
                   placeholder="••••••••"
                   autoComplete="new-password"
                   required
-                  className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  className="slds-input pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
             </div>
@@ -173,7 +173,7 @@ export default function RegisterPage() {
             <div>
               <label
                 htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                className="slds-label"
               >
                 {t("auth.confirmPassword", "Confirmar contraseña")}
               </label>
@@ -185,14 +185,14 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 autoComplete="new-password"
                 required
-                className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                className="slds-input"
               />
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="slds-btn slds-btn--brand w-full !min-h-[2.5rem] disabled:opacity-50"
             >
               {isLoading ? (
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -200,17 +200,17 @@ export default function RegisterPage() {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               ) : (
-                <UserPlus size={18} />
+                <UserPlus size={16} />
               )}
               {t("auth.register.button", "Crear cuenta")}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-6 text-center text-[13.5px] text-muted-foreground">
             {t("auth.register.hasAccount", "¿Ya tienes una cuenta?")}{" "}
             <Link
               href="/login"
-              className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+              className="text-primary font-medium hover:brightness-90"
             >
               {t("auth.register.loginLink", "Inicia sesión")}
             </Link>

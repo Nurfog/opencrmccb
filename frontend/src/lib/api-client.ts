@@ -1,8 +1,18 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const RAW_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE_URL = RAW_BASE_URL.replace(/\/+$/, "");
+
+export type QueryValue =
+  | string
+  | number
+  | boolean
+  | undefined
+  | null
+  | Array<string | number | boolean>;
 
 interface RequestOptions {
   headers?: Record<string, string>;
-  params?: Record<string, string | number | boolean | undefined>;
+  params?: Record<string, QueryValue>;
   signal?: AbortSignal;
 }
 
@@ -68,6 +78,84 @@ export function setLogoutHandler(handler: () => void): void {
   onLogout = handler;
 }
 
+export function buildQuery(
+  params?: Record<string, QueryValue>
+): string {
+  if (!params) return "";
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === undefined || item === null || item === "") continue;
+        searchParams.append(key, String(item));
+      }
+    } else {
+      searchParams.append(key, String(value));
+    }
+  }
+  const qs = searchParams.toString();
+  return qs ? `?${qs}` : "";
+}
+
+function combineSignal(userSignal?: AbortSignal | null): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(15000);
+  if (!userSignal) return timeoutSignal;
+  // `AbortSignal.any` is available in modern runtimes (Node >= 20, browsers).
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([userSignal, timeoutSignal]);
+  }
+  return userSignal;
+}
+
+function isJsonResponse(res: Response): boolean {
+  const contentType = res.headers.get("content-type") ?? "";
+  return contentType.includes("application/json");
+}
+
+async function parseJsonSafe(res: Response): Promise<unknown> {
+  if (!isJsonResponse(res)) {
+    return { message: res.statusText };
+  }
+  try {
+    return await res.json();
+  } catch {
+    return { message: res.statusText };
+  }
+}
+
+function extractErrorMessage(errorData: unknown, fallback: string): string {
+  if (typeof errorData === "object" && errorData !== null) {
+    const errObj = errorData as Record<string, unknown>;
+    // FastAPI/Pydantic 422 shape: { detail: [{ msg, loc }] }
+    if (Array.isArray(errObj.detail)) {
+      const msgs = (errObj.detail as Array<Record<string, unknown>>)
+        .map((d) => (typeof d.msg === "string" ? d.msg : null))
+        .filter((m): m is string => !!m);
+      if (msgs.length > 0) return msgs.join("; ");
+    }
+    if (typeof errObj.error === "string") return errObj.error;
+    if (typeof errObj.message === "string") return errObj.message;
+    if (typeof errObj.detail === "string") return errObj.detail;
+  }
+  return fallback;
+}
+
+function parseFilenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  // RFC 5987 (filename*=UTF-8''...) first, then plain filename="..."
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      return utf8Match[1].trim().replace(/^"|"$/g, "");
+    }
+  }
+  const match = /filename="?([^";]+)"?/i.exec(header);
+  return match?.[1]?.trim() ?? null;
+}
+
 let refreshPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -85,7 +173,14 @@ async function refreshAccessToken(): Promise<string | null> {
         onLogout?.();
         return null;
       }
-      const data = await res.json();
+      let data: Record<string, string | null> = {};
+      try {
+        if ((res.headers.get("content-type") ?? "").includes("application/json")) {
+          data = (await res.json()) as Record<string, string | null>;
+        }
+      } catch {
+        data = {};
+      }
       accessToken = data.access_token ?? data.access ?? null;
       if (typeof window !== "undefined") {
         csrfToken = parseCookies()["csrf_token"] ?? null;
@@ -106,19 +201,9 @@ export async function request<T>(
   endpoint: string,
   options: RequestInit & RequestOptions = {}
 ): Promise<T> {
-  const { params, ...fetchOptions } = options;
-  let url = `${API_BASE_URL}${endpoint}`;
-
-  if (params) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== "") {
-        searchParams.append(key, String(value));
-      }
-    });
-    const qs = searchParams.toString();
-    if (qs) url += `?${qs}`;
-  }
+  const { params, signal: userSignal, ...fetchOptions } = options;
+  const url = `${API_BASE_URL}${endpoint}${buildQuery(params)}`;
+  const signal = combineSignal(userSignal);
 
   const bodyIsFormData =
     typeof FormData !== "undefined" && options.body instanceof FormData;
@@ -146,7 +231,12 @@ export async function request<T>(
     }
   }
 
-  let res = await fetch(url, { ...fetchOptions, headers, credentials: "include" });
+  let res = await fetch(url, {
+    ...fetchOptions,
+    headers,
+    credentials: "include",
+    signal,
+  });
 
   if (res.status === 401) {
     const newToken = await refreshAccessToken();
@@ -157,77 +247,80 @@ export async function request<T>(
       if (csrf) {
         headers["X-CSRF-Token"] = csrf;
       }
-      res = await fetch(url, { ...fetchOptions, headers, credentials: "include" });
+      res = await fetch(url, {
+        ...fetchOptions,
+        headers,
+        credentials: "include",
+        signal: combineSignal(userSignal),
+      });
     }
   }
 
   if (!res.ok) {
-    let errorData: unknown;
-    try {
-      errorData = await res.json();
-    } catch {
-      errorData = { message: res.statusText };
-    }
-    const errObj = errorData as Record<string, unknown>;
-    const message =
-      (errObj?.error as string) ??
-      (errObj?.message as string) ??
-      (errObj?.detail as string) ??
-      res.statusText;
-    throw new ApiError(message, res.status, errorData);
+    const errorData = await parseJsonSafe(res);
+    const message = extractErrorMessage(errorData, res.statusText);
+    // 422 maps to validation errors (FastAPI/Pydantic shape handled above).
+    throw new ApiError(
+      res.status === 422 && message === res.statusText
+        ? "Validation failed"
+        : message,
+      res.status,
+      errorData
+    );
   }
 
   if (res.status === 204) return undefined as T;
 
-  return res.json();
+  if (!isJsonResponse(res)) {
+    return undefined as T;
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 export async function downloadFile(
   endpoint: string,
-  params?: Record<string, string | number | boolean | undefined>
-): Promise<Blob> {
-  let url = `${API_BASE_URL}${endpoint}`;
-  if (params) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== "") {
-        searchParams.append(key, String(value));
-      }
-    });
-    const qs = searchParams.toString();
-    if (qs) url += `?${qs}`;
-  }
+  params?: Record<string, QueryValue>,
+  userSignal?: AbortSignal
+): Promise<{ blob: Blob; filename: string | null }> {
+  const url = `${API_BASE_URL}${endpoint}${buildQuery(params)}`;
 
-  const doFetch = async (): Promise<Response> => {
+  // GET downloads must not send X-CSRF (avoids useless preflights; CSRF is
+  // only for state-changing requests).
+  const doFetch = async (signal: AbortSignal): Promise<Response> => {
     const headers: Record<string, string> = {};
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const csrf = getCsrfToken();
-    if (csrf) headers["X-CSRF-Token"] = csrf;
-    return fetch(url, { headers, credentials: "include" });
+    return fetch(url, { headers, credentials: "include", signal });
   };
 
-  let res = await doFetch();
+  let res = await doFetch(combineSignal(userSignal));
 
   if (res.status === 401) {
     const newToken = await refreshAccessToken();
-    if (!newToken && !accessToken) {
+    if (!newToken) {
       throw new ApiError("Unauthorized", 401, null);
     }
-    res = await doFetch();
+    res = await doFetch(combineSignal(userSignal));
   }
 
   if (!res.ok) {
     let errorData: unknown = null;
     try {
-      errorData = await res.clone().json();
+      if (isJsonResponse(res)) {
+        errorData = await res.clone().json();
+      }
     } catch {
       // binary error body — keep null
     }
-    const msg =
-      (errorData as Record<string, unknown> | null)?.error as string ??
-      (errorData as Record<string, unknown> | null)?.message as string ??
-      res.statusText;
+    const msg = extractErrorMessage(errorData, res.statusText);
     throw new ApiError(msg, res.status, errorData);
   }
-  return res.blob();
+  const blob = await res.blob();
+  const filename = parseFilenameFromDisposition(
+    res.headers.get("content-disposition")
+  );
+  return { blob, filename };
 }

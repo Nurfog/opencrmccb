@@ -164,7 +164,7 @@ export default function ReportsPage() {
                         <span className="font-medium capitalize">{t(`stages.${item.stage}`) || item.stage}</span>
                         <span className="text-muted-foreground">{item.count} {t("deals.title")} / {formatCurrency(item.total_value)}</span>
                       </div>
-                      <div className="h-2.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                         <div
                           className={cn("h-full rounded-full transition-all duration-500", stageColors[item.stage] ?? "bg-brand")}
                           style={{ width: `${Math.max(pct, 2)}%` }}
@@ -197,7 +197,7 @@ export default function ReportsPage() {
                 </div>
                 {winLossReport.total_closed > 0 && (
                   <>
-                    <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
+                    <div className="h-3 bg-muted rounded-full overflow-hidden flex">
                       <div
                         className="bg-green-500 h-full transition-all duration-500"
                         style={{ width: `${winRate}%` }}

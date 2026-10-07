@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, Calendar, Phone, Mail, Briefcase, Building2, Clock } from "lucide-react"
+import { ArrowLeft, Edit, Trash2, Calendar, Phone, Mail, Briefcase, Clock } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"

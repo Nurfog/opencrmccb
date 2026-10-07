@@ -27,7 +27,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       >
         {t("nav.skipToContent") || "Skip to main content"}
       </a>
-      <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
+      <div className="flex h-screen overflow-hidden bg-background">
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
@@ -52,9 +52,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
             ref={mainRef}
             id="main-content"
             tabIndex={-1}
-            className="flex-1 overflow-y-auto p-6 outline-none"
+            className="flex-1 overflow-y-auto outline-none"
           >
-            {children}
+            <div className="mx-auto w-full max-w-[1360px] p-4 sm:p-6 lg:p-8">
+              {children}
+            </div>
           </main>
         </div>
       </div>

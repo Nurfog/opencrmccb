@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react"
 import { Modal } from "@/components/ui/modal"
 import { useI18n } from "@/contexts/i18n-context"
+import type { Company } from "@/lib/api"
 
 interface CompanyFormProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: any) => void
-  initialData?: any
+  onSubmit: (data: Record<string, unknown>) => void | Promise<void>
+  initialData?: Partial<Company> | undefined
 }
 
 const INDUSTRIES = [
@@ -185,11 +186,11 @@ export function CompanyForm({ isOpen, onClose, onSubmit, initialData }: CompanyF
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="slds-btn">
+        <div className="slds-modal__footer">
+          <button type="button" onClick={onClose} className="slds-btn slds-btn--neutral">
             {t("common.cancel")}
           </button>
-          <button type="submit" disabled={loading} className="slds-btn slds-btn--brand">
+          <button type="submit" disabled={loading} className="slds-btn slds-btn--brand disabled:opacity-50">
             {loading ? t("companies.saving") : initialData ? t("companies.editCompany") : t("companies.newCompany")}
           </button>
         </div>

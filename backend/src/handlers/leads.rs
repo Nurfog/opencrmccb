@@ -340,22 +340,27 @@ pub async fn convert_lead(
 
     let mut tx = state.db.begin().await?;
 
+    // Lock the row to prevent concurrent double-conversion.
     let lead = sqlx::query_as::<_, Lead>(
         "SELECT id, first_name, last_name, email, phone, company_name, title, industry, website,
                 lead_source, status, score, assigned_to, converted_at, converted_contact_id,
                 converted_company_id, converted_deal_id, notes, created_at, updated_at
-         FROM leads WHERE id = $1",
+         FROM leads WHERE id = $1 FOR UPDATE",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Only qualified leads can be converted
+    // Only qualified leads can be converted. Also guard against already-converted
+    // (idempotency): if converted_at is set, treat as conflict.
     if lead.status != LeadStatus::Qualified {
         return Err(AppError::BadRequest(
             "Lead must be qualified to convert".into(),
         ));
+    }
+    if lead.converted_at.is_some() {
+        return Err(AppError::Conflict("Lead already converted".into()));
     }
 
     // Fetch pipeline to determine entity type
@@ -449,18 +454,25 @@ pub async fn convert_lead(
 
     deal_id = Some(deal.id);
 
-    // Update lead status
-    sqlx::query(
+    // Update lead status — conditional to avoid double-conversion races.
+    // Only the first concurrent tx wins; losers get 0 rows → 409 Conflict.
+    let updated = sqlx::query(
         "UPDATE leads SET status = 'converted', converted_at = NOW(),
             converted_contact_id = $2, converted_company_id = $3, converted_deal_id = $4, updated_at = NOW()
-         WHERE id = $1",
+         WHERE id = $1 AND status = 'qualified' AND converted_at IS NULL
+         RETURNING id",
     )
     .bind(id)
     .bind(contact_id)
     .bind(company_id)
     .bind(deal_id)
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+
+    if updated.is_none() {
+        // Another tx converted concurrently (or status changed mid-tx).
+        return Err(AppError::Conflict("Lead already converted".into()));
+    }
 
     tx.commit().await?;
 
@@ -605,47 +617,51 @@ pub async fn lead_stats(
     perms
         .require("leads.view")
         .map_err(|_| AppError::Forbidden)?;
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads")
-        .fetch_one(&state.db)
-        .await?;
+    // Single query with FILTER instead of 6 sequential COUNTs.
+    #[derive(sqlx::FromRow)]
+    struct StatsRow {
+        total: i64,
+        new: i64,
+        contacted: i64,
+        qualified: i64,
+        converted: i64,
+    }
+    let counts_fut = sqlx::query_as::<_, StatsRow>(
+        "SELECT COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE status = 'new') AS new,
+                COUNT(*) FILTER (WHERE status = 'contacted') AS contacted,
+                COUNT(*) FILTER (WHERE status = 'qualified') AS qualified,
+                COUNT(*) FILTER (WHERE status = 'converted') AS converted
+         FROM leads",
+    )
+    .fetch_one(&state.db);
 
-    let new: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'new'")
-        .fetch_one(&state.db)
-        .await?;
+    let by_source_fut = sqlx::query_as::<_, (String, i64)>(
+        "SELECT lead_source::text, COUNT(*) FROM leads GROUP BY lead_source ORDER BY COUNT(*) DESC",
+    )
+    .fetch_all(&state.db);
 
-    let contacted: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'contacted'")
-        .fetch_one(&state.db)
-        .await?;
+    let (counts, by_source_rows) = tokio::join!(counts_fut, by_source_fut);
+    let counts = counts?;
+    let by_source_rows = by_source_rows?;
 
-    let qualified: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'qualified'")
-        .fetch_one(&state.db)
-        .await?;
-
-    let converted: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'converted'")
-        .fetch_one(&state.db)
-        .await?;
-
-    let conversion_rate = if total.0 > 0 {
-        (converted.0 as f64 / total.0 as f64) * 100.0
+    let conversion_rate = if counts.total > 0 {
+        (counts.converted as f64 / counts.total as f64) * 100.0
     } else {
         0.0
     };
 
-    let by_source = sqlx::query_as::<_, (String, i64)>(
-        "SELECT lead_source::text, COUNT(*) FROM leads GROUP BY lead_source ORDER BY COUNT(*) DESC",
-    )
-    .fetch_all(&state.db)
-    .await?
-    .into_iter()
-    .map(|(source, count)| SourceCount { source, count })
-    .collect();
+    let by_source = by_source_rows
+        .into_iter()
+        .map(|(source, count)| SourceCount { source, count })
+        .collect();
 
     Ok(Json(LeadStats {
-        total: total.0,
-        new: new.0,
-        contacted: contacted.0,
-        qualified: qualified.0,
-        converted: converted.0,
+        total: counts.total,
+        new: counts.new,
+        contacted: counts.contacted,
+        qualified: counts.qualified,
+        converted: counts.converted,
         conversion_rate,
         by_source,
     }))

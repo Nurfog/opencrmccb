@@ -77,11 +77,11 @@ export function ProfilesSection() {
         </div>
         <div className="space-y-3">
           {profiles.map(p => (
-            <div key={p.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div key={p.id} className="border border-border rounded-xl p-4 bg-card">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">{p.name}</h3>
-                  {p.is_system && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-muted-foreground">{t("admin.system")}</span>}
+                  <h3 className="text-[13.5px] font-semibold tracking-tight">{p.name}</h3>
+                  {p.is_system && <span className="slds-tag slds-tag--muted">{t("admin.system")}</span>}
                 </div>
                 {!p.is_system && (
                   <button type="button" onClick={() => openProfForm(p)} className="slds-btn slds-btn--icon"><Edit className="h-4 w-4" /></button>
@@ -90,7 +90,7 @@ export function ProfilesSection() {
               {p.description && <p className="text-xs text-muted-foreground mb-2">{p.description}</p>}
               <div className="flex flex-wrap gap-1">
                 {p.permissions.map(perm => (
-                  <span key={perm} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-muted-foreground">{perm}</span>
+                  <span key={perm} className="slds-tag slds-tag--muted font-mono">{perm}</span>
                 ))}
               </div>
             </div>
@@ -110,16 +110,16 @@ export function ProfilesSection() {
           </div>
           <div>
             <label className="slds-label mb-2">{t("admin.permissions")}</label>
-            <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-60 overflow-y-auto border border-border rounded-[10px] p-1.5">
               {AVAILABLE_PERMISSIONS.map(perm => (
-                <label key={perm} className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-sm">
-                  <input type="checkbox" checked={profPerms.includes(perm)} onChange={() => togglePerm(perm)} className="rounded" />
-                  {perm}
+                <label key={perm} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted cursor-pointer text-[13px] transition-colors">
+                  <input type="checkbox" checked={profPerms.includes(perm)} onChange={() => togglePerm(perm)} className="rounded border-input accent-primary h-4 w-4" />
+                  <span className="font-mono text-xs">{perm}</span>
                 </label>
               ))}
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="slds-modal__footer">
             <button type="button" onClick={() => setProfModal(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
             <button type="submit" className="slds-btn slds-btn--brand">{t("common.save")}</button>
           </div>

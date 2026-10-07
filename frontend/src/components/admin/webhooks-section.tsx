@@ -92,15 +92,15 @@ export function WebhooksSection() {
         ) : (
           <div className="space-y-3">
             {webhooks.map(wh => (
-              <div key={wh.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div key={wh.id} className="border border-border rounded-xl p-4 bg-card">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
-                      wh.active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn("slds-tag",
+                      wh.active ? "slds-tag--success" : "slds-tag--muted"
                     )}>
                       {wh.active ? t("common.active") : t("common.inactive")}
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium">
+                    <span className="slds-tag slds-tag--info">
                       {wh.event}
                     </span>
                   </div>
@@ -144,7 +144,7 @@ export function WebhooksSection() {
             <label className="slds-label">{t("admin.webhookSecret")} <span className="text-muted-foreground">({t("common.optional")})</span></label>
             <input className="slds-input font-mono" value={whSecret} onChange={(e) => setWhSecret(e.target.value)} placeholder="HMAC-SHA256 secret" />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="slds-modal__footer">
             <button type="button" onClick={() => setWhModal(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
             <button type="submit" className="slds-btn slds-btn--brand">{t("common.create")}</button>
           </div>
@@ -158,7 +158,7 @@ export function WebhooksSection() {
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
+                <tr className="border-b border-border">
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">{t("admin.status")}</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">{t("admin.attempts")}</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">{t("admin.responseCode")}</th>
@@ -167,13 +167,13 @@ export function WebhooksSection() {
               </thead>
               <tbody>
                 {deliveries.map(d => (
-                  <tr key={d.id} className="border-b border-gray-100 dark:border-gray-800">
+                  <tr key={d.id} className="border-b border-border/70 last:border-b-0">
                     <td className="py-2 px-3">
-                      <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
-                        d.status === "success" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
-                        d.status === "failed" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" :
-                        d.status === "processing" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" :
-                        "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                      <span className={cn("slds-tag",
+                        d.status === "success" ? "slds-tag--success" :
+                        d.status === "failed" ? "slds-tag--error" :
+                        d.status === "processing" ? "slds-tag--warning" :
+                        "slds-tag--muted"
                       )}>
                         {d.status}
                       </span>

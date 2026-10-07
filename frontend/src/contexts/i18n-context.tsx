@@ -46,17 +46,12 @@ function interpolate(
 
 const STORAGE_KEY = "opencrm-locale";
 
-function getInitialLocale(): Locale {
-  if (typeof window === "undefined") return "en";
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "es" || stored === "en") return stored;
-  const browserLang = navigator.language?.slice(0, 2);
-  return browserLang === "es" ? "es" : "en";
-}
-
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(getInitialLocale);
+  // Start with a deterministic default to avoid SSR/hydration mismatch;
+  // the stored/browser locale is applied in `useEffect` below.
+  const [locale, setLocaleState] = useState<Locale>("en");
   const [translations, setTranslations] = useState<Translations>({});
+  const [fallbackTranslations, setFallbackTranslations] = useState<Translations>({});
   const [isLoading, setIsLoading] = useState(true);
 
   const loadTranslations = useCallback(async (l: Locale) => {
@@ -74,27 +69,79 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const setLocale = useCallback(
     (l: Locale) => {
       setLocaleState(l);
-      localStorage.setItem(STORAGE_KEY, l);
+      try {
+        localStorage.setItem(STORAGE_KEY, l);
+      } catch {
+        // storage unavailable (private mode) — ignore
+      }
+      if (typeof document !== "undefined") {
+        document.documentElement.lang = l;
+      }
       loadTranslations(l);
     },
     [loadTranslations]
   );
 
+  // Apply stored/browser locale after mount (localStorage is client-only).
+  useEffect(() => {
+    let initial: Locale = "en";
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === "es" || stored === "en") {
+        initial = stored;
+      } else {
+        const browserLang = navigator.language?.slice(0, 2);
+        initial = browserLang === "es" ? "es" : "en";
+      }
+    } catch {
+      initial = "en";
+    }
+    setLocaleState(initial);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = initial;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Preload Spanish as fallback for missing keys.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mod = await import(`@/lib/i18n/es.json`);
+        if (!cancelled) setFallbackTranslations(mod.default ?? mod);
+      } catch {
+        // fallback stays empty
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     loadTranslations(locale);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = locale;
+    }
   }, [locale, loadTranslations]);
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number> | string): string => {
       if (typeof params === "string") {
         const value = resolveNestedKey(translations, key);
-        return typeof value === "string" ? value : params;
+        if (typeof value === "string") return value;
+        const fallback = resolveNestedKey(fallbackTranslations, key);
+        return typeof fallback === "string" ? fallback : params;
       }
       const value = resolveNestedKey(translations, key);
       if (typeof value === "string") return interpolate(value, params);
+      // Fallback to Spanish when the key is missing in the active locale.
+      const fallback = resolveNestedKey(fallbackTranslations, key);
+      if (typeof fallback === "string") return interpolate(fallback, params);
       return key;
     },
-    [translations]
+    [translations, fallbackTranslations]
   );
 
   return (

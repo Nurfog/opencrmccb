@@ -4,56 +4,65 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* ——— Superficies neutras sobrias ——— */
+    --background: 220 14% 96.5%;
+    --foreground: 222 30% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 222 30% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 210 100% 42%;
+    --popover-foreground: 222 30% 12%;
+    /* ——— Azul corporativo sobrio ——— */
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 100% 42%;
+    --secondary: 220 14% 93%;
+    --secondary-foreground: 222 30% 12%;
+    --muted: 220 14% 93.5%;
+    --muted-foreground: 220 9% 44%;
+    --accent: 221 83% 53%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 70% 55%;
+    --destructive: 0 65% 51%;
     --destructive-foreground: 0 0% 100%;
-    --success: 122 40% 42%;
+    --success: 142 50% 38%;
     --success-foreground: 0 0% 100%;
-    --warning: 37 90% 51%;
+    --warning: 32 90% 48%;
     --warning-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 210 100% 42%;
-    --radius: 0.25rem;
+    --border: 220 13% 90%;
+    --input: 220 13% 84%;
+    --ring: 221 83% 53%;
+    --radius: 0.75rem;
+    /* ——— Sidebar clara ——— */
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 220 9% 38%;
+    --sidebar-active: 220 14% 93%;
   }
 
   .dark {
-    --background: 222 47% 8%;
-    --foreground: 210 20% 94%;
-    --card: 222 47% 13%;
-    --card-foreground: 210 20% 94%;
-    --popover: 222 47% 13%;
-    --popover-foreground: 210 20% 94%;
-    --primary: 210 100% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 215 25% 18%;
-    --secondary-foreground: 210 20% 94%;
-    --muted: 215 25% 18%;
-    --muted-foreground: 215 20% 72%;
-    --accent: 210 50% 20%;
-    --accent-foreground: 210 20% 94%;
-    --destructive: 0 70% 55%;
+    --background: 222 35% 7.5%;
+    --foreground: 213 20% 93%;
+    --card: 222 30% 10.5%;
+    --card-foreground: 213 20% 93%;
+    --popover: 222 30% 11.5%;
+    --popover-foreground: 213 20% 93%;
+    --primary: 217 91% 62%;
+    --primary-foreground: 222 40% 8%;
+    --secondary: 222 22% 15%;
+    --secondary-foreground: 213 20% 93%;
+    --muted: 222 22% 14%;
+    --muted-foreground: 215 16% 66%;
+    --accent: 222 22% 15%;
+    --accent-foreground: 213 20% 93%;
+    --destructive: 0 62% 52%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 60% 48%;
+    --success: 142 55% 45%;
     --success-foreground: 0 0% 100%;
-    --warning: 37 85% 55%;
+    --warning: 32 85% 55%;
     --warning-foreground: 0 0% 100%;
-    --border: 217 25% 24%;
-    --input: 217 25% 24%;
-    --ring: 210 100% 55%;
+    --border: 222 20% 17%;
+    --input: 222 20% 22%;
+    --ring: 217 91% 62%;
+    --sidebar: 222 30% 9%;
+    --sidebar-foreground: 215 16% 68%;
+    --sidebar-active: 222 22% 14.5%;
   }
 
   * {
@@ -62,76 +71,88 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.005em;
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary) / 0.16);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
 @layer components {
-  /* ===== Salesforce Page Header ===== */
+  /* ===== Page Header — sobrio, jerarquía clara ===== */
   .slds-header {
-    @apply bg-white dark:bg-card border-b px-6 py-4;
-    border-color: hsl(var(--border));
+    @apply flex items-start justify-between gap-4 flex-wrap px-1 pt-1 pb-4;
+    border: none;
+    background: transparent;
   }
 
   .slds-header__title {
-    @apply text-xl font-bold;
-    color: #032D60;
-  }
-
-  .dark .slds-header__title {
+    @apply text-[22px] font-semibold;
     color: hsl(var(--foreground));
+    letter-spacing: -0.02em;
+    line-height: 1.25;
   }
 
-  .slds-header__detail {
-    @apply text-sm;
+  .slds-header__detail,
+  .slds-header__description {
+    @apply text-[13.5px] mt-1;
     color: hsl(var(--muted-foreground));
+    letter-spacing: -0.005em;
   }
 
-  /* ===== Salesforce Card ===== */
+  /* ===== Card — superficie blanca, borde fino, sombra mínima ===== */
   .slds-card {
-    @apply bg-white dark:bg-card rounded border;
+    @apply bg-card border;
     border-color: hsl(var(--border));
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
   }
 
   .slds-card__header {
-    @apply flex items-center justify-between px-4 py-3 border-b;
+    @apply flex items-center justify-between px-5 py-4 border-b;
     border-color: hsl(var(--border));
   }
 
   .slds-card__title {
-    @apply font-semibold;
-    color: #032D60;
-  }
-
-  .dark .slds-card__title {
+    @apply text-[14.5px] font-semibold;
     color: hsl(var(--foreground));
+    letter-spacing: -0.01em;
   }
 
   .slds-card__body {
-    @apply p-4;
+    @apply p-5;
   }
 
-  /* ===== Salesforce Table ===== */
+  /* ===== Table — cabecera ligera, filas aireadas ===== */
   .slds-table {
-    @apply w-full text-sm;
+    @apply w-full text-[13.5px];
   }
 
   .slds-table thead {
-    @apply text-white text-xs uppercase tracking-wider;
-    background-color: #032D60;
-  }
-
-  .dark .slds-table thead {
-    background-color: hsl(215 30% 16%);
+    @apply border-b;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    border-color: hsl(var(--border));
   }
 
   .slds-table th {
-    @apply px-4 py-3 text-left font-semibold;
+    @apply px-4 py-2.5 text-left font-medium;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   .slds-table td {
     @apply px-4 py-3 border-b;
-    border-color: hsl(var(--border));
+    border-color: hsl(var(--border) / 0.7);
   }
 
   .slds-table tbody tr {
@@ -139,58 +160,54 @@
   }
 
   .slds-table tbody tr:hover {
-    background-color: #E5F5FE;
+    background-color: hsl(var(--muted) / 0.55);
   }
 
-  .dark .slds-table tbody tr:hover {
-    background-color: hsl(215 30% 18%);
+  .slds-table tbody tr:last-child td {
+    border-bottom: none;
   }
 
-  .slds-table tbody tr:nth-child(even) {
-    @apply bg-gray-50;
-  }
-
-  .dark .slds-table tbody tr:nth-child(even) {
-    background-color: hsl(222 47% 10%);
-  }
-
-  .dark .slds-table tbody tr:nth-child(odd) {
-    background-color: hsl(var(--card));
-  }
-
-  /* ===== Salesforce Buttons ===== */
+  /* ===== Buttons — altura 36px, radio 10px, peso medio ===== */
   .slds-btn {
-    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium rounded transition-all duration-150;
-    min-height: 2rem;
+    @apply inline-flex items-center justify-center gap-1.5 px-3.5 text-[13.5px] font-medium transition-all duration-150;
+    min-height: 2.25rem;
+    border-radius: 10px;
+    letter-spacing: -0.005em;
+  }
+
+  .slds-btn:active {
+    transform: translateY(1px);
+  }
+
+  .slds-btn:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 
   .slds-btn--brand {
     @apply text-white;
-    background-color: #0176D3;
+    background-color: hsl(var(--primary));
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12);
+  }
+
+  .dark .slds-btn--brand {
+    color: hsl(var(--primary-foreground));
   }
 
   .slds-btn--brand:hover {
-    background-color: #032D60;
+    filter: brightness(0.95);
   }
 
   .slds-btn--neutral {
-    @apply bg-white dark:bg-card border;
-    color: #0176D3;
-    border-color: #0176D3;
-  }
-
-  .dark .slds-btn--neutral {
+    @apply bg-card border;
     color: hsl(var(--foreground));
-    border-color: hsl(var(--border));
-    background-color: hsl(var(--secondary));
+    border-color: hsl(var(--input));
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
   }
 
   .slds-btn--neutral:hover {
-    background-color: #E5F5FE;
-  }
-
-  .dark .slds-btn--neutral:hover {
-    background-color: hsl(var(--muted));
+    background-color: hsl(var(--muted) / 0.7);
+    border-color: hsl(var(--muted-foreground) / 0.35);
   }
 
   .slds-btn--destructive {
@@ -202,100 +219,256 @@
     @apply opacity-90;
   }
 
-  /* ===== Salesforce Input ===== */
+  .slds-btn--success {
+    @apply text-white;
+    background-color: hsl(var(--success));
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12);
+  }
+
+  .slds-btn--success:hover {
+    filter: brightness(0.95);
+  }
+
+  .slds-btn--icon {
+    @apply inline-flex items-center justify-center rounded-lg text-muted-foreground transition-colors flex-shrink-0;
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .slds-btn--icon:hover {
+    background-color: hsl(var(--muted));
+  }
+
+  /* ===== Input — 40px, fondo blanco, foco con anillo suave ===== */
+  .slds-label {
+    @apply block mb-1.5;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.005em;
+  }
+
   .slds-input {
-    @apply w-full px-3 py-2 text-sm border rounded bg-white dark:bg-background;
+    @apply w-full px-3 text-[13.5px] border bg-card;
     border-color: hsl(var(--input));
     color: hsl(var(--foreground));
-    min-height: 2rem;
+    min-height: 2.5rem;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
 
   .slds-input:focus {
-    @apply outline-none ring-2;
-    --tw-ring-color: #0176D3;
-    border-color: #0176D3;
+    @apply outline-none;
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.12);
   }
 
   .slds-input::placeholder {
-    color: hsl(var(--muted-foreground));
+    color: hsl(var(--muted-foreground) / 0.85);
   }
 
-  /* ===== Salesforce Badge ===== */
+  /* ===== Badge — pastilla contenida con borde ===== */
   .slds-badge {
-    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 whitespace-nowrap border;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 7px;
+    letter-spacing: -0.005em;
   }
 
   .slds-badge--success {
-    @apply bg-green-100 text-green-800;
+    background-color: hsl(142 45% 94%);
+    color: hsl(142 55% 30%);
+    border-color: hsl(142 35% 82%);
   }
 
   .dark .slds-badge--success {
-    background-color: hsl(142 40% 18%);
-    color: hsl(142 40% 70%);
+    background-color: hsl(142 35% 13%);
+    color: hsl(142 45% 72%);
+    border-color: hsl(142 30% 24%);
   }
 
   .slds-badge--warning {
-    @apply bg-yellow-100 text-yellow-800;
+    background-color: hsl(38 85% 94%);
+    color: hsl(28 75% 34%);
+    border-color: hsl(38 60% 82%);
   }
 
   .dark .slds-badge--warning {
-    background-color: hsl(37 80% 16%);
-    color: hsl(37 80% 70%);
+    background-color: hsl(32 60% 14%);
+    color: hsl(38 80% 70%);
+    border-color: hsl(32 50% 26%);
   }
 
   .slds-badge--error {
-    @apply bg-red-100 text-red-800;
+    background-color: hsl(0 70% 95%);
+    color: hsl(0 60% 40%);
+    border-color: hsl(0 55% 85%);
   }
 
   .dark .slds-badge--error {
-    background-color: hsl(0 63% 18%);
-    color: hsl(0 63% 70%);
+    background-color: hsl(0 55% 14%);
+    color: hsl(0 65% 72%);
+    border-color: hsl(0 45% 26%);
   }
 
   .slds-badge--info {
-    @apply bg-blue-100 text-blue-700;
+    background-color: hsl(221 90% 95%);
+    color: hsl(221 75% 38%);
+    border-color: hsl(221 60% 85%);
   }
 
   .dark .slds-badge--info {
-    background-color: hsl(210 100% 14%);
-    color: hsl(210 100% 65%);
+    background-color: hsl(221 60% 15%);
+    color: hsl(217 90% 75%);
+    border-color: hsl(221 50% 28%);
   }
 
-  /* ===== Salesforce Sidebar ===== */
+  /* ===== Tag — mini pastilla para estados y metadatos ===== */
+  .slds-tag {
+    @apply inline-flex items-center px-2 py-0.5 font-medium whitespace-nowrap border;
+    font-size: 10.5px;
+    line-height: 1.5;
+    border-radius: 999px;
+    letter-spacing: 0.015em;
+  }
+
+  .slds-tag--muted {
+    background-color: hsl(var(--muted) / 0.7);
+    color: hsl(var(--muted-foreground));
+    border-color: hsl(var(--border));
+  }
+
+  .slds-tag--success {
+    background-color: hsl(142 45% 94%);
+    color: hsl(142 55% 30%);
+    border-color: hsl(142 35% 82%);
+  }
+
+  .dark .slds-tag--success {
+    background-color: hsl(142 35% 13%);
+    color: hsl(142 45% 72%);
+    border-color: hsl(142 30% 24%);
+  }
+
+  .slds-tag--warning {
+    background-color: hsl(38 85% 94%);
+    color: hsl(28 75% 34%);
+    border-color: hsl(38 60% 82%);
+  }
+
+  .dark .slds-tag--warning {
+    background-color: hsl(32 60% 14%);
+    color: hsl(38 80% 70%);
+    border-color: hsl(32 50% 26%);
+  }
+
+  .slds-tag--error {
+    background-color: hsl(0 70% 95%);
+    color: hsl(0 60% 40%);
+    border-color: hsl(0 55% 85%);
+  }
+
+  .dark .slds-tag--error {
+    background-color: hsl(0 55% 14%);
+    color: hsl(0 65% 72%);
+    border-color: hsl(0 45% 26%);
+  }
+
+  .slds-tag--info {
+    background-color: hsl(221 90% 95%);
+    color: hsl(221 75% 38%);
+    border-color: hsl(221 60% 85%);
+  }
+
+  .dark .slds-tag--info {
+    background-color: hsl(221 60% 15%);
+    color: hsl(217 90% 75%);
+    border-color: hsl(221 50% 28%);
+  }
+
+  .slds-tag--violet {
+    background-color: hsl(258 70% 95%);
+    color: hsl(258 55% 40%);
+    border-color: hsl(258 50% 86%);
+  }
+
+  .dark .slds-tag--violet {
+    background-color: hsl(258 50% 15%);
+    color: hsl(258 80% 75%);
+    border-color: hsl(258 40% 28%);
+  }
+
+  /* ===== Sidebar clara — estilo app moderna sobria ===== */
   .slds-sidebar {
-    @apply w-64 flex flex-col h-screen flex-shrink-0;
-    background-color: #032D60;
+    @apply w-[264px] flex flex-col h-screen flex-shrink-0 border-r;
+    background-color: hsl(var(--sidebar));
+    border-color: hsl(var(--border));
   }
 
-  .dark .slds-sidebar {
-    background-color: #032D60;
+  .slds-sidebar__section-label {
+    @apply px-3 mb-1 mt-4;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: hsl(var(--muted-foreground) / 0.9);
+  }
+
+  .slds-sidebar__section-label:first-child {
+    @apply mt-1;
   }
 
   .slds-sidebar__item {
-    @apply flex items-center gap-3 px-4 py-3 text-sm text-white/80 hover:text-white transition-colors cursor-pointer;
+    @apply relative flex items-center gap-2.5 px-3 mx-2 my-px rounded-lg cursor-pointer;
+    min-height: 2.25rem;
+    font-size: 13.5px;
+    font-weight: 450;
+    color: hsl(var(--sidebar-foreground));
+    letter-spacing: -0.005em;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 
   .slds-sidebar__item:hover {
-    background-color: #0176D3;
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--sidebar-active) / 0.7);
   }
 
   .slds-sidebar__item--active {
-    @apply text-white border-l-4 border-white;
-    background-color: #0176D3;
+    color: hsl(var(--foreground));
+    font-weight: 550;
+    background-color: hsl(var(--sidebar-active));
   }
 
-  /* ===== Salesforce Global Header ===== */
+  .slds-sidebar__item--active::before {
+    content: "";
+    @apply absolute left-0 top-1/2 -translate-y-1/2 rounded-full;
+    width: 3px;
+    height: 18px;
+    margin-left: -8px;
+    background-color: hsl(var(--primary));
+  }
+
+  .slds-sidebar__item--active svg {
+    color: hsl(var(--primary));
+  }
+
+  .dark .slds-sidebar__item--active svg {
+    color: hsl(var(--primary));
+  }
+
+  /* ===== Global Header — barra fina sticky con blur ===== */
   .slds-global-header {
-    @apply flex items-center justify-between px-4 py-2 text-white;
-    background-color: #032D60;
+    @apply sticky top-0 z-30 flex items-center justify-between gap-3 px-4 border-b;
+    height: 3.5rem;
+    background-color: hsl(var(--card) / 0.82);
+    backdrop-filter: blur(12px) saturate(1.2);
+    -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    border-color: hsl(var(--border));
   }
 
-  .dark .slds-global-header {
-    background-color: #032D60;
-  }
-
-  /* ===== Salesforce Kanban ===== */
+  /* ===== Kanban — columnas en gris tenue ===== */
   .slds-kanban {
     @apply flex gap-4 overflow-x-auto pb-4;
   }
@@ -305,43 +478,71 @@
   }
 
   .slds-kanban__column-header {
-    @apply rounded-t p-3 border border-b-0;
+    @apply px-3.5 py-2.5 border border-b-0;
     background-color: hsl(var(--card));
     border-color: hsl(var(--border));
+    border-radius: 12px 12px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   .slds-kanban__column-body {
-    @apply rounded-b border p-2 space-y-2;
-    background-color: hsl(var(--muted));
+    @apply border border-t-0 p-2 space-y-2;
+    background-color: hsl(var(--muted) / 0.6);
     border-color: hsl(var(--border));
+    border-radius: 0 0 12px 12px;
     min-height: 200px;
   }
 
   .slds-kanban__card {
-    @apply rounded border p-3 cursor-pointer transition-shadow;
-    background-color: hsl(var(--card));
+    @apply border p-3 cursor-pointer bg-card;
     border-color: hsl(var(--border));
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
   }
 
   .slds-kanban__card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+    transform: translateY(-1px);
+    border-color: hsl(var(--muted-foreground) / 0.3);
+    box-shadow: 0 6px 16px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.05);
   }
 
-  /* ===== Salesforce Modal ===== */
+  .slds-kanban__card--dragging {
+    box-shadow: 0 12px 28px rgba(16, 24, 40, 0.16), 0 2px 6px rgba(16, 24, 40, 0.08);
+    border-color: hsl(var(--primary) / 0.5);
+  }
+
+  /* Estado de columna receptora durante el arrastre. */
+  .slds-kanban__column--over .slds-kanban__column-header {
+    border-color: hsl(var(--primary) / 0.45);
+  }
+
+  .slds-kanban__column--over .slds-kanban__column-body {
+    border-color: hsl(var(--primary) / 0.45);
+    background-color: hsl(var(--primary) / 0.05);
+  }
+
+  /* ===== Modal — diálogo centrado, radio amplio ===== */
   .slds-modal-backdrop {
-    @apply fixed inset-0 z-50 flex items-center justify-center;
-    animation: fade-in 0.15s ease-out;
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    animation: fade-in 0.16s ease-out;
   }
 
   .slds-modal-backdrop::before {
     content: "";
     @apply absolute inset-0;
-    background-color: rgba(0,0,0,0.5);
+    background-color: rgba(15, 23, 42, 0.48);
+    backdrop-filter: blur(2px);
   }
 
   .slds-modal-content {
-    @apply relative bg-white dark:bg-card rounded shadow-lg w-full max-w-lg mx-4;
-    animation: modal-in 0.2s ease-out;
+    @apply relative bg-card w-full max-w-lg mx-4 border;
+    border-color: hsl(var(--border));
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.08);
+    animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .slds-modal__header {
@@ -350,12 +551,9 @@
   }
 
   .slds-modal__title {
-    @apply text-lg font-semibold;
-    color: #032D60;
-  }
-
-  .dark .slds-modal__title {
+    @apply text-[16px] font-semibold;
     color: hsl(var(--foreground));
+    letter-spacing: -0.015em;
   }
 
   .slds-modal__body {
@@ -367,24 +565,35 @@
     border-color: hsl(var(--border));
   }
 
-  /* ===== Salesforce Empty State ===== */
+  /* Footer usado dentro del body (patrón de los formularios): queda
+     enrasado con los bordes del diálogo y fondo tenue. */
+  .slds-modal__body > .slds-modal__footer {
+    margin: 1.25rem -1.5rem -1rem;
+    border-radius: 0 0 16px 16px;
+    background-color: hsl(var(--muted) / 0.45);
+  }
+
+  /* ===== Empty State — icono sobrio en gris ===== */
   .slds-empty {
-    @apply flex flex-col items-center justify-center py-16 px-6 text-center;
+    @apply flex flex-col items-center justify-center py-14 px-6 text-center;
   }
 
   .slds-empty__icon {
-    @apply w-16 h-16 rounded-full flex items-center justify-center mb-4;
-    background-color: hsl(var(--muted));
+    @apply w-12 h-12 flex items-center justify-center mb-4 border;
+    background-color: hsl(var(--muted) / 0.6);
     color: hsl(var(--muted-foreground));
+    border-color: hsl(var(--border));
+    border-radius: 14px;
   }
 
   .slds-empty__title {
-    @apply text-lg font-semibold mb-1;
-    color: hsl(var(--muted-foreground));
+    @apply text-[15px] font-semibold mb-1;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.01em;
   }
 
   .slds-empty__description {
-    @apply text-sm max-w-sm mb-6;
+    @apply text-[13.5px] max-w-sm mb-5;
     color: hsl(var(--muted-foreground));
   }
 
@@ -404,10 +613,10 @@
   }
 }
 
-/* ===== Scrollbar ===== */
+/* ===== Scrollbar fina y discreta ===== */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -415,12 +624,16 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.28);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: hsl(var(--muted-foreground) / 0.45);
+  background-clip: content-box;
+  border: 2px solid transparent;
 }
 
 /* FullCalendar event colors */

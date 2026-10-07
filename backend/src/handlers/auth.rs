@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{StatusCode, header::SET_COOKIE};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE};
 use axum::response::Response;
 use bcrypt::{DEFAULT_COST, hash, verify};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
@@ -36,6 +36,49 @@ async fn verify_password(password: String, hash_str: String) -> Result<bool, App
 fn internal_db(e: impl std::fmt::Debug) -> AppError {
     tracing::error!("Database error: {:?}", e);
     AppError::Internal("Database error".into())
+}
+
+/// Build a JSON response with multiple `Set-Cookie` headers.
+/// Uses `HeaderMap::append` (not `Response::builder().header`) so that
+/// access_token, refresh_token and csrf_token cookies are all preserved
+/// instead of overwriting each other.
+fn build_auth_response(
+    status: StatusCode,
+    body: String,
+    cookies: Vec<String>,
+) -> Result<Response, AppError> {
+    let mut response = Response::new(Body::from(body));
+    *response.status_mut() = status;
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    for cookie in cookies {
+        let value: HeaderValue = cookie.parse().map_err(|e| {
+            tracing::error!("Invalid cookie value: {:?}", e);
+            AppError::Internal("Database error".into())
+        })?;
+        response.headers_mut().append(SET_COOKIE, value);
+    }
+    Ok(response)
+}
+
+#[allow(dead_code)]
+fn header_map_with_cookies(body: String, status: StatusCode, cookies: Vec<String>) -> Response {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    for cookie in cookies {
+        if let Ok(value) = cookie.parse() {
+            headers.append(SET_COOKIE, value);
+        }
+    }
+    let mut response = Response::new(Body::from(body));
+    *response.status_mut() = status;
+    *response.headers_mut() = headers;
+    response
 }
 
 use crate::AppState;
@@ -140,6 +183,13 @@ pub async fn register(
 
     let mut tx = state.db.begin().await.map_err(internal_db)?;
 
+    // Serialize concurrent first-user registrations: prevents TOCTOU race
+    // where two parallel tx both see zero users and both insert an admin.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('register'))")
+        .execute(&mut *tx)
+        .await
+        .map_err(internal_db)?;
+
     // Atomically check if any users exist inside a transaction
     let existing: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users LIMIT 1")
         .fetch_optional(&mut *tx)
@@ -147,7 +197,7 @@ pub async fn register(
         .map_err(internal_db)?;
 
     if existing.is_some() {
-        tx.rollback().await.map_err(internal_db)?;
+        // No explicit rollback needed: dropping `tx` without commit rolls back.
         return Err(AppError::Forbidden);
     }
 
@@ -233,17 +283,15 @@ pub async fn register(
     })
     .map_err(internal_db)?;
 
-    let response = Response::builder()
-        .status(StatusCode::CREATED)
-        .header("content-type", "application/json")
-        .header(SET_COOKIE, access_token_cookie(&access_token, access_max))
-        .header(
-            SET_COOKIE,
+    let response = build_auth_response(
+        StatusCode::CREATED,
+        body,
+        vec![
+            access_token_cookie(&access_token, access_max),
             refresh_token_cookie(&refresh_token_str, refresh_max),
-        )
-        .header(SET_COOKIE, csrf_cookie(&csrf, access_max))
-        .body(Body::from(body))
-        .map_err(internal_db)?;
+            csrf_cookie(&csrf, access_max),
+        ],
+    )?;
 
     Ok(response)
 }
@@ -328,16 +376,15 @@ pub async fn login(
     })
     .map_err(internal_db)?;
 
-    let response = Response::builder()
-        .header("content-type", "application/json")
-        .header(SET_COOKIE, access_token_cookie(&access_token, access_max))
-        .header(
-            SET_COOKIE,
+    let response = build_auth_response(
+        StatusCode::OK,
+        body,
+        vec![
+            access_token_cookie(&access_token, access_max),
             refresh_token_cookie(&refresh_token_str, refresh_max),
-        )
-        .header(SET_COOKIE, csrf_cookie(&csrf, access_max))
-        .body(Body::from(body))
-        .map_err(internal_db)?;
+            csrf_cookie(&csrf, access_max),
+        ],
+    )?;
 
     Ok(response)
 }
@@ -389,12 +436,16 @@ pub async fn refresh_token(
 
     let token_hash = hash_token(&refresh_token_str);
 
+    // Atomic rotation: lock the row BEFORE checking revoked/expired so two
+    // concurrent requests with the same token cannot both succeed (TOCTOU).
+    let mut tx = state.db.begin().await.map_err(internal_db)?;
+
     let stored_token = sqlx::query_as::<_, RefreshToken>(
-        "SELECT id, user_id, token_hash, expires_at, revoked, created_at FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2"
+        "SELECT id, user_id, token_hash, expires_at, revoked, created_at FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2 FOR UPDATE"
     )
     .bind(&token_hash)
     .bind(user_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Unauthorized)?;
 
@@ -405,9 +456,10 @@ pub async fn refresh_token(
         );
         sqlx::query("UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1")
             .bind(user_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal("Database error".into()))?;
+        tx.commit().await.map_err(internal_db)?;
         return Err(AppError::Unauthorized);
     }
 
@@ -419,11 +471,9 @@ pub async fn refresh_token(
         "SELECT id, email, first_name, last_name, profile_id, created_at, updated_at FROM users WHERE id = $1"
     )
     .bind(user_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Unauthorized)?;
-
-    let mut tx = state.db.begin().await.map_err(internal_db)?;
 
     sqlx::query("UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1")
         .bind(&token_hash)
@@ -491,19 +541,15 @@ pub async fn refresh_token(
     })
     .map_err(internal_db)?;
 
-    let response = Response::builder()
-        .header("content-type", "application/json")
-        .header(
-            SET_COOKIE,
+    let response = build_auth_response(
+        StatusCode::OK,
+        body,
+        vec![
             access_token_cookie(&new_access_token, access_max),
-        )
-        .header(
-            SET_COOKIE,
             refresh_token_cookie(&new_refresh_token, refresh_max),
-        )
-        .header(SET_COOKIE, csrf_cookie(&csrf, access_max))
-        .body(Body::from(body))
-        .map_err(internal_db)?;
+            csrf_cookie(&csrf, access_max),
+        ],
+    )?;
 
     Ok(response)
 }
@@ -651,11 +697,15 @@ pub async fn logout(
         .execute(&state.db)
         .await?;
 
-    let mut builder = Response::builder().status(StatusCode::OK);
+    // Use HeaderMap with `append` so all 3 clear-cookies are preserved
+    // (Response::builder().header(SET_COOKIE, ..) would overwrite).
+    let mut response = Response::new(Body::from(""));
+    *response.status_mut() = StatusCode::OK;
     for cookie in clear_auth_cookies() {
-        builder = builder.header(SET_COOKIE, cookie);
+        if let Ok(value) = cookie.parse::<HeaderValue>() {
+            response.headers_mut().append(SET_COOKIE, value);
+        }
     }
-    let response = builder.body(Body::from("")).map_err(internal_db)?;
     Ok(response)
 }
 
@@ -857,7 +907,11 @@ pub struct ForgotPasswordRequest {
 pub struct ResetPasswordRequest {
     #[validate(length(min = 1, message = "Token is required"))]
     pub token: String,
-    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
+    #[validate(length(
+        min = 8,
+        max = 72,
+        message = "Password must be 8-72 characters (bcrypt limit)"
+    ))]
     pub password: String,
 }
 
@@ -920,11 +974,18 @@ pub async fn reset_password(
     input.validate()?;
     let token_hash = hash_token(input.token.trim());
 
+    // Hash the password first (expensive, outside the tx), then claim the
+    // reset token atomically: only one concurrent request can flip
+    // used=FALSE -> TRUE before expiry.
+    let new_hash = hash_password(input.password.clone()).await?;
+
+    let mut tx = state.db.begin().await.map_err(internal_db)?;
+
     let reset_token: Option<ResetTokenRow> = sqlx::query_as(
-        "SELECT id, user_id, token_hash, expires_at, used FROM password_reset_tokens WHERE token_hash = $1"
+        "UPDATE password_reset_tokens SET used = TRUE WHERE token_hash = $1 AND used = FALSE AND expires_at > NOW() RETURNING id, user_id, token_hash, expires_at, used"
     )
     .bind(&token_hash)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?;
 
     let reset_token = match reset_token {
@@ -932,27 +993,9 @@ pub async fn reset_password(
         None => return Err(AppError::BadRequest("Invalid or expired token".into())),
     };
 
-    if reset_token.used {
-        return Err(AppError::BadRequest("Token already used".into()));
-    }
-
-    if reset_token.expires_at < chrono::Utc::now() {
-        return Err(AppError::BadRequest("Token expired".into()));
-    }
-
-    let new_hash = hash_password(input.password.clone()).await?;
-
-    let mut tx = state.db.begin().await.map_err(internal_db)?;
-
     sqlx::query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1")
         .bind(reset_token.user_id)
         .bind(&new_hash)
-        .execute(&mut *tx)
-        .await
-        .map_err(internal_db)?;
-
-    sqlx::query("UPDATE password_reset_tokens SET used = TRUE WHERE token_hash = $1")
-        .bind(&token_hash)
         .execute(&mut *tx)
         .await
         .map_err(internal_db)?;

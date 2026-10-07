@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import { DealsTableView } from "@/components/deals/deals-table-view"
 import { DealsKanbanView, DealsKanbanSkeleton } from "@/components/deals/deals-kanban-view"
 import { DealDetailModal } from "@/components/deals/deal-detail-modal"
-import { STAGE_CONFIG, stageI18nKey, type AuditEvent } from "@/components/deals/deals-constants"
+import { STAGE_CONFIG, stageColors, stageI18nKey, type AuditEvent } from "@/components/deals/deals-constants"
 
 export default function DealsPage() {
   const { t } = useI18n()
@@ -190,7 +190,7 @@ export default function DealsPage() {
             <p className="slds-header__description">{t("deals.description")}</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="flex items-center border border-border rounded-lg overflow-hidden">
               <button
                 type="button"
                 onClick={() => setViewMode("pipeline")}
@@ -198,7 +198,7 @@ export default function DealsPage() {
                   "px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors",
                   viewMode === "pipeline"
                     ? "bg-brand text-white"
-                    : "bg-white dark:bg-gray-800 text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-700"
+                    : "bg-card text-muted-foreground hover:bg-muted"
                 )}
               >
                 <LayoutGrid className="h-4 w-4" />
@@ -211,7 +211,7 @@ export default function DealsPage() {
                   "px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors",
                   viewMode === "history"
                     ? "bg-brand text-white"
-                    : "bg-white dark:bg-gray-800 text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-700"
+                    : "bg-card text-muted-foreground hover:bg-muted"
                 )}
               >
                 <List className="h-4 w-4" />
@@ -251,13 +251,17 @@ export default function DealsPage() {
               type="button"
               onClick={() => handleStageFilter(stage.id)}
               className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors",
-                stage.color,
-                activeStage === stage.id && "ring-2 ring-brand ring-offset-2 dark:ring-offset-gray-900"
+                "flex items-center gap-2 px-3 py-1.5 rounded-[10px] border text-[13px] transition-all",
+                stageColors[stage.id] ?? "border-border",
+                activeStage === stage.id && "ring-2 ring-primary ring-offset-2 ring-offset-background"
               )}
             >
+              <span
+                className="h-2 w-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: stage.color }}
+              />
               <span className="font-medium">{stageLabel(stage.id)}</span>
-              <span className="text-xs font-semibold">{stage.count}</span>
+              <span className="text-xs font-semibold tabular-nums">{stage.count}</span>
             </button>
           ))}
         </div>

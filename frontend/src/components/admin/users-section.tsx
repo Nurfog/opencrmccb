@@ -70,7 +70,7 @@ export function UsersSection() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <tr className="border-b border-border">
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">{t("admin.userName")}</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">{t("admin.userEmail")}</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">{t("admin.userProfile")}</th>
@@ -80,7 +80,7 @@ export function UsersSection() {
             </thead>
             <tbody>
               {users.map(u => (
-                <tr key={u.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900">
+                <tr key={u.id} className="border-b border-border/70 last:border-b-0 hover:bg-muted/50">
                   <td className="py-3 px-4">
                     <div className="font-medium">{u.first_name} {u.last_name}</div>
                   </td>
@@ -93,10 +93,10 @@ export function UsersSection() {
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
                       {(u.permissions ?? []).slice(0, 3).map(perm => (
-                        <span key={perm} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-muted-foreground">{perm}</span>
+                        <span key={perm} className="slds-tag slds-tag--muted font-mono">{perm}</span>
                       ))}
                       {(u.permissions ?? []).length > 3 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-muted-foreground">+{(u.permissions ?? []).length - 3}</span>
+                        <span className="slds-tag slds-tag--muted">+{(u.permissions ?? []).length - 3}</span>
                       )}
                     </div>
                   </td>
@@ -132,9 +132,9 @@ export function UsersSection() {
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="slds-modal__footer">
             <button type="button" onClick={() => setAssignModal(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
-            <button type="button" onClick={handleAssignProfile} disabled={!selectedProfileId} className="slds-btn slds-btn--brand">{t("common.save")}</button>
+            <button type="button" onClick={handleAssignProfile} disabled={!selectedProfileId} className="slds-btn slds-btn--brand disabled:opacity-50">{t("common.save")}</button>
           </div>
         </div>
       </Modal>

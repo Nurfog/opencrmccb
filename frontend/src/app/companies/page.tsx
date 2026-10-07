@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, Search, ChevronUp, ChevronDown, Edit, Trash2, Filter, X, Building2 } from "lucide-react"
+import { Plus, Search, Edit, Trash2, X, Building2 } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -12,7 +12,6 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import Link from "next/link"
-import { formatDate, cn } from "@/lib/utils"
 
 export default function CompaniesPage() {
   const { t } = useI18n()

@@ -1,4 +1,4 @@
-import { request } from "../api-client";
+import { request, downloadFile } from "../api-client";
 import type { Deal, Activity, PaginatedResponse } from "../types";
 
 export const dealsApi = {
@@ -44,7 +44,7 @@ export const dealsApi = {
     }),
 
   exportCsv: (params?: { search?: string }) =>
-    request<string>(`/api/v1/deals/export`, { params }),
+    downloadFile(`/api/v1/deals/export`, params),
 
   importCsv: (body: string) =>
     request<{ imported: number; errors: string[] }>("/api/v1/deals/import", {

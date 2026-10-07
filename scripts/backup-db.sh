@@ -26,11 +26,15 @@ pg_dump "$DATABASE_URL" | gzip > "$BACKUP_FILE"
 
 # Optional encryption
 if [ -n "${BACKUP_ENCRYPTION_PASSWORD:-}" ]; then
-    gpg --batch --yes --passphrase "$BACKUP_ENCRYPTION_PASSWORD" --symmetric "$BACKUP_FILE"
+    gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_ENCRYPTION_PASSWORD" --symmetric "$BACKUP_FILE"
     rm "$BACKUP_FILE"
     BACKUP_FILE="${BACKUP_FILE}.gpg"
     echo "Encrypted backup with GPG"
 fi
+
+# Integrity checksum alongside the backup
+sha256sum "$BACKUP_FILE" > "${BACKUP_FILE}.sha256"
+echo "Checksum written to ${BACKUP_FILE}.sha256"
 
 FILESIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 echo "Backup completed successfully ($FILESIZE)"

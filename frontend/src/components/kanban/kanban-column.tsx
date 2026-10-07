@@ -9,6 +9,7 @@ interface Stage {
 
 interface KanbanColumnProps {
   stage: Stage
+  // TODO: keep `any` until Deal union is stable (see KanbanBoard).
   deals: any[]
   formatCurrency: (value: number, currency: string) => string
   onView: (deal: any) => void
@@ -34,18 +35,18 @@ export function KanbanColumn({
       <div className="slds-kanban__column-header">
         <div className="flex items-center gap-2">
           <span
-            className="h-2.5 w-2.5 rounded-full"
+            className="h-2.5 w-2.5 rounded-full flex-shrink-0"
             style={{ backgroundColor: stage.color }}
           />
-          <span className="font-semibold text-sm">{stage.name}</span>
-          <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+          <span className="font-semibold text-[13px] tracking-tight truncate">{stage.name}</span>
+          <span className="ml-auto rounded-md bg-muted px-1.5 py-0.5 text-[11.5px] font-medium text-muted-foreground tabular-nums">
             {deals.length}
           </span>
         </div>
       </div>
       <div className="slds-kanban__column-body">
         {deals.length === 0 && (
-          <div className="flex items-center justify-center py-8 text-xs text-gray-400">
+          <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
             No deals
           </div>
         )}

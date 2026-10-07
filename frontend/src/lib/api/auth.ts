@@ -22,10 +22,10 @@ export const authApi = {
   logout: () =>
     request<void>("/api/v1/auth/logout", { method: "POST" }),
 
-  refresh: (data: { refresh_token: string }) =>
+  refresh: () =>
     request<AuthResponse>("/api/v1/auth/refresh", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({}),
     }),
 
   me: () => request<User>("/api/v1/auth/me"),

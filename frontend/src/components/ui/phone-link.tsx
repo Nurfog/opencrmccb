@@ -44,14 +44,16 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
       await navigator.clipboard.writeText(cleanNumber)
       setCopied(true)
       setTimeout(() => { setCopied(false); setOpen(false) }, 1000)
-    } catch { /* fallback */ }
+    } catch (err: unknown) {
+      console.error("Failed to copy phone number", err)
+    }
   }
 
   const handle3CXCall = () => {
     const cfg = integrations["3cx"]
     if (cfg?.serverUrl) {
       const url = `${cfg.serverUrl}/click2call?phone=${encodeURIComponent(cleanNumber)}`
-      window.open(url, "_blank")
+      window.open(url, "_blank", "noopener,noreferrer")
     } else {
       window.location.href = telHref
     }
@@ -63,19 +65,19 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
     setVideoOpen(false)
     switch (provider) {
       case "google":
-        window.open("https://meet.google.com/new", "_blank")
+        window.open("https://meet.google.com/new", "_blank", "noopener,noreferrer")
         break
       case "microsoft":
-        window.open("https://teams.microsoft.com/meeting/new", "_blank")
+        window.open("https://teams.microsoft.com/meeting/new", "_blank", "noopener,noreferrer")
         break
       case "3cx":
         const cfg = integrations["3cx"]
         if (cfg?.serverUrl) {
-          window.open(`${cfg.serverUrl}/videocall?phone=${encodeURIComponent(cleanNumber)}`, "_blank")
+          window.open(`${cfg.serverUrl}/videocall?phone=${encodeURIComponent(cleanNumber)}`, "_blank", "noopener,noreferrer")
         }
         break
       default:
-        window.open(`https://meet.google.com/new`, "_blank")
+        window.open(`https://meet.google.com/new`, "_blank", "noopener,noreferrer")
     }
   }
 
@@ -86,19 +88,20 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
         onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
         className="inline-flex items-center gap-1.5 text-brand hover:text-brand/80 font-medium text-sm transition-colors cursor-pointer"
         title={phone}
+        aria-label={`Call ${phone}`}
       >
         <Phone className="h-3.5 w-3.5" />
         {children ?? phone}
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1 text-sm">
+        <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-border bg-popover shadow-pop py-1 text-sm">
           <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Llamada
           </div>
           <a
             href={telHref}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors rounded-lg"
             onClick={() => setOpen(false)}
           >
             <PhoneCall className="h-4 w-4 text-green-500" />
@@ -110,7 +113,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
           <button
             type="button"
             onClick={handle3CXCall}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
+            className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left rounded-lg"
           >
             <Phone className="h-4 w-4 text-blue-500" />
             <div>
@@ -119,14 +122,14 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             </div>
           </button>
 
-          <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+          <div className="border-t border-border/70 my-1" />
           <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Videollamada
           </div>
           <button
             type="button"
             onClick={() => { setOpen(false); setVideoOpen(true) }}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
+            className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left rounded-lg"
           >
             <Video className="h-4 w-4 text-purple-500" />
             <div>
@@ -135,11 +138,11 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             </div>
           </button>
 
-          <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+          <div className="border-t border-border/70 my-1" />
           <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
+            className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left rounded-lg"
           >
             {copied ? (
               <Check className="h-4 w-4 text-green-500" />
@@ -154,7 +157,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
       {videoOpen && (
         <div
           ref={videoRef}
-          className="absolute top-full left-0 mt-1 z-50 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1 text-sm"
+          className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-border bg-popover shadow-pop py-1 text-sm"
         >
           <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Proveedor de videollamada
@@ -163,7 +166,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             <button
               type="button"
               onClick={() => handleVideoCall("google")}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
+              className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left rounded-lg"
             >
               <Video className="h-4 w-4 text-red-500" />
               <div>
@@ -176,7 +179,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             <button
               type="button"
               onClick={() => handleVideoCall("microsoft")}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
+              className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left rounded-lg"
             >
               <Monitor className="h-4 w-4 text-blue-500" />
               <div>
@@ -189,7 +192,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             <button
               type="button"
               onClick={() => handleVideoCall("3cx")}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
+              className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left rounded-lg"
             >
               <Phone className="h-4 w-4 text-blue-500" />
               <div>
@@ -202,7 +205,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             <button
               type="button"
               onClick={() => handleVideoCall("generic")}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
+              className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left rounded-lg"
             >
               <ExternalLink className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -211,11 +214,11 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
               </div>
             </button>
           )}
-          <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+          <div className="border-t border-border/70 my-1" />
           <button
             type="button"
             onClick={() => setVideoOpen(false)}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left text-muted-foreground"
+            className="flex items-center gap-3 px-4 py-2.5 mx-1 hover:bg-muted transition-colors w-[calc(100%-8px)] text-left text-muted-foreground rounded-lg"
           >
             <span>Volver</span>
           </button>

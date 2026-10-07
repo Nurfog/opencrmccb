@@ -10,7 +10,7 @@ export function BrandingSection() {
   const { t } = useI18n()
   const { success, error } = useToast()
 
-  const [branding, setBranding] = useState<Branding | null>(null)
+  const [, setBranding] = useState<Branding | null>(null)
   const [bName, setBName] = useState("")
   const [bLogo, setBLogo] = useState("")
   const [bPrimary, setBPrimary] = useState("#2563eb")
@@ -65,21 +65,21 @@ export function BrandingSection() {
         <div>
           <label className="slds-label">{t("admin.primaryColor")}</label>
           <div className="flex items-center gap-2">
-            <input type="color" className="w-10 h-10 rounded border cursor-pointer" value={bPrimary} onChange={(e) => setBPrimary(e.target.value)} />
+            <input type="color" className="h-10 w-12 cursor-pointer rounded-[10px] border border-border bg-card p-1" value={bPrimary} onChange={(e) => setBPrimary(e.target.value)} />
             <input className="slds-input font-mono text-xs" value={bPrimary} onChange={(e) => setBPrimary(e.target.value)} />
           </div>
         </div>
         <div>
           <label className="slds-label">{t("admin.secondaryColor")}</label>
           <div className="flex items-center gap-2">
-            <input type="color" className="w-10 h-10 rounded border cursor-pointer" value={bSecondary} onChange={(e) => setBSecondary(e.target.value)} />
+            <input type="color" className="h-10 w-12 cursor-pointer rounded-[10px] border border-border bg-card p-1" value={bSecondary} onChange={(e) => setBSecondary(e.target.value)} />
             <input className="slds-input font-mono text-xs" value={bSecondary} onChange={(e) => setBSecondary(e.target.value)} />
           </div>
         </div>
         <div>
           <label className="slds-label">{t("admin.accentColor")}</label>
           <div className="flex items-center gap-2">
-            <input type="color" className="w-10 h-10 rounded border cursor-pointer" value={bAccent} onChange={(e) => setBAccent(e.target.value)} />
+            <input type="color" className="h-10 w-12 cursor-pointer rounded-[10px] border border-border bg-card p-1" value={bAccent} onChange={(e) => setBAccent(e.target.value)} />
             <input className="slds-input font-mono text-xs" value={bAccent} onChange={(e) => setBAccent(e.target.value)} />
           </div>
         </div>
@@ -88,12 +88,12 @@ export function BrandingSection() {
         <label className="slds-label">{t("admin.customDomain")}</label>
         <input className="slds-input" value={bDomain} onChange={(e) => setBDomain(e.target.value)} placeholder="crm.miempresa.cl" />
       </div>
-      <div className="flex items-center gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: bPrimary }}>
+      <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/50">
+        <div className="w-12 h-12 rounded-[12px] flex items-center justify-center shadow-sm" style={{ backgroundColor: bPrimary }}>
           <span className="text-white text-lg font-bold">{bName.charAt(0) || "O"}</span>
         </div>
         <div>
-          <p className="text-sm font-semibold">{bName || "OpenCRM"}</p>
+          <p className="text-[13.5px] font-semibold tracking-tight">{bName || "OpenCRM"}</p>
           <p className="text-xs text-muted-foreground">{t("admin.brandingPreview")}</p>
         </div>
       </div>

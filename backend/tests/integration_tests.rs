@@ -49,6 +49,7 @@ async fn test_health_check() {
             max_file_size_mb: 10,
         },
         frontend_url: "http://localhost:3000".into(),
+        backend_url: "http://localhost:8000".into(),
         oauth: crm_backend::OAuthConfig {
             google: None,
             microsoft: None,
@@ -92,8 +93,8 @@ async fn test_register_first_user() {
     let pool = setup_test_db().await;
     run_migrations(&pool).await;
 
-    // Clean users table
-    sqlx::query("DELETE FROM users")
+    // Clean users table (CASCADE for refresh_tokens/audit FKs)
+    sqlx::query("TRUNCATE users CASCADE")
         .execute(&pool)
         .await
         .unwrap();
@@ -120,6 +121,7 @@ async fn test_register_first_user() {
             max_file_size_mb: 10,
         },
         frontend_url: "http://localhost:3000".into(),
+        backend_url: "http://localhost:8000".into(),
         oauth: crm_backend::OAuthConfig {
             google: None,
             microsoft: None,
@@ -180,13 +182,12 @@ async fn test_register_second_user_forbidden() {
         .unwrap();
 
     if existing == 0 {
-        // Create first user
-        sqlx::query("INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES ($1, $2, $3, $4, $5)")
+        // Create first user (real schema: profile_id FK, role kept nullable for compat)
+        sqlx::query("INSERT INTO users (email, password_hash, first_name, last_name, profile_id) VALUES ($1, $2, $3, $4, (SELECT id FROM profiles WHERE name = 'Administrador' LIMIT 1))")
             .bind("existing@test.com")
             .bind("$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ12")
             .bind("Existing")
             .bind("User")
-            .bind("admin")
             .execute(&pool)
             .await
             .unwrap();
@@ -214,6 +215,7 @@ async fn test_register_second_user_forbidden() {
             max_file_size_mb: 10,
         },
         frontend_url: "http://localhost:3000".into(),
+        backend_url: "http://localhost:8000".into(),
         oauth: crm_backend::OAuthConfig {
             google: None,
             microsoft: None,

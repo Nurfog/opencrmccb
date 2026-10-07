@@ -37,6 +37,11 @@ const config: Config = {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
         },
+        // Alias histórico usado en varios componentes (equivale al primario).
+        brand: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
@@ -61,14 +66,19 @@ const config: Config = {
         DEFAULT: "var(--radius)",
         md: "calc(var(--radius) + 2px)",
         lg: "calc(var(--radius) + 4px)",
+        xl: "calc(var(--radius) + 8px)",
+        "2xl": "calc(var(--radius) + 12px)",
       },
       fontFamily: {
-        sans: ["'Salesforce Sans'", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "Roboto", "'Helvetica Neue'", "Arial", "sans-serif"],
+        sans: ["var(--font-sans)", "Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "Roboto", "'Helvetica Neue'", "Arial", "sans-serif"],
       },
       boxShadow: {
-        slds: "0 2px 4px rgba(0,0,0,0.1)",
-        "slds-lg": "0 4px 12px rgba(0,0,0,0.12)",
-        "slds-hover": "0 6px 16px rgba(0,0,0,0.14)",
+        card: "0 1px 2px rgba(16, 24, 40, 0.04)",
+        pop: "0 4px 12px rgba(16, 24, 40, 0.06), 0 2px 4px rgba(16, 24, 40, 0.04)",
+        lift: "0 12px 32px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.05)",
+        slds: "0 1px 2px rgba(16, 24, 40, 0.05)",
+        "slds-lg": "0 4px 12px rgba(16, 24, 40, 0.07)",
+        "slds-hover": "0 8px 20px rgba(16, 24, 40, 0.09)",
       },
       keyframes: {
         "fade-in": {
@@ -91,6 +101,11 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("tailwindcss-animate"),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("@tailwindcss/typography"),
+  ],
 }
 export default config

@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -44,10 +47,12 @@ jobs:
         run: cargo fmt -- --check
       - name: Clippy
         run: cargo clippy -- -D warnings
-      - name: Build
-        run: cargo build --release
       - name: Test
         run: cargo test -- --test-threads=1
+      - name: Build
+        run: cargo build --release
+      - name: Security audit (non-blocking)
+        run: cargo install cargo-audit && cargo audit || true
 
   frontend:
     name: Frontend
@@ -90,6 +95,8 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://crm_user:crm_password@localhost:5432/crm_db
+      REDIS_URL: redis://:test_redis_password_123@localhost:6379
+      TOKEN_ENCRYPTION_KEY: test-key-32-chars-minimum-123456
       JWT_SECRET: test-jwt-secret-that-is-at-least-32-chars!!
       REFRESH_TOKEN_SECRET: test-refresh-secret-that-is-at-least-32-chars!!
     defaults:
@@ -113,19 +120,21 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Run migrations
         run: |
-          for f in database/migrations/*.sql; do
-            psql "$DATABASE_URL" -f "$f"
-          done
+          chmod +x database/migrate.sh
+          DATABASE_URL="$DATABASE_URL" MIGRATIONS_DIR="$PWD/database/migrations" ./database/migrate.sh
         working-directory: .
       - name: Build and start backend
         run: |
           cd ../backend
           cargo build --release
           ./target/release/crm-backend &
+          echo $! > /tmp/backend.pid
         env:
           SERVER_PORT: 8000
       - name: Start frontend
-        run: pnpm dev &
+        run: |
+          pnpm dev &
+          echo $! > /tmp/frontend.pid
       - name: Wait for servers
         run: |
           for i in $(seq 1 30); do
@@ -155,3 +164,10 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 14
+      - name: Stop background servers
+        if: always()
+        run: |
+          trap 'echo "background servers stopped"' EXIT
+          kill "$(cat /tmp/backend.pid)" "$(cat /tmp/frontend.pid)" 2>/dev/null || true
+          pkill -f crm-backend 2>/dev/null || true
+          pkill -f "next-server" 2>/dev/null || true

@@ -161,6 +161,11 @@ impl<'a> ContactService<'a> {
     }
 
     pub async fn import(&self, body: &str) -> Result<ImportResult, AppError> {
+        if body.len() > 2 * 1024 * 1024 {
+            return Err(AppError::BadRequest(
+                "Import body too large (max 2MB)".into(),
+            ));
+        }
         let rows = parse_csv_rows(body);
 
         let mut imported = 0u32;
@@ -178,6 +183,13 @@ impl<'a> ContactService<'a> {
                 .get(2)
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty());
+            // Basic email validation to reject garbage early.
+            if let Some(ref e) = email
+                && !(e.contains('@') && e.contains('.') && e.len() <= 254)
+            {
+                errors.push(format!("Línea {}: email inválido", row_num + 2));
+                continue;
+            }
             let phone = fields
                 .get(3)
                 .map(|s| s.trim().to_string())

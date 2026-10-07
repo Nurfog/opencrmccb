@@ -80,19 +80,19 @@ export default function HelpPage() {
         </div>
 
         <div className="slds-card">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-border">
             <h3 className="text-base font-semibold flex items-center gap-2">
               <HelpCircle className="h-5 w-5 text-brand" />
               {t("help.faq")}
             </h3>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          <div className="divide-y divide-border">
             {faqs.map((faq, idx) => (
               <div key={idx}>
                 <button
                   type="button"
                   onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
                 >
                   <span className="text-sm font-medium pr-4">{t(faq.q)}</span>
                   {openFaq === idx ? (

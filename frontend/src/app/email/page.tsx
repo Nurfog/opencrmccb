@@ -162,13 +162,13 @@ export default function EmailPage() {
             <h1 className="slds-header__title">{t("email.title")}</h1>
             <p className="slds-header__description">{t("email.description")}</p>
           </div>
-          <div className="hidden items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm text-muted-foreground dark:border-gray-700 md:flex">
+          <div className="hidden items-center gap-2 rounded border border-border px-3 py-2 text-sm text-muted-foreground md:flex">
             <Mail className="h-4 w-4" />
             {t("nav.email")}
           </div>
         </header>
 
-        <nav className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700" aria-label={t("nav.email")}>
+        <nav className="flex flex-wrap gap-1 border-b border-border" aria-label={t("nav.email")}>
           {EMAIL_TABS.map((tabKey) => (
             <button
               key={tabKey}
@@ -178,7 +178,7 @@ export default function EmailPage() {
                 "border-b-2 px-4 py-3 text-sm font-medium transition-colors",
                 tab === tabKey
                   ? "border-brand text-brand"
-                  : "border-transparent text-muted-foreground hover:border-gray-300 hover:text-foreground dark:hover:border-gray-600"
+                  : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
               )}
             >
               {t(`email.${tabKey}` as Parameters<typeof t>[0])}

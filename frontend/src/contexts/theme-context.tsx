@@ -33,6 +33,7 @@ function getInitialTheme(): Theme {
 function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   root.classList.toggle("dark", theme === "dark");
+  root.style.colorScheme = theme;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

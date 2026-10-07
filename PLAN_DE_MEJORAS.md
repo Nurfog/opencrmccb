@@ -151,14 +151,13 @@
 - [x] Commit: `fix(db): make migration 019 non-destructive (nullable role stays)`
 
 ## 1.11 Nginx: TLS + HSTS + gzip + client_max_body_size
-- [x] `nginx/nginx.conf`:
-  - Agregar `listen 443 ssl;` + `ssl_certificate`/`ssl_certificate_key` desde vars de env (documentar en `.env.example` `NGINX_SSL_CERT`/`NGINX_SSL_KEY`).
-  - Agregar `Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`.
-  - Agregar `gzip on; gzip_types text/css application/javascript application/json text/plain;`.
-  - Agregar `client_max_body_size 12m;` (cubre `MAX_FILE_SIZE_MB=10`).
-  - Agregar redirect 80 → 443.
-- [x] Documentar en README que en `network_mode: host` el cert puede ser self-signed para dev o Let's Encrypt para prod.
-- [x] Commit: `fix(nginx): add TLS, HSTS, gzip, body size limit`
+- [ ] TODO(TLS): terminar TLS en `nginx/nginx.conf` (actualmente solo HTTP dev en puerto 80):
+  - [ ] Agregar `listen 443 ssl;` + `ssl_certificate`/`ssl_certificate_key` desde vars de env (documentar en `.env.example` `NGINX_SSL_CERT`/`NGINX_SSL_KEY`).
+  - [ ] Agregar `Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`.
+  - [x] `gzip on; gzip_types text/css application/javascript application/json text/plain;` (hecho).
+  - [x] `client_max_body_size 12m;` (hecho, cubre `MAX_FILE_SIZE_MB=10`).
+  - [ ] Agregar redirect 80 → 443 cuando haya certs.
+- [ ] TODO: documentar en README que en `network_mode: host` el cert puede ser self-signed para dev o Let's Encrypt para prod + commit cuando se implemente TLS.
 
 ---
 
@@ -264,11 +263,11 @@
 - [x] `monitoring/promtail-config.yml:8`: `url: http://loki:3100` → `http://localhost:3100`.
 - [x] `monitoring/grafana/provisioning/datasources.yml`: `prometheus:9090` → `localhost:9090`; `loki:3100` → `localhost:3100`.
 - [x] `backend/src/routes.rs`: exponer ruta `/metrics` (ya existe handler en `handlers/health.rs` o `middleware/metrics.rs`?) — verificar y montar.
-- [x] Crear `monitoring/grafana/dashboards/` con al menos:
-  - `backend-overview.json` (http requests, latencia, 5xx).
-  - `db-pool.json`.
-  - Montar volumen en `docker-compose.yml` de grafana.
-- [x] Commit: `fix(monitoring): localhost targets + metrics route + grafana dashboards`
+- [ ] TODO(dashboards): crear JSONs en `monitoring/grafana/dashboards/` (directorio + volumen ya existen):
+  - [ ] `backend-overview.json` (http requests, latencia, 5xx).
+  - [ ] `db-pool.json`.
+  - [x] Montar volumen en `docker-compose.yml` de grafana (hecho).
+- [ ] TODO: commit `fix(monitoring): grafana dashboards` cuando existan los JSONs.
 
 ## 2.12 Docker backend: non-root + cache de capas + HEALTHCHECK
 - [x] `backend/Dockerfile`:
@@ -488,12 +487,10 @@
 - [x] Commit: `fix(db): add unique constraints and defaults`
 
 ## 4.8 Migraciones idempotentes + framework sqlx-migrate
-- [x] Auditar migraciones 001-018: agregar `IF NOT EXISTS` a `CREATE TABLE`/`CREATE INDEX`.
-- [x] Migration 010 seed inserts: agregar `ON CONFLICT (slug DO NOTHING` en pipelines, `ON CONFLICT (name) DO NOTHING` en profiles.
-- [x] Reemplazar el loop shell `for f in database/migrations/*.sql` (AGENTS.md) por:
-  - `sqlx migrate run` desde el backend al arranque (agregar feature `migrate` a sqlx en Cargo.toml) — proteger con flag `RUN_MIGRATIONS=true`.
-- [x] Actualizar AGENTS.md "Database" section.
-- [x] Commit: `chore(db): make migrations idempotent and adopt sqlx migrate`
+- [ ] TODO: auditar migraciones 001-018 y agregar `IF NOT EXISTS` a `CREATE TABLE`/`CREATE INDEX` donde falte.
+- [ ] TODO: migration 010 seed inserts con `ON CONFLICT (slug DO NOTHING` en pipelines, `ON CONFLICT (name) DO NOTHING` en profiles.
+- [ ] TODO: reemplazar el loop shell `for f in database/migrations/*.sql` (AGENTS.md) por `sqlx migrate run` desde el backend al arranque (agregar feature `migrate` a sqlx en Cargo.toml) — proteger con flag `RUN_MIGRATIONS=true`. Las migraciones nuevas (028, 029, 032, 034) ya son idempotentes con `IF NOT EXISTS` / `DO $$`.
+- [ ] TODO: actualizar AGENTS.md "Database" section + commit `chore(db): make migrations idempotent and adopt sqlx migrate`.
 
 ## 4.9 Poblar ip_address / sent_by / created_by en auditoria
 - [x] `backend/src/handlers/audit.rs::insert_audit_log`: agregar parametro `ip_address: Option<IpAddr>` extraido del request.
@@ -568,14 +565,13 @@
 - [x] Commit: `fix(scripts): encrypt backups and restore within transaction`
 
 ## 4.19 CI: cargo audit + npm audit + trivy + permissions
-- [x] `.github/workflows/ci.yml`:
-  - Agregar step `cargo install cargo-audit && cargo audit` despues de build.
-  - Agregar step `npm audit --audit-level=moderate` (o `high`).
-  - Agregar step `trivy image opencrm-backend:latest`.
-  - Agregar `permissions: contents: read` en top del workflow.
-  - Pin actions a SHAs (`actions/checkout@<sha>` etc.).
-  - Fix cache path: `backend/target` en lugar de `target`.
-- [x] Commit: `ci: add security audits and tighten permissions`
+- [x] `permissions: contents: read` en top del workflow (hecho).
+- [x] Step `cargo install cargo-audit && cargo audit` con `|| true` para no romper (hecho, non-blocking).
+- [ ] TODO: step `npm audit --audit-level=moderate` (o `high`) en job frontend.
+- [ ] TODO: step `trivy image opencrm-backend:latest`.
+- [ ] TODO: pin actions a SHAs (`actions/checkout@<sha>` etc.).
+- [ ] TODO: verificar cache path `backend/target` en lugar de `target`.
+- [ ] TODO: commit `ci: add security audits and tighten permissions` cuando se completen los TODOs.
 
 ## 4.20 Docs + OpenAPI + ROADMAP + AGENTS.md + tests nuevos
 - [x] `README.md`:

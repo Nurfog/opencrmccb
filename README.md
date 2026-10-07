@@ -88,7 +88,7 @@ A full-featured CRM system built with Rust (Axum), Next.js 15, PostgreSQL with p
 1. Navigate to the project directory:
 
 ```bash
-cd opencmrccb
+cd opencrmccb
 ```
 
 2. Start all services:
@@ -105,7 +105,7 @@ docker compose up -d
 | Backend API | http://localhost:8000 | REST API |
 | Nginx | http://localhost | Reverse Proxy |
 | PostgreSQL | localhost:5432 | Database |
-| Grafana | http://localhost:3001 | Dashboards (admin/admin) |
+| Grafana | http://localhost:3001 | Dashboards (admin/admin — change defaults via GRAFANA_ADMIN_USER/PASSWORD) |
 | Prometheus | http://localhost:9090 | Metrics |
 | Loki | http://localhost:3100 | Logs |
 
@@ -229,14 +229,14 @@ opencmrccb/
 │   ├── src/
 │   │   ├── app/               # 13 pages (App Router)
 │   │   ├── components/        # UI, charts, kanban, auth
-│   │   ├── contexts/          # i18n, toast, theme, auth
+│   │   ├── contexts/          # i18n, toast, theme
 │   │   ├── hooks/             # Keyboard shortcuts
 │   │   ├── lib/               # API client, utils, i18n
-│   │   └── stores/            # Zustand auth store
+│   │   └── stores/            # Zustand auth store (auth state lives here, not in contexts/)
 │   ├── package.json
 │   └── Dockerfile
 ├── database/
-│   └── migrations/            # 33 SQL migrations
+│   └── migrations/            # 34 SQL migrations
 ├── monitoring/
 │   ├── prometheus.yml
 │   ├── promtail-config.yml
@@ -276,9 +276,9 @@ opencmrccb/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `postgres://crm_user:crm_password@localhost:5432/crm_db` | PostgreSQL connection |
+| `DATABASE_URL` | `postgres://crm_user:${POSTGRES_PASSWORD:?}@localhost:5432/crm_db` | PostgreSQL connection (POSTGRES_PASSWORD required, no default) |
 | `JWT_SECRET` | **required** | JWT signing secret |
-| `REFRESH_TOKEN_SECRET` | falls back to JWT_SECRET | Refresh token secret |
+| `REFRESH_TOKEN_SECRET` | **required, must differ from JWT_SECRET** | Refresh token secret |
 | `ACCESS_TOKEN_EXPIRY_MINUTES` | `15` | Access token TTL |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | `30` | Refresh token TTL |
 | `SERVER_HOST` | `0.0.0.0` | Backend bind address |
@@ -307,8 +307,8 @@ JWT_SECRET=your-secret-key cargo run
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ### Tests

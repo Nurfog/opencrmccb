@@ -273,16 +273,18 @@ pub async fn export_companies(
         .as_ref()
         .map(|s| format!("%{}%", escape_like(s)));
 
+    // TODO: stream CSV instead of loading all rows into memory.
+    // Capped at 10k rows to bound memory/time; paginate or stream for larger exports.
     let companies = if let Some(ref search) = search_filter {
         sqlx::query_as::<_, Company>(
-            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies WHERE name ILIKE $1 ESCAPE '\\' OR industry ILIKE $1 ESCAPE '\\' OR city ILIKE $1 ESCAPE '\\' OR country ILIKE $1 ESCAPE '\\' ORDER BY created_at DESC LIMIT 100000"
+            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies WHERE name ILIKE $1 ESCAPE '\\' OR industry ILIKE $1 ESCAPE '\\' OR city ILIKE $1 ESCAPE '\\' OR country ILIKE $1 ESCAPE '\\' ORDER BY created_at DESC LIMIT 10000"
         )
         .bind(search)
         .fetch_all(&state.db)
         .await?
     } else {
         sqlx::query_as::<_, Company>(
-            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies ORDER BY created_at DESC LIMIT 100000"
+            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies ORDER BY created_at DESC LIMIT 10000"
         )
         .fetch_all(&state.db)
         .await?
@@ -325,6 +327,11 @@ pub async fn import_companies(
     perms
         .require("companies.create")
         .map_err(|_| AppError::Forbidden)?;
+    if body.len() > 2 * 1024 * 1024 {
+        return Err(AppError::BadRequest(
+            "Import body too large (max 2MB)".into(),
+        ));
+    }
     let rows = parse_csv_rows(&body);
 
     let mut imported = 0;
@@ -353,6 +360,13 @@ pub async fn import_companies(
             .get(4)
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
+        // Basic email validation.
+        if let Some(ref e) = email
+            && !(e.contains('@') && e.contains('.') && e.len() <= 254)
+        {
+            errors.push(format!("Línea {}: email inválido", row_num + 2));
+            continue;
+        }
         let address = fields
             .get(5)
             .map(|s| s.trim().to_string())

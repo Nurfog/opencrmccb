@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::error::AppError;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{
     CalendarConnectionStatus, CalendarEvent, CalendarQuery, CreateCalendarEvent,
@@ -16,10 +17,10 @@ use crate::services::crypto::{decrypt, encrypt};
 pub async fn connection_status(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<CalendarConnectionStatus>, StatusCode> {
+) -> Result<Json<CalendarConnectionStatus>, AppError> {
     perms
         .require("calendar.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     let google = state.oauth.google.is_some();
     let microsoft = state.oauth.microsoft.is_some();
 
@@ -32,24 +33,36 @@ pub async fn google_callback(
     claims: axum::extract::Extension<Claims>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
     perms: UserPermissions,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("calendar.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
-    let code = params.get("code").ok_or(StatusCode::BAD_REQUEST)?;
+        .map_err(|_| AppError::Forbidden)?;
+    let user_id = Uuid::parse_str(&claims.sub)?;
+    let code = params
+        .get("code")
+        .ok_or_else(|| AppError::BadRequest("Missing code".into()))?;
 
-    // Exchange code for tokens
-    let client_id =
-        std::env::var("GOOGLE_CLIENT_ID").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let client_secret =
-        std::env::var("GOOGLE_CLIENT_SECRET").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let redirect_uri = std::env::var("GOOGLE_REDIRECT_URI")
-        .unwrap_or_else(|_| "http://localhost:8000/api/v1/calendar/google/callback".into());
+    // Exchange code for tokens — credentials come from AppState.oauth
+    // (config::load_oauth, OAUTH_GOOGLE_*), not raw std::env vars.
+    let (client_id, client_secret, token_url) = match &state.oauth.google {
+        Some(cfg) => (
+            cfg.client_id.clone(),
+            cfg.client_secret.clone(),
+            cfg.token_url.clone(),
+        ),
+        None => {
+            tracing::error!("google oauth not configured");
+            return Err(AppError::Internal("internal error".into()));
+        }
+    };
+    let redirect_uri = format!(
+        "{}/api/v1/calendar/google/callback",
+        state.backend_url.trim_end_matches('/')
+    );
 
     let token_response = state
         .http_client
-        .post("https://oauth2.googleapis.com/token")
+        .post(&token_url)
         .form(&[
             ("code", code.as_str()),
             ("client_id", &client_id),
@@ -58,17 +71,14 @@ pub async fn google_callback(
             ("grant_type", "authorization_code"),
         ])
         .send()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
-    let tokens: serde_json::Value = token_response
-        .json()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let tokens: serde_json::Value = token_response.json().await?;
 
-    let access_token = tokens["access_token"]
-        .as_str()
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let access_token = tokens["access_token"].as_str().ok_or_else(|| {
+        tracing::error!("google token response missing access_token");
+        AppError::Internal("internal error".into())
+    })?;
     let refresh_token = tokens["refresh_token"].as_str();
     let expires_in = tokens["expires_in"].as_i64().unwrap_or(3600);
     let expires_at = Utc::now() + chrono::Duration::seconds(expires_in);
@@ -93,8 +103,7 @@ pub async fn google_callback(
     .bind(&enc_refresh)
     .bind(expires_at)
     .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(StatusCode::OK)
 }
@@ -104,20 +113,36 @@ pub async fn microsoft_callback(
     State(state): State<AppState>,
     claims: axum::extract::Extension<Claims>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> Result<StatusCode, StatusCode> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
-    let code = params.get("code").ok_or(StatusCode::BAD_REQUEST)?;
+    perms: UserPermissions,
+) -> Result<StatusCode, AppError> {
+    perms
+        .require("calendar.create")
+        .map_err(|_| AppError::Forbidden)?;
+    let user_id = Uuid::parse_str(&claims.sub)?;
+    let code = params
+        .get("code")
+        .ok_or_else(|| AppError::BadRequest("Missing code".into()))?;
 
-    let client_id =
-        std::env::var("MICROSOFT_CLIENT_ID").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let client_secret =
-        std::env::var("MICROSOFT_CLIENT_SECRET").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let redirect_uri = std::env::var("MICROSOFT_REDIRECT_URI")
-        .unwrap_or_else(|_| "http://localhost:8000/api/v1/calendar/microsoft/callback".into());
+    // Credentials from AppState.oauth (config::load_oauth, OAUTH_MICROSOFT_*).
+    let (client_id, client_secret, token_url) = match &state.oauth.microsoft {
+        Some(cfg) => (
+            cfg.client_id.clone(),
+            cfg.client_secret.clone(),
+            cfg.token_url.clone(),
+        ),
+        None => {
+            tracing::error!("microsoft oauth not configured");
+            return Err(AppError::Internal("internal error".into()));
+        }
+    };
+    let redirect_uri = format!(
+        "{}/api/v1/calendar/microsoft/callback",
+        state.backend_url.trim_end_matches('/')
+    );
 
     let token_response = state
         .http_client
-        .post("https://login.microsoftonline.com/common/oauth2/v2.0/token")
+        .post(&token_url)
         .form(&[
             ("code", code.as_str()),
             ("client_id", &client_id),
@@ -126,17 +151,14 @@ pub async fn microsoft_callback(
             ("grant_type", "authorization_code"),
         ])
         .send()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
-    let tokens: serde_json::Value = token_response
-        .json()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let tokens: serde_json::Value = token_response.json().await?;
 
-    let access_token = tokens["access_token"]
-        .as_str()
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let access_token = tokens["access_token"].as_str().ok_or_else(|| {
+        tracing::error!("microsoft token response missing access_token");
+        AppError::Internal("internal error".into())
+    })?;
     let refresh_token = tokens["refresh_token"].as_str();
     let expires_in = tokens["expires_in"].as_i64().unwrap_or(3600);
     let expires_at = Utc::now() + chrono::Duration::seconds(expires_in);
@@ -159,58 +181,69 @@ pub async fn microsoft_callback(
     .bind(&enc_refresh)
     .bind(expires_at)
     .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(StatusCode::OK)
 }
 
 // Get OAuth URLs for connecting
 pub async fn get_auth_url(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(provider): Path<String>,
     perms: UserPermissions,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     perms
         .require("calendar.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
     match provider.as_str() {
         "google" => {
-            let client_id =
-                std::env::var("GOOGLE_CLIENT_ID").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            let redirect_uri = std::env::var("GOOGLE_REDIRECT_URI")
-                .unwrap_or_else(|_| "http://localhost:8000/api/v1/calendar/google/callback".into());
+            let cfg = state.oauth.google.as_ref().ok_or_else(|| {
+                tracing::error!("google oauth not configured");
+                AppError::Internal("internal error".into())
+            })?;
+            let redirect_uri = format!(
+                "{}/api/v1/calendar/google/callback",
+                state.backend_url.trim_end_matches('/')
+            );
             let url = format!(
-                "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope=https://www.googleapis.com/auth/calendar&access_type=offline&prompt=consent",
-                client_id, redirect_uri
+                "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent",
+                cfg.auth_url,
+                cfg.client_id,
+                redirect_uri,
+                "https://www.googleapis.com/auth/calendar"
             );
             Ok(Json(serde_json::json!({ "url": url })))
         }
         "microsoft" => {
-            let client_id = std::env::var("MICROSOFT_CLIENT_ID")
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            let redirect_uri = std::env::var("MICROSOFT_REDIRECT_URI").unwrap_or_else(|_| {
-                "http://localhost:8000/api/v1/calendar/microsoft/callback".into()
-            });
+            let cfg = state.oauth.microsoft.as_ref().ok_or_else(|| {
+                tracing::error!("microsoft oauth not configured");
+                AppError::Internal("internal error".into())
+            })?;
+            let redirect_uri = format!(
+                "{}/api/v1/calendar/microsoft/callback",
+                state.backend_url.trim_end_matches('/')
+            );
             let url = format!(
-                "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={}&redirect_uri={}&response_type=code&scope=https://graph.microsoft.com/Calendars.ReadWrite&response_mode=query",
-                client_id, redirect_uri
+                "{}?client_id={}&redirect_uri={}&response_type=code&scope=https://graph.microsoft.com/Calendars.ReadWrite&response_mode=query",
+                cfg.auth_url, cfg.client_id, redirect_uri
             );
             Ok(Json(serde_json::json!({ "url": url })))
         }
-        _ => Err(StatusCode::BAD_REQUEST),
+        _ => Err(AppError::BadRequest("Unknown provider".into())),
     }
 }
 
 // List calendar events
 pub async fn list_events(
     State(state): State<AppState>,
+    claims: axum::extract::Extension<Claims>,
     Query(params): Query<CalendarQuery>,
     perms: UserPermissions,
-) -> Result<Json<Vec<CalendarEvent>>, StatusCode> {
+) -> Result<Json<Vec<CalendarEvent>>, AppError> {
     perms
         .require("calendar.view")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
+    let user_id = Uuid::parse_str(&claims.sub)?;
     let start = params
         .start
         .unwrap_or_else(|| Utc::now() - chrono::Duration::days(30));
@@ -221,25 +254,26 @@ pub async fn list_events(
     let events = if let Some(ref provider) = params.provider {
         sqlx::query_as::<_, CalendarEvent>(
             "SELECT id, user_id, provider, external_id, title, description, location, start_time, end_time, all_day, attendees, entity_type, entity_id, created_at, updated_at
-             FROM calendar_events WHERE start_time >= $1 AND end_time <= $2 AND provider = $3 ORDER BY start_time",
+             FROM calendar_events WHERE user_id = $1 AND start_time >= $2 AND end_time <= $3 AND provider = $4 ORDER BY start_time",
         )
+        .bind(user_id)
         .bind(start)
         .bind(end)
         .bind(provider)
         .fetch_all(&state.db)
-        .await
+        .await?
     } else {
         sqlx::query_as::<_, CalendarEvent>(
             "SELECT id, user_id, provider, external_id, title, description, location, start_time, end_time, all_day, attendees, entity_type, entity_id, created_at, updated_at
-             FROM calendar_events WHERE start_time >= $1 AND end_time <= $2 ORDER BY start_time",
+             FROM calendar_events WHERE user_id = $1 AND start_time >= $2 AND end_time <= $3 ORDER BY start_time",
         )
+        .bind(user_id)
         .bind(start)
         .bind(end)
         .fetch_all(&state.db)
-        .await
+        .await?
     };
 
-    let events = events.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(events))
 }
 
@@ -249,11 +283,11 @@ pub async fn create_event(
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<CreateCalendarEvent>,
-) -> Result<(StatusCode, Json<CalendarEvent>), StatusCode> {
+) -> Result<(StatusCode, Json<CalendarEvent>), AppError> {
     perms
         .require("calendar.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+        .map_err(|_| AppError::Forbidden)?;
+    let user_id = Uuid::parse_str(&claims.sub)?;
     let event = sqlx::query_as::<_, CalendarEvent>(
         "INSERT INTO calendar_events (user_id, provider, title, description, location, start_time, end_time, all_day, attendees, entity_type, entity_id)
          VALUES ($1, 'local', $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -270,8 +304,7 @@ pub async fn create_event(
     .bind(&input.entity_type)
     .bind(input.entity_id)
     .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok((StatusCode::CREATED, Json(event)))
 }
@@ -279,27 +312,30 @@ pub async fn create_event(
 // Update calendar event
 pub async fn update_event(
     State(state): State<AppState>,
+    claims: axum::extract::Extension<Claims>,
     Path(id): Path<Uuid>,
     perms: UserPermissions,
     Json(input): Json<UpdateCalendarEvent>,
-) -> Result<Json<CalendarEvent>, StatusCode> {
+) -> Result<Json<CalendarEvent>, AppError> {
     perms
         .require("calendar.edit")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|_| AppError::Forbidden)?;
+    let user_id = Uuid::parse_str(&claims.sub)?;
     let event = sqlx::query_as::<_, CalendarEvent>(
         "UPDATE calendar_events SET
-            title = COALESCE($2, title),
-            description = COALESCE($3, description),
-            location = COALESCE($4, location),
-            start_time = COALESCE($5, start_time),
-            end_time = COALESCE($6, end_time),
-            all_day = COALESCE($7, all_day),
-            attendees = COALESCE($8, attendees),
+            title = COALESCE($3, title),
+            description = COALESCE($4, description),
+            location = COALESCE($5, location),
+            start_time = COALESCE($6, start_time),
+            end_time = COALESCE($7, end_time),
+            all_day = COALESCE($8, all_day),
+            attendees = COALESCE($9, attendees),
             updated_at = NOW()
-         WHERE id = $1
+         WHERE id = $1 AND user_id = $2
          RETURNING id, user_id, provider, external_id, title, description, location, start_time, end_time, all_day, attendees, entity_type, entity_id, created_at, updated_at",
     )
     .bind(id)
+    .bind(user_id)
     .bind(&input.title)
     .bind(&input.description)
     .bind(&input.location)
@@ -308,9 +344,8 @@ pub async fn update_event(
     .bind(input.all_day)
     .bind(input.attendees.map(|a| serde_json::json!(a)))
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     Ok(Json(event))
 }
@@ -318,20 +353,22 @@ pub async fn update_event(
 // Delete calendar event
 pub async fn delete_event(
     State(state): State<AppState>,
+    claims: axum::extract::Extension<Claims>,
     Path(id): Path<Uuid>,
     perms: UserPermissions,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     perms
         .require("calendar.delete")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    let result = sqlx::query("DELETE FROM calendar_events WHERE id = $1")
+        .map_err(|_| AppError::Forbidden)?;
+    let user_id = Uuid::parse_str(&claims.sub)?;
+    let result = sqlx::query("DELETE FROM calendar_events WHERE id = $1 AND user_id = $2")
         .bind(id)
+        .bind(user_id)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -342,11 +379,11 @@ pub async fn sync_google(
     State(state): State<AppState>,
     claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     perms
         .require("calendar.create")
-        .map_err(|_| StatusCode::FORBIDDEN)?;
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+        .map_err(|_| AppError::Forbidden)?;
+    let user_id = Uuid::parse_str(&claims.sub)?;
     // Get token
     let token = sqlx::query_as::<_, crate::models::CalendarToken>(
         "SELECT id, user_id, provider, access_token, refresh_token, expires_at, calendar_id, created_at, updated_at
@@ -354,9 +391,8 @@ pub async fn sync_google(
     )
     .bind(user_id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let access_token = decrypt(
         &token.access_token,
@@ -380,17 +416,14 @@ pub async fn sync_google(
             ("maxResults", &"250".to_string()),
         ])
         .send()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
-    let data: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let data: serde_json::Value = response.json().await?;
 
-    let items = data["items"]
-        .as_array()
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let items = data["items"].as_array().ok_or_else(|| {
+        tracing::error!("google calendar sync: missing items array");
+        AppError::Internal("internal error".into())
+    })?;
     let mut synced = 0;
 
     for item in items {

@@ -3,14 +3,14 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { X, Search, User, Building2, Plus, Loader2 } from "lucide-react"
 import { Modal } from "@/components/ui/modal"
-import { contactsApi, companiesApi, type Contact, type Company } from "@/lib/api"
+import { contactsApi, companiesApi, type Contact, type Company, type Deal } from "@/lib/api"
 import { useI18n } from "@/contexts/i18n-context"
 
 interface DealFormProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: any) => void
-  initialData?: any
+  onSubmit: (data: Record<string, unknown>) => void | Promise<void>
+  initialData?: (Partial<Deal> & { contact_name?: string; company_name?: string }) | undefined
 }
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CLP"]
@@ -54,7 +54,7 @@ function SearchDropdown<T>({
   return (
     <div ref={wrapperRef} className="relative">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           className="slds-input pl-10"
           value={value}
@@ -65,20 +65,21 @@ function SearchDropdown<T>({
           <button
             type="button"
             onClick={onClear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         )}
       </div>
       {dropdownOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute z-50 mt-1.5 w-full bg-popover border border-border rounded-xl shadow-pop py-1.5 max-h-48 overflow-y-auto animate-fade-in">
           {results.map((item, i) => (
             <button
               key={i}
               type="button"
               onClick={() => onSelect(item)}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 mx-1 text-[13.5px] hover:bg-muted text-left rounded-lg transition-colors"
+              style={{ width: "calc(100% - 8px)" }}
             >
               {renderItem(item)}
             </button>
@@ -87,7 +88,8 @@ function SearchDropdown<T>({
             <button
               type="button"
               onClick={footerAction.onClick}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm border-t border-gray-200 dark:border-gray-700 text-brand hover:bg-gray-50 dark:hover:bg-gray-700 text-left font-medium"
+              className="w-full flex items-center gap-2.5 px-3 py-2 mx-1 text-[13px] border-t border-border text-primary hover:bg-muted text-left font-medium rounded-lg transition-colors"
+              style={{ width: "calc(100% - 8px)" }}
             >
               <footerAction.icon className="h-4 w-4 flex-shrink-0" />
               {footerAction.label}
@@ -128,6 +130,16 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
   const quickContactFormRef = useRef<HTMLDivElement>(null)
   const quickCompanyFormRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const contactAbortRef = useRef<AbortController | null>(null)
+  const companyAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      contactAbortRef.current?.abort()
+      companyAbortRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (initialData) {
@@ -178,28 +190,36 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  const searchContacts = useCallback(async (query: string) => {
+  const searchContacts = useCallback(async (query: string, signal?: AbortSignal) => {
     if (!query.trim()) {
       setContactResults([])
       return
     }
     try {
-      const res = await contactsApi.list({ search: query })
+      const res = await contactsApi.list({ search: query }, signal)
+      if (signal?.aborted) return
       setContactResults(res.data)
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return
+      if (signal?.aborted) return
+      console.error("Failed to search contacts", err)
       setContactResults([])
     }
   }, [])
 
-  const searchCompanies = useCallback(async (query: string) => {
+  const searchCompanies = useCallback(async (query: string, signal?: AbortSignal) => {
     if (!query.trim()) {
       setCompanyResults([])
       return
     }
     try {
-      const res = await companiesApi.list({ search: query })
+      const res = await companiesApi.list({ search: query }, signal)
+      if (signal?.aborted) return
       setCompanyResults(res.data)
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return
+      if (signal?.aborted) return
+      console.error("Failed to search companies", err)
       setCompanyResults([])
     }
   }, [])
@@ -209,7 +229,10 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
     setSelectedContact(null)
     setContactDropdownOpen(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => searchContacts(value), 300)
+    contactAbortRef.current?.abort()
+    const controller = new AbortController()
+    contactAbortRef.current = controller
+    debounceRef.current = setTimeout(() => searchContacts(value, controller.signal), 300)
   }
 
   const handleCompanyInputChange = (value: string) => {
@@ -217,7 +240,10 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
     setSelectedCompany(null)
     setCompanyDropdownOpen(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => searchCompanies(value), 300)
+    companyAbortRef.current?.abort()
+    const controller = new AbortController()
+    companyAbortRef.current = controller
+    debounceRef.current = setTimeout(() => searchCompanies(value, controller.signal), 300)
   }
 
   const selectContact = (contact: Contact) => {
@@ -264,8 +290,8 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
       })
       selectContact(created)
       setQuickCreateOpen(null)
-    } catch {
-      // error will surface via toast in parent
+    } catch (err: unknown) {
+      console.error("Failed to quick-create contact", err)
     } finally {
       setQuickCreateLoading(false)
     }
@@ -285,8 +311,8 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
       const created = await companiesApi.create({ name })
       selectCompany(created)
       setQuickCreateOpen(null)
-    } catch {
-      // error will surface via toast in parent
+    } catch (err: unknown) {
+      console.error("Failed to quick-create company", err)
     } finally {
       setQuickCreateLoading(false)
     }
@@ -304,7 +330,9 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
         notes: notes || undefined,
       }
       if (expectedCloseDate) {
-        payload.expected_close_date = `${expectedCloseDate}T00:00:00Z`
+        // Noon UTC avoids CLP (UTC-4/-3) day-shift when the backend treats
+        // the date as UTC midnight.
+        payload.expected_close_date = `${expectedCloseDate}T12:00:00Z`
       }
       if (selectedContact) {
         payload.contact_id = selectedContact.id
@@ -402,7 +430,7 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
             placeholder={t("deals.searchContacts")}
             renderItem={(contact) => (
               <>
-                <User className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span>{contact.first_name} {contact.last_name}</span>
               </>
             )}
@@ -410,8 +438,8 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
             footerAction={{ label: t("deals.createNewContact"), icon: Plus, onClick: () => { setContactDropdownOpen(false); setQuickCreateOpen("contact") } }}
           />
           {quickCreateOpen === "contact" && (
-            <div className="mt-2 p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("deals.quickCreateContact")}</p>
+            <div className="mt-2 p-3.5 border border-border rounded-[10px] bg-muted/50 space-y-2.5">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t("deals.quickCreateContact")}</p>
               <div
                 ref={quickContactFormRef}
                 className="space-y-2"
@@ -427,7 +455,7 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
                 </div>
                 <input name="email" type="email" placeholder={t("deals.email")} className="slds-input text-sm" />
                 <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setQuickCreateOpen(null)} className="slds-btn text-xs">{t("deals.cancel")}</button>
+                  <button type="button" onClick={() => setQuickCreateOpen(null)} className="slds-btn slds-btn--neutral text-xs">{t("deals.cancel")}</button>
                   <button type="button" disabled={quickCreateLoading} onClick={(e) => handleQuickCreateContact(e)} className="slds-btn slds-btn--brand text-xs flex items-center gap-1">
                     {quickCreateLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                     {t("deals.create")}
@@ -451,7 +479,7 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
             placeholder={t("deals.searchCompanies")}
             renderItem={(company) => (
               <>
-                <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span>{company.name}</span>
               </>
             )}
@@ -459,8 +487,8 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
             footerAction={{ label: t("deals.createNewCompany"), icon: Plus, onClick: () => { setCompanyDropdownOpen(false); setQuickCreateOpen("company") } }}
           />
           {quickCreateOpen === "company" && (
-            <div className="mt-2 p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("deals.quickCreateCompany")}</p>
+            <div className="mt-2 p-3.5 border border-border rounded-[10px] bg-muted/50 space-y-2.5">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t("deals.quickCreateCompany")}</p>
               <div
                 ref={quickCompanyFormRef}
                 className="space-y-2"
@@ -472,7 +500,7 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
               >
                 <input name="name" placeholder={t("deals.companyName")} required className="slds-input text-sm" />
                 <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setQuickCreateOpen(null)} className="slds-btn text-xs">{t("deals.cancel")}</button>
+                  <button type="button" onClick={() => setQuickCreateOpen(null)} className="slds-btn slds-btn--neutral text-xs">{t("deals.cancel")}</button>
                   <button type="button" disabled={quickCreateLoading} onClick={(e) => handleQuickCreateCompany(e)} className="slds-btn slds-btn--brand text-xs flex items-center gap-1">
                     {quickCreateLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                     {t("deals.create")}
@@ -493,11 +521,11 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="slds-btn">
+        <div className="slds-modal__footer">
+          <button type="button" onClick={onClose} className="slds-btn slds-btn--neutral">
             {t("deals.cancel")}
           </button>
-          <button type="submit" disabled={loading} className="slds-btn slds-btn--brand">
+          <button type="submit" disabled={loading} className="slds-btn slds-btn--brand disabled:opacity-50">
             {loading ? t("deals.saving") : initialData ? t("deals.updateDeal") : t("deals.createDeal")}
           </button>
         </div>

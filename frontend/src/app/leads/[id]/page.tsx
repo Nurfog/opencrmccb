@@ -15,24 +15,12 @@ import { formatDate, cn } from "@/lib/utils"
 import Link from "next/link"
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-  contacted: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-  qualified: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-  unqualified: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
-  converted: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-  recycled: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  web: "Web",
-  referral: "Referral",
-  cold_call: "Cold Call",
-  advertisement: "Advertisement",
-  email: "Email",
-  social: "Social",
-  partner: "Partner",
-  event: "Event",
-  other: "Other",
+  new: "slds-tag slds-tag--info",
+  contacted: "slds-tag slds-tag--warning",
+  qualified: "slds-tag slds-tag--success",
+  unqualified: "slds-tag slds-tag--muted",
+  converted: "slds-tag slds-tag--violet",
+  recycled: "slds-tag slds-tag--warning",
 }
 
 export default function LeadDetailPage() {
@@ -155,8 +143,8 @@ export default function LeadDetailPage() {
       <AppLayout>
         <div className="p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-48" />
-            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded" />
+            <div className="h-8 bg-muted rounded w-48" />
+            <div className="h-64 bg-muted rounded" />
           </div>
         </div>
       </AppLayout>
@@ -172,28 +160,28 @@ export default function LeadDetailPage() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/leads")}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="slds-btn slds-btn--icon"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="slds-header__title">
                 {lead.first_name} {lead.last_name}
               </h1>
-              <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-full", STATUS_COLORS[lead.status])}>
+              <span className={cn(STATUS_COLORS[lead.status])}>
                 {lead.status}
               </span>
             </div>
             {lead.company_name && (
-              <p className="text-gray-500 dark:text-gray-400">{lead.company_name}</p>
+              <p className="slds-header__description">{lead.company_name}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
             {lead.status !== "converted" && (
               <button
                 onClick={() => setConvertOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="slds-btn slds-btn--brand flex items-center gap-2"
               >
                 <ArrowRightLeft className="w-4 h-4" />
                 {t("leads.convert")}
@@ -201,14 +189,14 @@ export default function LeadDetailPage() {
             )}
             <button
               onClick={() => setFormOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="slds-btn slds-btn--neutral"
             >
               <Edit className="w-4 h-4" />
               {t("common.edit")}
             </button>
             <button
               onClick={() => setDeleteOpen(true)}
-              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              className="slds-btn slds-btn--icon text-red-600"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -219,82 +207,82 @@ export default function LeadDetailPage() {
           {/* Main Info */}
           <div className="lg:col-span-2 space-y-6">
             {/* Details Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t("common.details")}</h2>
+            <div className="slds-card p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">{t("common.details")}</h2>
               <div className="grid grid-cols-2 gap-4">
                 {lead.email && (
                   <div className="flex items-center gap-3">
-                    <Mail className="w-4 h-4 text-gray-400" />
+                    <Mail className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{t("leads.email")}</div>
-                      <div className="text-sm text-gray-900 dark:text-white">{lead.email}</div>
+                      <div className="text-xs text-muted-foreground">{t("leads.email")}</div>
+                      <div className="text-sm text-foreground">{lead.email}</div>
                     </div>
                   </div>
                 )}
                 {lead.phone && (
                   <div className="flex items-center gap-3">
-                    <Phone className="w-4 h-4 text-gray-400" />
+                    <Phone className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{t("leads.phone")}</div>
-                      <div className="text-sm text-gray-900 dark:text-white">{lead.phone}</div>
+                      <div className="text-xs text-muted-foreground">{t("leads.phone")}</div>
+                      <div className="text-sm text-foreground">{lead.phone}</div>
                     </div>
                   </div>
                 )}
                 {lead.title && (
                   <div className="flex items-center gap-3">
-                    <Briefcase className="w-4 h-4 text-gray-400" />
+                    <Briefcase className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{t("leads.jobTitle")}</div>
-                      <div className="text-sm text-gray-900 dark:text-white">{lead.title}</div>
+                      <div className="text-xs text-muted-foreground">{t("leads.jobTitle")}</div>
+                      <div className="text-sm text-foreground">{lead.title}</div>
                     </div>
                   </div>
                 )}
                 {lead.industry && (
                   <div className="flex items-center gap-3">
-                    <Building2 className="w-4 h-4 text-gray-400" />
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{t("leads.industry")}</div>
-                      <div className="text-sm text-gray-900 dark:text-white">{lead.industry}</div>
+                      <div className="text-xs text-muted-foreground">{t("leads.industry")}</div>
+                      <div className="text-sm text-foreground">{lead.industry}</div>
                     </div>
                   </div>
                 )}
                 {lead.website && (
                   <div className="flex items-center gap-3">
-                    <Globe className="w-4 h-4 text-gray-400" />
+                    <Globe className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{t("leads.website")}</div>
-                      <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+                      <div className="text-xs text-muted-foreground">{t("leads.website")}</div>
+                      <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
                         {lead.website}
                       </a>
                     </div>
                   </div>
                 )}
                 <div className="flex items-center gap-3">
-                  <Tag className="w-4 h-4 text-gray-400" />
+                  <Tag className="w-4 h-4 text-muted-foreground" />
                   <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{t("leads.source")}</div>
-                    <div className="text-sm text-gray-900 dark:text-white">{t(`leads.sources.${lead.lead_source}`)}</div>
+                    <div className="text-xs text-muted-foreground">{t("leads.source")}</div>
+                    <div className="text-sm text-foreground">{t(`leads.sources.${lead.lead_source}`)}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
                   <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{t("leads.created")}</div>
-                    <div className="text-sm text-gray-900 dark:text-white">{formatDate(lead.created_at)}</div>
+                    <div className="text-xs text-muted-foreground">{t("leads.created")}</div>
+                    <div className="text-sm text-foreground">{formatDate(lead.created_at)}</div>
                   </div>
                 </div>
               </div>
               {lead.notes && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("leads.notes")}</div>
-                  <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{lead.notes}</div>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="text-xs text-muted-foreground mb-1">{t("leads.notes")}</div>
+                  <div className="text-sm text-foreground whitespace-pre-wrap">{lead.notes}</div>
                 </div>
               )}
             </div>
 
             {/* Tags */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t("common.tags")}</h2>
+            <div className="slds-card p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">{t("common.tags")}</h2>
               <TagsInput entityType="lead" entityId={id} />
             </div>
 
@@ -326,12 +314,12 @@ export default function LeadDetailPage() {
             )}
 
             {/* Activities */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="slds-card p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t("leads.activities")}</h2>
+                <h2 className="text-lg font-semibold text-foreground">{t("leads.activities")}</h2>
                 <button
                   onClick={() => setActivityFormOpen(true)}
-                  className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"
+                  className="flex items-center gap-1 text-sm text-primary hover:opacity-80"
                 >
                   <Plus className="w-4 h-4" />
                   {t("leads.addActivity")}
@@ -339,12 +327,12 @@ export default function LeadDetailPage() {
               </div>
 
               {activityFormOpen && (
-                <form onSubmit={handleCreateActivity} className="mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg space-y-3">
+                <form onSubmit={handleCreateActivity} className="mb-4 p-3 bg-muted/60 rounded-lg space-y-3">
                   <div className="flex gap-3">
                     <select
                       value={activityType}
                       onChange={(e) => setActivityType(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
+                      className="slds-input w-auto text-sm"
                     >
                       <option value="call">{t("activities.call")}</option>
                       <option value="email">{t("activities.email")}</option>
@@ -358,7 +346,7 @@ export default function LeadDetailPage() {
                       placeholder={t("leads.activitySubject")}
                       value={activitySubject}
                       onChange={(e) => setActivitySubject(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
+                      className="slds-input flex-1 text-sm"
                     />
                   </div>
                   <textarea
@@ -366,20 +354,20 @@ export default function LeadDetailPage() {
                     rows={2}
                     value={activityDescription}
                     onChange={(e) => setActivityDescription(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm resize-none"
+                    className="slds-input text-sm resize-none"
                   />
                   <div className="flex gap-2">
                     <button
                       type="submit"
                       disabled={activityLoading}
-                      className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                      className="slds-btn slds-btn--brand text-sm disabled:opacity-50"
                     >
                       {activityLoading ? t("leads.activitySaving") : t("common.save")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setActivityFormOpen(false)}
-                      className="px-3 py-1.5 text-gray-600 dark:text-gray-400 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                      className="slds-btn slds-btn--neutral text-sm"
                     >
                       {t("common.cancel")}
                     </button>
@@ -388,11 +376,11 @@ export default function LeadDetailPage() {
               )}
 
               {activities.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{t("leads.noActivities")}</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t("leads.noActivities")}</p>
               ) : (
                 <div className="space-y-3">
                   {activities.map((act) => (
-                    <div key={act.id} className={cn("flex items-start gap-3 p-3 rounded-lg", act.completed ? "bg-gray-50 dark:bg-gray-900/30" : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700")}>
+                    <div key={act.id} className={cn("flex items-start gap-3 p-3 rounded-lg", act.completed ? "bg-muted/60" : "bg-card border border-border")}>
                       <button
                         onClick={() => !act.completed && handleCompleteActivity(act.id)}
                         className={cn("mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0", act.completed ? "bg-green-500 border-green-500" : "border-gray-300 dark:border-gray-600 hover:border-green-500")}
@@ -401,20 +389,20 @@ export default function LeadDetailPage() {
                       </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-400">
+                          <span className="slds-tag slds-tag--muted">
                             {act.type}
                           </span>
-                          <span className={cn("text-sm font-medium", act.completed ? "text-gray-500 line-through" : "text-gray-900 dark:text-white")}>
+                          <span className={cn("text-sm font-medium", act.completed ? "text-muted-foreground line-through" : "text-foreground")}>
                             {act.subject}
                           </span>
                         </div>
                         {act.description && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{act.description}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{act.description}</p>
                         )}
                       </div>
                       <button
                         onClick={() => handleDeleteActivity(act.id)}
-                        className="p-1 text-gray-400 hover:text-red-600 rounded"
+                        className="slds-btn slds-btn--icon hover:text-red-600"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -428,12 +416,12 @@ export default function LeadDetailPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Score */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">{t("leads.leadScore")}</h3>
+            <div className="slds-card p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">{t("leads.leadScore")}</h3>
               <div className={cn("text-4xl font-bold", getScoreColor(lead.score))}>
                 {lead.score}
               </div>
-              <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div className="mt-2 w-full bg-muted rounded-full h-2">
                 <div
                   className={cn("h-2 rounded-full", lead.score >= 80 ? "bg-green-500" : lead.score >= 50 ? "bg-yellow-500" : lead.score >= 20 ? "bg-orange-500" : "bg-red-500")}
                   style={{ width: `${lead.score}%` }}
@@ -442,8 +430,8 @@ export default function LeadDetailPage() {
             </div>
 
             {/* Quick Status Change */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{t("leads.status")}</h3>
+            <div className="slds-card p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">{t("leads.status")}</h3>
               <div className="space-y-2">
                 {["new", "contacted", "qualified", "unqualified", "recycled"].map((status) => (
                   <button
@@ -453,8 +441,8 @@ export default function LeadDetailPage() {
                     className={cn(
                       "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
                       lead.status === status
-                        ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "hover:bg-muted text-foreground"
                     )}
                   >
                     {t(`leads.statuses.${status}`)}
@@ -464,16 +452,16 @@ export default function LeadDetailPage() {
             </div>
 
             {/* Meta */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{t("common.meta")}</h3>
+            <div className="slds-card p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">{t("common.meta")}</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">{t("leads.created")}</span>
-                  <span className="text-gray-900 dark:text-white">{formatDate(lead.created_at)}</span>
+                  <span className="text-muted-foreground">{t("leads.created")}</span>
+                  <span className="text-foreground">{formatDate(lead.created_at)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">{t("leads.updated")}</span>
-                  <span className="text-gray-900 dark:text-white">{formatDate(lead.updated_at)}</span>
+                  <span className="text-muted-foreground">{t("leads.updated")}</span>
+                  <span className="text-foreground">{formatDate(lead.updated_at)}</span>
                 </div>
               </div>
             </div>

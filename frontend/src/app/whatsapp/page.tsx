@@ -1,14 +1,13 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { MessageCircle, Send, Search, Phone, Video, MoreVertical, Check, CheckCheck, Clock, User, RefreshCw, UserPlus } from "lucide-react"
+import { MessageCircle, Send, Search, Phone, Video, MoreVertical, Check, CheckCheck, Clock, RefreshCw, UserPlus } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
 import { whatsAppApi, aiApi, contactsApi, type WhatsAppConversation, type WhatsAppMessage, type LeadExtraction } from "@/lib/api"
 import { Modal } from "@/components/ui/modal"
-import { EmptyState } from "@/components/ui/empty-state"
-import { formatDate, cn, formatDateTime } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
 
 export default function WhatsAppPage() {
   const { t } = useI18n()
@@ -134,11 +133,11 @@ export default function WhatsAppPage() {
 
   return (
     <AppLayout>
-      <div className="animate-fade-in h-[calc(100vh-8rem)] flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+      <div className="animate-fade-in h-[calc(100vh-8rem)] flex rounded-xl border border-border overflow-hidden bg-card shadow-sm">
         {/* ─── Left panel: conversation list ─── */}
-        <div className="w-80 lg:w-96 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950">
+        <div className="w-80 lg:w-96 flex flex-col border-r border-border bg-muted/50">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center">
                 <MessageCircle className="h-5 w-5 text-white" />
@@ -151,7 +150,7 @@ export default function WhatsAppPage() {
             <button
               type="button"
               onClick={() => { setLoading(true); fetchConversations() }}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground transition-colors"
+              className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"
               title={t("whatsapp.refresh")}
             >
               <RefreshCw className="h-4 w-4" />
@@ -163,7 +162,7 @@ export default function WhatsAppPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors"
+                className="slds-input pl-10 pr-4"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("whatsapp.searchConversations")}
@@ -191,10 +190,10 @@ export default function WhatsAppPage() {
                     type="button"
                     onClick={() => setSelectedPhone(conv.phone)}
                     className={cn(
-                      "w-full flex items-start gap-3 px-5 py-3.5 text-left transition-colors border-b border-gray-100 dark:border-gray-800/50",
+                      "w-full flex items-start gap-3 px-5 py-3.5 text-left transition-colors border-b border-border/70",
                       isActive
                         ? "bg-blue-50 dark:bg-blue-900/20 border-l-2 border-l-blue-500"
-                        : "hover:bg-gray-50 dark:hover:bg-gray-800/30 border-l-2 border-l-transparent"
+                        : "hover:bg-muted/50 border-l-2 border-l-transparent"
                     )}
                   >
                     <div className="w-11 h-11 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -229,12 +228,12 @@ export default function WhatsAppPage() {
           {selectedPhone ? (
             <>
               {/* Chat header */}
-              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+              <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={() => setSelectedPhone(null)}
-                    className="lg:hidden p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground"
+                    className="lg:hidden p-1 rounded hover:bg-muted text-muted-foreground"
                   >
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
@@ -264,20 +263,20 @@ export default function WhatsAppPage() {
                       <UserPlus className="h-4 w-4" />
                     )}
                   </button>
-                  <button type="button" className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground transition-colors" title={t("whatsapp.voiceCall")}>
+                  <button type="button" className="p-2.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title={t("whatsapp.voiceCall")}>
                     <Phone className="h-4 w-4" />
                   </button>
-                  <button type="button" className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground transition-colors" title={t("whatsapp.videoCall")}>
+                  <button type="button" className="p-2.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title={t("whatsapp.videoCall")}>
                     <Video className="h-4 w-4" />
                   </button>
-                  <button type="button" className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground transition-colors" title={t("whatsapp.moreOptions")}>
+                  <button type="button" className="p-2.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title={t("whatsapp.moreOptions")}>
                     <MoreVertical className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-2 bg-gray-50/50 dark:bg-gray-950/50">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-2 bg-muted/50">
                 {messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
@@ -296,7 +295,7 @@ export default function WhatsAppPage() {
                         <div key={msg.id}>
                           {showDate && (
                             <div className="flex justify-center my-3">
-                              <span className="text-[11px] text-muted-foreground bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
+                              <span className="text-[11px] text-muted-foreground bg-card px-3 py-1 rounded-full border border-border">
                                 {formatDate(msg.created_at)}
                               </span>
                             </div>
@@ -307,7 +306,7 @@ export default function WhatsAppPage() {
                                 "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm",
                                 isOut
                                   ? "bg-blue-600 text-white rounded-br-md"
-                                  : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-bl-md"
+                                  : "bg-card text-foreground border border-border rounded-bl-md"
                               )}
                             >
                               <p className="whitespace-pre-wrap break-words">{msg.content}</p>
@@ -330,11 +329,11 @@ export default function WhatsAppPage() {
               </div>
 
               {/* Input */}
-              <form onSubmit={handleSend} className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+              <form onSubmit={handleSend} className="px-6 py-3 border-t border-border bg-card">
                 <div className="flex items-center gap-3">
                   <div className="flex-1 relative">
                     <input
-                      className="w-full pl-4 pr-4 py-2.5 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors"
+                      className="w-full pl-4 pr-4 py-2.5 rounded-full border border-border bg-muted text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors"
                       value={sendText}
                       onChange={(e) => setSendText(e.target.value)}
                       placeholder={t("whatsapp.typeMessage")}
@@ -348,7 +347,7 @@ export default function WhatsAppPage() {
                       "w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
                       sendText.trim()
                         ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                        : "bg-gray-100 dark:bg-gray-800 text-muted-foreground cursor-not-allowed"
+                        : "bg-muted text-muted-foreground cursor-not-allowed"
                     )}
                   >
                     {sending ? (
@@ -361,12 +360,12 @@ export default function WhatsAppPage() {
               </form>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-50/30 dark:bg-gray-950/30">
+            <div className="flex-1 flex items-center justify-center bg-muted/30">
               <div className="text-center">
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-green-500 flex items-center justify-center mx-auto mb-5 shadow-lg">
                   <MessageCircle className="h-10 w-10 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t("whatsapp.whatsappBusiness")}</h3>
+                <h3 className="text-lg font-semibold text-foreground">{t("whatsapp.whatsappBusiness")}</h3>
                 <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
                   {t("whatsapp.selectConversation")}
                 </p>
@@ -404,7 +403,7 @@ export default function WhatsAppPage() {
                 />
               </div>
             ))}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="slds-modal__footer">
               <button type="button" onClick={() => setExtractionOpen(false)} className="slds-btn slds-btn--neutral">
                 {t("common.close")}
               </button>

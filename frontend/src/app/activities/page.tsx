@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
-import { Plus, Calendar, Phone, Mail, FileText, X, Edit, Trash2, CheckCircle } from "lucide-react"
+import { Plus, Calendar, Phone, Mail, FileText, Edit, Trash2, CheckCircle, TriangleAlert } from "lucide-react"
 
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), { ssr: false })
 import dayGridPlugin from "@fullcalendar/daygrid"
@@ -14,7 +14,7 @@ import { useToast } from "@/contexts/toast-context"
 import { activitiesApi, calendarApi, type Activity, type CalendarEvent } from "@/lib/api"
 import { Modal } from "@/components/ui/modal"
 import { EmptyState } from "@/components/ui/empty-state"
-import { formatDate, formatDateTime } from "@/lib/utils"
+import { formatDateTime } from "@/lib/utils"
 import type { DateSelectArg, EventClickArg, EventInput } from "@fullcalendar/core"
 
 const typeIcons: Record<string, typeof Phone> = {
@@ -317,13 +317,14 @@ export default function ActivitiesPage() {
             <textarea id="act-desc" className="slds-input min-h-[80px]" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} rows={3} />
           </div>
           {overlapWarning && (
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-700 dark:text-yellow-300">
-              ⚠️ {overlapWarning}
+            <div className="flex items-center gap-2.5 p-3 rounded-[10px] border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.07)] text-[13px]">
+              <TriangleAlert className="h-4 w-4 flex-shrink-0 text-[hsl(var(--warning))]" />
+              <span className="text-foreground">{overlapWarning}</span>
             </div>
           )}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="slds-modal__footer">
             <button type="button" onClick={() => setCreateOpen(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
-            <button type="submit" disabled={submitting} className="slds-btn slds-btn--brand">
+            <button type="submit" disabled={submitting} className="slds-btn slds-btn--brand disabled:opacity-50">
               {submitting ? t("app.loading") : t("common.save")}
             </button>
           </div>
@@ -354,13 +355,14 @@ export default function ActivitiesPage() {
             <textarea id="act-edit-desc" className="slds-input min-h-[80px]" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} rows={3} />
           </div>
           {overlapWarning && (
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-700 dark:text-yellow-300">
-              ⚠️ {overlapWarning}
+            <div className="flex items-center gap-2.5 p-3 rounded-[10px] border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.07)] text-[13px]">
+              <TriangleAlert className="h-4 w-4 flex-shrink-0 text-[hsl(var(--warning))]" />
+              <span className="text-foreground">{overlapWarning}</span>
             </div>
           )}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="slds-modal__footer">
             <button type="button" onClick={() => setEditOpen(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
-            <button type="submit" disabled={submitting} className="slds-btn slds-btn--brand">
+            <button type="submit" disabled={submitting} className="slds-btn slds-btn--brand disabled:opacity-50">
               {submitting ? t("app.loading") : t("common.save")}
             </button>
           </div>
@@ -393,7 +395,7 @@ export default function ActivitiesPage() {
                 </>
               )}
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+            <div className="slds-modal__footer">
               {!selectedActivity.completed && (
                 <button type="button" onClick={handleComplete} className="slds-btn slds-btn--success flex items-center gap-2">
                   <CheckCircle className="h-4 w-4" />

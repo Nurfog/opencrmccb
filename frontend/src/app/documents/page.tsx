@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Plus, FileText, Folder, Upload, Download, Trash2, Search, X, File, Image, FileSpreadsheet, FileArchive } from "lucide-react"
+import { FileText, Folder, Upload, Download, Trash2, Search, X, File, Image, FileSpreadsheet, FileArchive } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/modal"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { formatDate, formatNumber, cn } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const FOLDERS = ["All", "Contracts", "Reports", "Invoices", "Proposals", "Other"]
 
@@ -36,7 +36,7 @@ const mimeColors: Record<string, string> = {
   image: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
   spreadsheet: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
   zip: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400",
-  text: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
+  text: "bg-muted text-muted-foreground",
 }
 
 function formatFileSize(bytes: number): string {
@@ -118,7 +118,7 @@ export default function DocumentsPage() {
 
   const handleDownload = async (doc: Document) => {
     try {
-      const blob = await documentsApi.download(doc.id)
+      const { blob, filename } = await documentsApi.download(doc.id)
       if (!blob) {
         error(t("toast.error", { action: "download", entity: t("documents.title") }))
         return
@@ -126,9 +126,11 @@ export default function DocumentsPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = doc.original_name
+      a.download = filename ?? doc.original_name
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch {
       error(t("toast.error", { action: "download", entity: t("documents.title") }))
     }
@@ -213,7 +215,7 @@ export default function DocumentsPage() {
                 "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors",
                 activeFolder === folder
                   ? "bg-brand text-white border-brand"
-                  : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  : "bg-card border-border hover:bg-muted"
               )}
             >
               <Folder className="h-4 w-4" />
@@ -305,7 +307,7 @@ export default function DocumentsPage() {
               "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
               dragOver
                 ? "border-brand bg-blue-50 dark:bg-blue-900/20"
-                : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+                : "border-border hover:border-muted-foreground/40"
             )}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -343,11 +345,11 @@ export default function DocumentsPage() {
             </select>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="slds-modal__footer">
             <button type="button" onClick={() => { setUploadOpen(false); setUploadFile(null); setUploadFolder("") }} className="slds-btn slds-btn--neutral">
               {t("common.cancel")}
             </button>
-            <button type="submit" disabled={!uploadFile || uploading} className="slds-btn slds-btn--brand">
+            <button type="submit" disabled={!uploadFile || uploading} className="slds-btn slds-btn--brand disabled:opacity-50">
               {uploading ? t("app.loading") : t("documents.upload")}
             </button>
           </div>

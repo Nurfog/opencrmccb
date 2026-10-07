@@ -11,8 +11,9 @@ use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{Contact, CreateContact, PaginatedResponse, PaginationParams, UpdateContact};
 use crate::services::contact_service::ContactService;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct BulkDeleteRequest {
+    #[validate(length(max = 100, message = "Cannot delete more than 100 contacts at once"))]
     pub ids: Vec<Uuid>,
 }
 
@@ -128,9 +129,11 @@ pub async fn bulk_delete_contacts(
     perms: UserPermissions,
     Json(input): Json<BulkDeleteRequest>,
 ) -> Result<Json<BulkDeleteResponse>, AppError> {
+    use validator::Validate;
     perms
         .require("contacts.delete")
         .map_err(|_| AppError::Forbidden)?;
+    input.validate()?;
 
     let svc = ContactService::new(&state.contact_repo);
     let deleted = svc.bulk_delete(&input.ids).await?;
@@ -146,6 +149,12 @@ pub async fn import_contacts(
     perms
         .require("contacts.create")
         .map_err(|_| AppError::Forbidden)?;
+    // 2MB cap validated here too (defense in depth; global RequestBodyLimitLayer enforces it).
+    if body.len() > 2 * 1024 * 1024 {
+        return Err(AppError::BadRequest(
+            "Import body too large (max 2MB)".into(),
+        ));
+    }
 
     let svc = ContactService::new(&state.contact_repo);
     let result = svc.import(&body).await?;

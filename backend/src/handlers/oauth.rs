@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 use crate::config::OAuthProviderConfig;
+use crate::error::AppError;
 use crate::middleware::auth::Claims;
 use crate::services::crypto::encrypt;
 
@@ -39,38 +40,66 @@ fn generate_state() -> String {
 fn get_provider_config<'a>(
     state: &'a AppState,
     provider: &str,
-) -> Result<&'a OAuthProviderConfig, StatusCode> {
+) -> Result<&'a OAuthProviderConfig, AppError> {
     match provider {
         "google" => state.oauth.google.as_ref(),
         "microsoft" => state.oauth.microsoft.as_ref(),
         "github" => state.oauth.github.as_ref(),
         _ => None,
     }
-    .ok_or(StatusCode::NOT_FOUND)
+    .ok_or(AppError::NotFound)
 }
 
 const OAUTH_STATE_TTL: chrono::Duration = chrono::Duration::minutes(10);
+const OAUTH_STATE_MAX_ENTRIES: usize = 1000;
+
+/// OAuth callbacks must hit the backend API (BACKEND_URL/API_URL), not the
+/// frontend SPA. Falls back to `state.backend_url`.
+fn oauth_redirect_uri(state: &AppState, provider: &str) -> String {
+    let base = if state.backend_url.trim().is_empty() {
+        std::env::var("BACKEND_URL")
+            .or_else(|_| std::env::var("API_URL"))
+            .unwrap_or_else(|_| "http://localhost:8000".into())
+    } else {
+        state.backend_url.clone()
+    };
+    format!(
+        "{}/api/v1/integrations/{}/callback",
+        base.trim_end_matches('/'),
+        provider
+    )
+}
 
 /// Authenticated endpoint: returns the OAuth authorize URL for a provider
 pub async fn connect(
     State(state): State<AppState>,
     claims: axum::extract::Extension<Claims>,
     Path(provider): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     let cfg = get_provider_config(&state, &provider)?;
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
 
     let state_val = generate_state();
-    let redirect_uri = format!(
-        "{}/api/v1/integrations/{}/callback",
-        state.frontend_url, provider
-    );
+    let redirect_uri = oauth_redirect_uri(&state, &provider);
 
     {
         let mut store = state.oauth.state_store.write().await;
         // Opportunistic purge of expired entries to bound memory.
         let now = Utc::now();
         store.retain(|_, v| now.signed_duration_since(v.created_at) < OAUTH_STATE_TTL);
+        // Hard cap at 1000 entries: evict oldest first if still overfull.
+        // TODO: move to Redis for shared, TTL-native, bounded state across replicas.
+        if store.len() >= OAUTH_STATE_MAX_ENTRIES {
+            let mut oldest: Vec<(String, chrono::DateTime<Utc>)> = store
+                .iter()
+                .map(|(k, v)| (k.clone(), v.created_at))
+                .collect();
+            oldest.sort_by_key(|(_, t)| *t);
+            let to_evict = store.len().saturating_sub(OAUTH_STATE_MAX_ENTRIES - 1);
+            for (k, _) in oldest.into_iter().take(to_evict) {
+                store.remove(&k);
+            }
+        }
         store.insert(
             state_val.clone(),
             crate::OAuthPendingState {
@@ -105,7 +134,7 @@ pub async fn callback(
     State(state): State<AppState>,
     Path(provider): Path<String>,
     Query(query): Query<CallbackQuery>,
-) -> Result<impl IntoResponse, StatusCode> {
+) -> Result<impl IntoResponse, AppError> {
     let cfg = get_provider_config(&state, &provider)?;
 
     if let Some(err) = &query.error {
@@ -116,53 +145,60 @@ pub async fn callback(
         return Ok(Redirect::to(&redirect).into_response());
     }
 
-    let code = query.code.as_ref().ok_or(StatusCode::BAD_REQUEST)?;
-    let state_param = query.state.as_ref().ok_or(StatusCode::BAD_REQUEST)?;
+    let code = query
+        .code
+        .as_ref()
+        .ok_or_else(|| AppError::BadRequest("Missing code".into()))?;
+    let state_param = query
+        .state
+        .as_ref()
+        .ok_or_else(|| AppError::BadRequest("Missing state".into()))?;
 
     // Verify state (single-use) and recover user_id
     let user_id = {
         let mut store = state.oauth.state_store.write().await;
-        let pending = store.remove(state_param).ok_or(StatusCode::UNAUTHORIZED)?;
+        let pending = store.remove(state_param).ok_or(AppError::Unauthorized)?;
         if pending.provider != provider {
-            return Err(StatusCode::UNAUTHORIZED);
+            return Err(AppError::Unauthorized);
         }
         if Utc::now().signed_duration_since(pending.created_at) >= OAUTH_STATE_TTL {
-            return Err(StatusCode::UNAUTHORIZED);
+            return Err(AppError::Unauthorized);
         }
         pending.user_id
     };
 
-    // Exchange code for tokens
-    let redirect_uri = format!(
-        "{}/api/v1/integrations/{}/callback",
-        state.frontend_url, provider
-    );
+    // Exchange code for tokens (backend callback URL, not frontend).
+    let redirect_uri = oauth_redirect_uri(&state, &provider);
 
-    let token_params = [
+    // GitHub's token endpoint does not use `grant_type`; send it only for
+    // providers that require OAuth2 `authorization_code` grant.
+    let auth_code = "authorization_code".to_string();
+    let mut form_params: Vec<(&str, &String)> = vec![
         ("client_id", &cfg.client_id),
         ("client_secret", &cfg.client_secret),
         ("code", code),
         ("redirect_uri", &redirect_uri),
-        ("grant_type", &"authorization_code".to_string()),
     ];
+    if provider != "github" {
+        form_params.push(("grant_type", &auth_code));
+    }
 
     let token_resp = state
         .http_client
         .post(&cfg.token_url)
-        .form(&token_params)
+        .form(&form_params)
         .header("Accept", "application/json")
         .send()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .await?;
 
-    let token_body: serde_json::Value = token_resp
-        .json()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let token_body: serde_json::Value = token_resp.json().await?;
 
     let access_token = token_body["access_token"]
         .as_str()
-        .ok_or(StatusCode::BAD_GATEWAY)?
+        .ok_or_else(|| {
+            tracing::error!("oauth token response missing access_token for {provider}");
+            AppError::Internal("internal error".into())
+        })?
         .to_string();
     let refresh_token = token_body["refresh_token"].as_str().map(|s| s.to_string());
     let expires_in = token_body["expires_in"].as_i64();
@@ -174,13 +210,9 @@ pub async fn callback(
         .header("Authorization", format!("Bearer {}", access_token))
         .header("Accept", "application/json")
         .send()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .await?;
 
-    let userinfo: serde_json::Value = userinfo_resp
-        .json()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let userinfo: serde_json::Value = userinfo_resp.json().await?;
 
     let provider_email = userinfo["email"].as_str().map(|s| s.to_string());
     let provider_name = userinfo["name"].as_str().map(|s| s.to_string());
@@ -214,8 +246,7 @@ pub async fn callback(
     .bind(&provider_email)
     .bind(&provider_name)
     .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let redirect = format!(
         "{}/settings?integration={}&status=connected",
@@ -228,16 +259,15 @@ pub async fn callback(
 pub async fn list_integrations(
     State(state): State<AppState>,
     claims: axum::extract::Extension<Claims>,
-) -> Result<Json<Vec<IntegrationStatus>>, StatusCode> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+) -> Result<Json<Vec<IntegrationStatus>>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
 
     let rows = sqlx::query_as::<_, IntegrationRow>(
         "SELECT provider, created_at, provider_email, provider_name FROM user_integrations WHERE user_id = $1 ORDER BY provider"
     )
     .bind(user_id)
     .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let configured = [("google", false), ("microsoft", false), ("github", false)];
     let mut result: Vec<IntegrationStatus> = configured
@@ -268,18 +298,17 @@ pub async fn disconnect(
     State(state): State<AppState>,
     claims: axum::extract::Extension<Claims>,
     Path(provider): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+) -> Result<StatusCode, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
 
     let result = sqlx::query("DELETE FROM user_integrations WHERE user_id = $1 AND provider = $2")
         .bind(user_id)
         .bind(&provider)
         .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::NotFound);
     }
 
     Ok(StatusCode::NO_CONTENT)

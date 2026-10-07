@@ -9,12 +9,17 @@ pub fn public_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(handlers::health::health_check))
         .route("/api/v1/health", get(handlers::health::health_check))
-        .route("/metrics", get(crate::middleware::metrics::metrics_handler))
         .route(
             "/api/v1/integrations/whatsapp/webhook",
             get(handlers::whatsapp::webhook_verify),
         )
         .route("/api/v1/branding", get(handlers::admin::get_branding))
+}
+
+pub fn metrics_routes() -> Router<AppState> {
+    // Exposed behind auth in main.rs (not public) to avoid unauthenticated
+    // cardinality scraping. Mounted with auth_middleware.
+    Router::new().route("/metrics", get(crate::middleware::metrics::metrics_handler))
 }
 
 pub fn whatsapp_webhook_routes() -> Router<AppState> {
@@ -54,6 +59,8 @@ pub fn integration_callback_routes() -> Router<AppState> {
 
 pub fn auth_routes() -> Router<AppState> {
     Router::new()
+        // Metrics (authenticated; moved out of public_routes to avoid anon scraping)
+        .route("/metrics", get(crate::middleware::metrics::metrics_handler))
         // Search
         .route("/api/v1/search", get(handlers::search::global_search))
         // Tags

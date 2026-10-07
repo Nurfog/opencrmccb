@@ -87,6 +87,30 @@ pub async fn invalidate_user_permissions(user_id: &Uuid) {
     perm_cache().lock().await.remove(user_id);
 }
 
+/// Invalidate cached permissions for every user that has the given profile.
+/// Call after `profile_permissions` change (create/update profile).
+/// Looks up affected users via `SELECT id FROM users WHERE profile_id=$1`
+/// then evicts each entry from the in-memory HashMap.
+pub async fn invalidate_users_by_profile(pool: &sqlx::PgPool, profile_id: &Uuid) {
+    let user_ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE profile_id = $1")
+        .bind(profile_id)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+    if user_ids.is_empty() {
+        return;
+    }
+    let mut guard = perm_cache().lock().await;
+    for uid in &user_ids {
+        guard.remove(uid);
+    }
+    tracing::info!(
+        profile_id = %profile_id,
+        count = user_ids.len(),
+        "invalidated permission cache for profile users"
+    );
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String,

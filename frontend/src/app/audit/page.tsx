@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react"
 import { Activity, Shield, Edit, Trash2, Plus, LogIn, Search, X } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
-import { useToast } from "@/contexts/toast-context"
 import { auditApi, type AuditEvent } from "@/lib/api"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -15,7 +14,7 @@ const actionColors: Record<string, string> = {
   update: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
   delete: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
   login: "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400",
-  view: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
+  view: "bg-muted text-muted-foreground",
 }
 
 const actionIcons: Record<string, typeof Shield> = {
@@ -36,7 +35,6 @@ const entityColors: Record<string, string> = {
 
 export default function AuditPage() {
   const { t } = useI18n()
-  const { error } = useToast()
 
   const [logs, setLogs] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -135,7 +133,7 @@ export default function AuditPage() {
                   "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                   entityFilter === e.id
                     ? "bg-brand text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-muted-foreground hover:bg-gray-200 dark:hover:bg-gray-700"
+                    : "bg-muted text-muted-foreground hover:bg-muted"
                 )}
               >
                 {e.label}
@@ -162,13 +160,13 @@ export default function AuditPage() {
             {filteredResults.map((event, idx) => {
               const ActionIcon = actionIcons[event.action] ?? Activity
               const actionColor = actionColors[event.action] ?? actionColors.view
-              const entityColor = entityColors[event.entity_type] ?? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+              const entityColor = entityColors[event.entity_type] ?? "bg-muted text-muted-foreground"
               return (
                 <div
                   key={event.id}
                   className={cn(
                     "flex items-start gap-4 p-4",
-                    idx < filteredResults.length - 1 && "border-b border-gray-100 dark:border-gray-700"
+                    idx < filteredResults.length - 1 && "border-b border-border/70"
                   )}
                 >
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${actionColor}`}>
@@ -178,7 +176,7 @@ export default function AuditPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium capitalize">{event.action}</span>
                       <span className={cn("slds-badge text-xs", entityColor)}>
-                        {t(`${event.entity_type}.title` as any) || event.entity_type}
+                        {t(`${event.entity_type}.title`) || event.entity_type}
                       </span>
                       <span className="text-sm text-muted-foreground">#{event.entity_id.slice(0, 8)}</span>
                     </div>
@@ -187,7 +185,7 @@ export default function AuditPage() {
                         <summary className="text-xs text-brand cursor-pointer hover:underline">
                           {t("audit.details")}
                         </summary>
-                        <pre className="mt-1 text-xs text-muted-foreground bg-gray-50 dark:bg-gray-900 rounded p-2 overflow-x-auto">
+                        <pre className="mt-1 text-xs text-muted-foreground bg-muted rounded p-2 overflow-x-auto">
                           {JSON.stringify(event.new_values, null, 2)}
                         </pre>
                       </details>

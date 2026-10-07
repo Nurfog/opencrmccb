@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import dynamic from "next/dynamic"
-import { DollarSign, Users, Building2, TrendingUp, TrendingDown, Briefcase, BarChart3, Activity, Target, Plus, ArrowRight, Phone, Mail, Calendar, FileText } from "lucide-react"
+import { DollarSign, Users, Building2, TrendingUp, TrendingDown, Briefcase, BarChart3, Activity, Target, Plus, Phone, Mail, Calendar, FileText } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useAuthStore } from "@/stores/auth-store"
@@ -11,10 +11,9 @@ import { dashboardApi, dealsApi, type DashboardStats, type PipelineStage, type T
 
 const PipelineBarChart = dynamic(() => import("@/components/charts/pipeline-bar-chart").then((m) => m.PipelineBarChart), { ssr: false })
 import { DealForm } from "@/components/forms/deal-form"
-import { Modal } from "@/components/ui/modal"
 import { DashboardSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import { formatCurrency, formatNumber, formatDate, getInitials } from "@/lib/utils"
+import { formatCurrency, formatNumber, formatDate } from "@/lib/utils"
 
 const activityIcons: Record<string, typeof Activity> = {
   call: Phone,
@@ -139,24 +138,24 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {statCards.map((card) => (
-            <div key={card.label} className="slds-card p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{card.label}</span>
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${card.color}`}>
-                  <card.icon className="h-5 w-5" />
+            <div key={card.label} className="slds-card p-5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[13px] font-medium text-muted-foreground leading-snug">{card.label}</span>
+                <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0 ${card.color}`}>
+                  <card.icon className="h-[18px] w-[18px]" strokeWidth={2} />
                 </div>
               </div>
-              <p className="text-2xl font-semibold">{card.value}</p>
+              <p className="text-[26px] font-semibold tracking-tight mt-2 leading-none">{card.value}</p>
             </div>
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-2.5">
           {miniStats.map((stat) => (
-            <div key={stat.label} className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2">
+            <div key={stat.label} className="flex items-center gap-2 bg-card border border-border rounded-[10px] shadow-card px-3.5 py-2">
               <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              <span className="text-sm text-muted-foreground">{stat.label}</span>
-              <span className="text-sm font-semibold">{stat.value}</span>
+              <span className="text-[13px] text-muted-foreground">{stat.label}</span>
+              <span className="text-[13px] font-semibold tracking-tight">{stat.value}</span>
             </div>
           ))}
         </div>
@@ -187,9 +186,9 @@ export default function DashboardPage() {
               ) : (
                 recentActivities.slice(0, 5).map((activity, idx) => {
                   const Icon = activityIcons[activity.activity_type] ?? Activity
-                  const colorClass = activityColors[activity.activity_type] ?? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                  const colorClass = activityColors[activity.activity_type] ?? "bg-muted text-muted-foreground"
                   return (
-                    <div key={activity.id ?? idx} className="flex gap-3 py-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                    <div key={activity.id ?? idx} className="flex gap-3 py-3 border-b border-border last:border-b-0">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${colorClass}`}>
                         <Icon className="h-4 w-4" />
                       </div>
@@ -208,7 +207,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="slds-card">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
             <h3 className="text-base font-semibold">{t("dashboard.topDeals")}</h3>
           </div>
           {topDeals.length === 0 ? (
@@ -234,7 +233,7 @@ export default function DashboardPage() {
                   {topDeals.map((deal) => (
                     <tr key={deal.id}>
                       <td className="font-medium">{deal.title}</td>
-                      <td>{formatCurrency(deal.value)}</td>
+                      <td>{formatCurrency(deal.value ?? 0)}</td>
                       <td>
                         <span className="slds-badge">{deal.stage}</span>
                       </td>

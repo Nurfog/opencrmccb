@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 # Web framework
 axum = { version = "0.8", features = ["multipart"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace"] }
+tower = { version = "0.5", features = ["timeout", "limit"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout", "limit", "set-header"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

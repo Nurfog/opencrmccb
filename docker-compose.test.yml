@@ -8,7 +8,7 @@ services:
     ports:
       - "5433:5432"
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql/data:size=256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_db_test"]
       interval: 5s
@@ -33,6 +33,9 @@ services:
       REDIS_URL: redis://:test_redis_password_123@redis-test:6379
       JWT_SECRET: test-jwt-secret-key-must-be-32-chars-minimum-123456
       REFRESH_TOKEN_SECRET: test-refresh-secret-key-must-differ-32-chars-min-789
+      TOKEN_ENCRYPTION_KEY: test-key-32-chars-minimum-123456
+      WHATSAPP_APP_SECRET: test
+      TRUSTED_PROXY_HOPS: 0
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
     depends_on:

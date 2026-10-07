@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Menu,
-  Search,
   Plus,
   Settings,
   HelpCircle,
@@ -16,7 +15,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/contexts/i18n-context";
 import { useAuthStore } from "@/stores/auth-store";
-import { cn, getInitials } from "@/lib/utils";
+import { getInitials } from "@/lib/utils";
 import { LanguageSwitcher } from "./language-switcher";
 import { ThemeToggle } from "../ui/theme-toggle";
 import { GlobalSearch } from "../ui/global-search";
@@ -74,21 +73,21 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   return (
     <header className="slds-global-header" role="banner">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={onMenuClick}
-          className="flex items-center justify-center rounded p-1.5 text-white/80 hover:text-white transition-colors lg:hidden"
+          className="flex items-center justify-center rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors lg:hidden"
           aria-label="Toggle menu"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link href="/dashboard" className="hidden sm:block text-lg font-bold text-white">
+        <Link href="/dashboard" className="hidden md:block text-[14.5px] font-semibold tracking-tight text-foreground lg:hidden">
           OpenCRM
         </Link>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 max-w-md mx-auto">
+      <div className="flex-1 flex items-center justify-center px-4 max-w-lg mx-auto">
         <GlobalSearch className="w-full" />
       </div>
 
@@ -102,13 +101,13 @@ export function Header({ onMenuClick }: HeaderProps) {
           <button
             type="button"
             onClick={() => setShowNewMenu(!showNewMenu)}
-            className="flex items-center gap-1 rounded bg-white/15 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25 transition-colors"
+            className="flex items-center gap-1.5 rounded-[10px] bg-primary px-3 h-9 text-[13px] font-medium text-primary-foreground shadow-sm hover:brightness-95 transition-all ml-1"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" strokeWidth={2.25} />
             <span className="hidden sm:inline">{t("common.new")}</span>
           </button>
           {showNewMenu && (
-            <div className="absolute right-0 top-full mt-1 w-44 rounded-md border bg-white py-1 shadow-lg dark:bg-gray-900 dark:border-gray-700 z-50">
+            <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-border bg-popover py-1.5 shadow-pop z-50 animate-fade-in">
               {newItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -116,9 +115,9 @@ export function Header({ onMenuClick }: HeaderProps) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setShowNewMenu(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+                    className="flex items-center gap-2.5 px-3 py-2 text-[13.5px] text-popover-foreground hover:bg-muted transition-colors mx-1 rounded-lg"
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4 text-muted-foreground" />
                     {item.label}
                   </Link>
                 );
@@ -129,46 +128,47 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <Link
           href="/settings"
-          className="flex items-center justify-center rounded p-1.5 text-white/80 hover:text-white transition-colors"
+          className="hidden sm:flex items-center justify-center rounded-lg h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Settings"
         >
-          <Settings className="h-4 w-4" />
+          <Settings className="h-[18px] w-[18px]" />
         </Link>
 
         <Link
           href="/help"
-          className="hidden sm:flex items-center justify-center rounded p-1.5 text-white/80 hover:text-white transition-colors"
+          className="hidden sm:flex items-center justify-center rounded-lg h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Help"
         >
-          <HelpCircle className="h-4 w-4" />
+          <HelpCircle className="h-[18px] w-[18px]" />
         </Link>
 
         <div className="relative" ref={menuRef}>
           <button
             type="button"
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center justify-center rounded-full bg-white/20 px-2 py-1 text-xs font-bold text-white hover:bg-white/30 transition-colors ml-1"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary ring-1 ring-border hover:bg-primary/15 transition-colors ml-1"
             aria-label="User menu"
           >
             {user ? getInitials(`${user.first_name} ${user.last_name}`) : "U"}
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-md border bg-white py-1 shadow-lg dark:bg-gray-900 dark:border-gray-700 z-50">
-              <div className="border-b px-3 py-2 dark:border-gray-700">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            <div className="absolute right-0 top-full mt-2 w-52 rounded-xl border border-border bg-popover py-1.5 shadow-pop z-50 animate-fade-in">
+              <div className="border-b border-border px-3.5 py-2.5 mb-1">
+                <p className="text-[13.5px] font-medium text-popover-foreground truncate leading-tight">
                   {user ? `${user.first_name} ${user.last_name}` : "User"}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {user?.email ?? ""}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+                className="flex w-full items-center gap-2.5 px-3 py-2 mx-1 text-[13.5px] text-popover-foreground hover:bg-muted transition-colors rounded-lg"
+                style={{ width: "calc(100% - 8px)" }}
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-4 w-4 text-muted-foreground" />
                 {t("auth.logout") ?? "Log out"}
               </button>
             </div>

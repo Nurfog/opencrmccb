@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
   // ─── Integrations ───
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([])
-  const [integrationsLoading, setIntegrationsLoading] = useState(false)
+  const [, setIntegrationsLoading] = useState(false)
 
   const fetchIntegrations = useCallback(async () => {
     setIntegrationsLoading(true)
@@ -242,9 +242,9 @@ export default function SettingsPage() {
                 const isWhatsApp = key === "whatsapp"
                 const waConfigured = waConfig !== null
                 return (
-                  <div key={key} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div key={key} className="flex items-center justify-between p-4 rounded-xl border border-border bg-card">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-[10px] bg-muted flex items-center justify-center flex-shrink-0">
                         <Plug className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div>
@@ -315,12 +315,12 @@ export default function SettingsPage() {
                   <input className="slds-input" value={waPhoneNumber} onChange={(e) => setWaPhoneNumber(e.target.value)} placeholder="+56912345678" />
                   <p className="text-xs text-muted-foreground mt-1">{t("settings.whatsappNumberFormat")}</p>
                 </div>
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div className="border-t border-border pt-4">
                   <h4 className="text-sm font-medium mb-2">{t("settings.webhook")}</h4>
                   <p className="text-xs text-muted-foreground mb-2">
                     {t("settings.webhookDesc")}
                   </p>
-                  <code className="block p-2 rounded bg-gray-100 dark:bg-gray-800 text-xs break-all font-mono">
+                  <code className="block p-2.5 rounded-[10px] bg-muted text-xs break-all font-mono">
                     {`${typeof window !== "undefined" ? window.location.origin : ""}/api/v1/integrations/whatsapp/webhook`}
                   </code>
                   {waConfig?.webhook_verify_token && (
@@ -329,11 +329,11 @@ export default function SettingsPage() {
                     </p>
                   )}
                 </div>
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="slds-modal__footer">
                   <button type="button" onClick={() => setWhatsappModalOpen(false)} className="slds-btn slds-btn--neutral">
                     {t("common.cancel")}
                   </button>
-                  <button type="submit" disabled={waConfigSaving} className="slds-btn slds-btn--brand">
+                  <button type="submit" disabled={waConfigSaving} className="slds-btn slds-btn--brand disabled:opacity-50">
                     {waConfigSaving ? t("common.saving") : t("common.save")}
                   </button>
                 </div>
@@ -341,7 +341,7 @@ export default function SettingsPage() {
             </Modal>
 
             {/* Lead assignment section */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div className="border-t border-border pt-6 mt-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-semibold">{t("settings.leadAssignment")}</h3>
@@ -362,7 +362,7 @@ export default function SettingsPage() {
             </div>
 
             {/* AI config section */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div className="border-t border-border pt-6 mt-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-semibold">{t("settings.aiConfig")}</h3>
@@ -407,9 +407,9 @@ export default function SettingsPage() {
                   <input className="slds-input font-mono" type="password" value={aiKey} onChange={(e) => setAiKey(e.target.value)}
                     placeholder={aiProvider === "ollama" ? "Dejar vacío para Ollama local" : "sk-..."} />
                 </div>
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="slds-modal__footer">
                   <button type="button" onClick={() => setAiConfigModal(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
-                  <button type="submit" disabled={aiSaving} className="slds-btn slds-btn--brand">
+                  <button type="submit" disabled={aiSaving} className="slds-btn slds-btn--brand disabled:opacity-50">
                     {aiSaving ? t("common.saving") : t("common.save")}
                   </button>
                 </div>
@@ -433,13 +433,13 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={leadNotify} onChange={(e) => setLeadNotify(e.target.checked)} className="rounded" />
-                    <span className="text-sm">{t("settings.notifyOnAssign")}</span>
+                    <input type="checkbox" checked={leadNotify} onChange={(e) => setLeadNotify(e.target.checked)} className="rounded border-input accent-primary h-4 w-4" />
+                    <span className="text-[13.5px]">{t("settings.notifyOnAssign")}</span>
                   </label>
                 </div>
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="slds-modal__footer">
                   <button type="button" onClick={() => setLeadConfigOpen(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
-                  <button type="submit" disabled={leadSaving} className="slds-btn slds-btn--brand">
+                  <button type="submit" disabled={leadSaving} className="slds-btn slds-btn--brand disabled:opacity-50">
                     {leadSaving ? t("common.saving") : t("common.save")}
                   </button>
                 </div>
@@ -464,7 +464,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap gap-1 border-b border-border">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
@@ -473,10 +473,10 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                  "flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] font-medium border-b-2 -mb-px transition-colors",
                   activeTab === tab.id
-                    ? "border-brand text-brand"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300 dark:hover:border-gray-600"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
                 )}
               >
                 <Icon className="h-4 w-4" />

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, Search, ChevronUp, ChevronDown, Edit, Trash2, ArrowRightLeft, Filter, X, Target, BarChart3 } from "lucide-react"
+import { Plus, Search, ChevronUp, ChevronDown, Edit, Trash2, ArrowRightLeft, Filter, X, Target } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -19,12 +19,12 @@ type SortField = "first_name" | "company_name" | "score" | "lead_source" | "crea
 type SortDir = "asc" | "desc"
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-  contacted: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-  qualified: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-  unqualified: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
-  converted: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-  recycled: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+  new: "slds-tag slds-tag--info",
+  contacted: "slds-tag slds-tag--warning",
+  qualified: "slds-tag slds-tag--success",
+  unqualified: "slds-tag slds-tag--muted",
+  converted: "slds-tag slds-tag--violet",
+  recycled: "slds-tag slds-tag--warning",
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -175,41 +175,41 @@ export default function LeadsPage() {
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="text-sm text-gray-500 dark:text-gray-400">{t("leads.stats.total")}</div>
+            <div className="slds-card p-4">
+              <div className="text-sm text-muted-foreground">{t("leads.stats.total")}</div>
               <div className="text-2xl font-bold">{stats.total}</div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="text-sm text-gray-500 dark:text-gray-400">{t("leads.stats.new")}</div>
+            <div className="slds-card p-4">
+              <div className="text-sm text-muted-foreground">{t("leads.stats.new")}</div>
               <div className="text-2xl font-bold text-blue-600">{stats.new}</div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="text-sm text-gray-500 dark:text-gray-400">{t("leads.stats.contacted")}</div>
+            <div className="slds-card p-4">
+              <div className="text-sm text-muted-foreground">{t("leads.stats.contacted")}</div>
               <div className="text-2xl font-bold text-yellow-600">{stats.contacted}</div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="text-sm text-gray-500 dark:text-gray-400">{t("leads.stats.qualified")}</div>
+            <div className="slds-card p-4">
+              <div className="text-sm text-muted-foreground">{t("leads.stats.qualified")}</div>
               <div className="text-2xl font-bold text-green-600">{stats.qualified}</div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="text-sm text-gray-500 dark:text-gray-400">{t("leads.stats.conversion")}</div>
-              <div className="text-2xl font-bold text-purple-600">{stats.conversion_rate.toFixed(1)}%</div>
+            <div className="slds-card p-4">
+              <div className="text-sm text-muted-foreground">{t("leads.stats.conversion")}</div>
+              <div className="text-2xl font-bold text-primary">{stats.conversion_rate.toFixed(1)}%</div>
             </div>
           </div>
         )}
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="slds-header">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("leads.title")}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <h1 className="slds-header__title">{t("leads.title")}</h1>
+            <p className="slds-header__description">
               {t("leads.description")}
             </p>
           </div>
           <button
             type="button"
             onClick={() => { setEditingLead(null); setFormOpen(true) }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="slds-btn slds-btn--brand flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             {t("leads.newLead")}
@@ -220,19 +220,19 @@ export default function LeadsPage() {
         <div className="flex flex-col sm:flex-row gap-4">
           <form onSubmit={handleSearch} className="flex-1 flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={t("leads.searchLeads")}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="slds-input pl-10"
               />
               {search && (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -242,10 +242,8 @@ export default function LeadsPage() {
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
               className={cn(
-                "flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors",
-                filterOpen || statusFilter || sourceFilter
-                  ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600"
-                  : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                "slds-btn slds-btn--neutral",
+                (filterOpen || statusFilter || sourceFilter) && "border-primary bg-primary/5 text-primary"
               )}
             >
               <Filter className="w-4 h-4" />
@@ -256,13 +254,13 @@ export default function LeadsPage() {
 
         {/* Filter Panel */}
         {filterOpen && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex gap-4 flex-wrap">
+          <div className="slds-card p-4 flex gap-4 flex-wrap">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("leads.status")}</label>
+              <label className="slds-label">{t("leads.status")}</label>
               <select
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="slds-input w-auto"
               >
                 <option value="">{t("common.all")}</option>
                 <option value="new">{t("leads.statuses.new")}</option>
@@ -274,11 +272,11 @@ export default function LeadsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("leads.source")}</label>
+              <label className="slds-label">{t("leads.source")}</label>
               <select
                 value={sourceFilter}
                 onChange={(e) => { setSourceFilter(e.target.value); setPage(1) }}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="slds-input w-auto"
               >
                 <option value="">{t("common.all")}</option>
                 {Object.entries(SOURCE_LABELS).map(([key]) => (
@@ -290,7 +288,7 @@ export default function LeadsPage() {
               <button
                 type="button"
                 onClick={() => { setStatusFilter(""); setSourceFilter(""); setPage(1) }}
-                className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 self-end"
+                className="flex items-center gap-1 text-sm text-primary hover:opacity-80 self-end"
               >
                 <X className="w-4 h-4" />
                 {t("common.clearFilters")}
@@ -300,7 +298,7 @@ export default function LeadsPage() {
         )}
 
         {/* Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="slds-card overflow-hidden">
           {loading ? (
             <TableSkeleton rows={10} />
           ) : errorState ? (
@@ -318,81 +316,81 @@ export default function LeadsPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="slds-table">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
                       <th
                         onClick={() => handleSort("first_name")}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                        className="cursor-pointer hover:text-foreground"
                       >
                         {t("leads.name")} <SortIcon field="first_name" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th>
                         {t("leads.company")}
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th>
                         {t("leads.status")}
                       </th>
                       <th
                         onClick={() => handleSort("score")}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                        className="cursor-pointer hover:text-foreground"
                       >
                         {t("leads.score")} <SortIcon field="score" />
                       </th>
                       <th
                         onClick={() => handleSort("lead_source")}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                        className="cursor-pointer hover:text-foreground"
                       >
                         {t("leads.source")} <SortIcon field="lead_source" />
                       </th>
                       <th
                         onClick={() => handleSort("created_at")}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                        className="cursor-pointer hover:text-foreground"
                       >
                         {t("leads.created")} <SortIcon field="created_at" />
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="text-right">
                         {t("common.actions")}
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody>
                     {data.data.map((lead) => (
-                      <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                        <td className="px-4 py-3">
-                          <Link href={`/leads/${lead.id}`} className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                      <tr key={lead.id}>
+                        <td>
+                          <Link href={`/leads/${lead.id}`} className="text-sm font-medium text-primary hover:underline">
                             {lead.first_name} {lead.last_name}
                           </Link>
                           {lead.email && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{lead.email}</div>
+                            <div className="text-xs text-muted-foreground">{lead.email}</div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="text-sm text-foreground">
                           {lead.company_name || "—"}
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={cn("inline-flex px-2 py-1 text-xs font-semibold rounded-full", STATUS_COLORS[lead.status] || STATUS_COLORS.new)}>
+                        <td>
+                          <span className={cn(STATUS_COLORS[lead.status] || STATUS_COLORS.new)}>
                             {lead.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td>
                           <span className={cn("text-sm font-medium", getScoreColor(lead.score))}>
                             {lead.score}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="text-sm text-foreground">
                           {t(`leads.sources.${lead.lead_source}`) || lead.lead_source}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        <td className="text-sm text-muted-foreground">
                           {formatDate(lead.created_at)}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             {lead.status !== "converted" && (
                               <button
                                 type="button"
                                 onClick={() => { setConvertTarget(lead); setConvertOpen(true) }}
-                                className="p-1.5 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                                className="slds-btn slds-btn--icon text-primary"
                                 title={t("leads.convert")}
                               >
                                 <ArrowRightLeft className="w-4 h-4" />
@@ -401,14 +399,14 @@ export default function LeadsPage() {
                             <button
                               type="button"
                               onClick={() => { setEditingLead(lead); setFormOpen(true) }}
-                              className="p-1.5 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              className="slds-btn slds-btn--icon"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               type="button"
                               onClick={() => { setDeleteTarget(lead); setDeleteOpen(true) }}
-                              className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              className="slds-btn slds-btn--icon text-red-600"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -419,7 +417,7 @@ export default function LeadsPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="px-4 py-3 border-t border-border">
                 <Pagination
                   page={data.page}
                   totalPages={data.total_pages}

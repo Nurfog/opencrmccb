@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS pipeline_stages (
 );
 
 -- Link deals to pipelines
-ALTER TABLE deals ADD COLUMN pipeline_id UUID REFERENCES pipelines(id);
-ALTER TABLE deals ADD COLUMN pipeline_stage_id UUID REFERENCES pipeline_stages(id);
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS pipeline_id UUID REFERENCES pipelines(id);
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS pipeline_stage_id UUID REFERENCES pipeline_stages(id);
 
 -- ─── Perfiles y permisos ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS profiles (
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS profile_permissions (
     UNIQUE(profile_id, permission)
 );
 
-ALTER TABLE users ADD COLUMN profile_id UUID REFERENCES profiles(id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id);
 
 -- ─── Branding ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS branding (
@@ -106,7 +106,7 @@ INSERT INTO profiles (name, description, is_system) VALUES
   ('Ejecutivo de cuentas', 'Visión general sin edición', true)
 ON CONFLICT DO NOTHING;
 
--- Branding por defecto
+-- Branding por defecto (sin UNIQUE: evitar duplicados en re-runs)
 INSERT INTO branding (company_name, primary_color, secondary_color, accent_color)
-VALUES ('OpenCRM', '#2563eb', '#1e40af', '#10b981')
-ON CONFLICT DO NOTHING;
+SELECT 'OpenCRM', '#2563eb', '#1e40af', '#10b981'
+WHERE NOT EXISTS (SELECT 1 FROM branding LIMIT 1);

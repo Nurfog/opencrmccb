@@ -1,8 +1,19 @@
 global:
   scrape_interval: 15s
+  scrape_timeout: 10s
+  # Retention se configura por flag en CLI/compose (p. ej. --storage.tsdb.retention.time=15d),
+  # no en este fichero. Ajustar según disco disponible en prod.
 
 scrape_configs:
   - job_name: 'backend'
     static_configs:
       - targets: ['localhost:8000']
     metrics_path: '/metrics'
+
+  # TODO: exporters postgres/redis (descomentados cuando se añadan al compose):
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['localhost:9187']
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['localhost:9121']

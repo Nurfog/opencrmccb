@@ -5,26 +5,44 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: string | Date): string {
-  return new Date(date).toLocaleDateString();
+function resolveLocale(locale?: string): string {
+  if (locale) return locale;
+  if (typeof navigator !== "undefined" && navigator.language) {
+    return navigator.language;
+  }
+  return "en-US";
 }
 
-export function formatDateTime(date: string | Date): string {
-  return new Date(date).toLocaleString();
+export function formatDate(date: string | Date, locale?: string): string {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(resolveLocale(locale));
 }
 
-export function formatCurrency(value: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-    value
-  );
+export function formatDateTime(date: string | Date, locale?: string): string {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(resolveLocale(locale));
 }
 
-export function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
+export function formatCurrency(
+  value: number | null | undefined,
+  currency = "USD",
+  locale?: string
+): string {
+  const safeValue = value ?? 0;
+  return new Intl.NumberFormat(resolveLocale(locale), {
+    style: "currency",
+    currency,
+  }).format(safeValue);
 }
 
-export function formatPercentage(value: number): string {
-  return new Intl.NumberFormat("en-US", {
+export function formatNumber(value: number, locale?: string): string {
+  return new Intl.NumberFormat(resolveLocale(locale)).format(value);
+}
+
+export function formatPercentage(value: number, locale?: string): string {
+  return new Intl.NumberFormat(resolveLocale(locale), {
     style: "percent",
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -51,10 +69,11 @@ export function truncate(str: string, length: number): string {
   return str.slice(0, length) + "...";
 }
 
-export function getInitials(name: string): string {
+export function getInitials(name: string | null | undefined): string {
+  if (!name) return "";
   return name
     .split(" ")
-    .map((n) => n[0])
+    .map((n) => n?.[0] ?? "")
     .join("")
     .toUpperCase()
     .slice(0, 2);

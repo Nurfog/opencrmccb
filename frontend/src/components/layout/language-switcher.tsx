@@ -9,7 +9,7 @@ export function LanguageSwitcher() {
     <button
       type="button"
       onClick={() => setLocale(locale === "es" ? "en" : "es")}
-      className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-white/80 hover:text-white transition-colors"
+      className="flex h-8 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
       aria-label={`Switch language to ${locale === "es" ? "English" : "Español"}`}
     >
       {locale === "es" ? "EN" : "ES"}

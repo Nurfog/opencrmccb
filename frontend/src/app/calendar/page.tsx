@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, ChevronLeft, ChevronRight, Clock, MapPin, Trash2, Edit, RefreshCw, Link2, Calendar as CalendarIcon } from "lucide-react"
+import { Plus, ChevronLeft, ChevronRight, Trash2, RefreshCw, Link2 } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
 import { calendarApi, type CalendarEvent } from "@/lib/api"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { cn, formatDate } from "@/lib/utils"
+import { Modal } from "@/components/ui/modal"
+import { cn } from "@/lib/utils"
 
 type ViewMode = "month" | "week"
 
@@ -83,6 +84,23 @@ export default function CalendarPage() {
     setCurrentDate(d)
   }
 
+  // Helpers: <input type="date/time"> values are LOCAL wall-clock time.
+  // Never append "Z" to them (that reinterprets local time as UTC and shifts
+  // events by the UTC offset). Build a local Date and serialize with toISOString.
+  const toLocalInputParts = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return {
+      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    }
+  }
+
+  const combineLocalToISO = (date: string, time: string) => {
+    const [y, m, day] = date.split("-").map(Number)
+    const [h, mi] = time.split(":").map(Number)
+    return new Date(y, m - 1, day, h, mi, 0).toISOString()
+  }
+
   const navigateToday = () => setCurrentDate(new Date())
 
   const getDaysInMonth = (date: Date) => {
@@ -124,10 +142,12 @@ export default function CalendarPage() {
     setFormDescription("")
     setFormLocation("")
     const now = new Date()
-    setFormStartDate(now.toISOString().split("T")[0])
-    setFormStartTime("09:00")
-    setFormEndDate(now.toISOString().split("T")[0])
-    setFormEndTime("10:00")
+    const startParts = toLocalInputParts(now)
+    const endParts = toLocalInputParts(new Date(now.getTime() + 60 * 60 * 1000))
+    setFormStartDate(startParts.date)
+    setFormStartTime(startParts.time)
+    setFormEndDate(endParts.date)
+    setFormEndTime(endParts.time)
     setFormAllDay(false)
     setSelectedEvent(null)
     setFormOpen(true)
@@ -140,10 +160,12 @@ export default function CalendarPage() {
     setFormLocation(event.location || "")
     const start = new Date(event.start_time)
     const end = new Date(event.end_time)
-    setFormStartDate(start.toISOString().split("T")[0])
-    setFormStartTime(start.toTimeString().slice(0, 5))
-    setFormEndDate(end.toISOString().split("T")[0])
-    setFormEndTime(end.toTimeString().slice(0, 5))
+    const startParts = toLocalInputParts(start)
+    const endParts = toLocalInputParts(end)
+    setFormStartDate(startParts.date)
+    setFormStartTime(startParts.time)
+    setFormEndDate(endParts.date)
+    setFormEndTime(endParts.time)
     setFormAllDay(event.all_day)
     setFormOpen(true)
   }
@@ -152,11 +174,16 @@ export default function CalendarPage() {
     e.preventDefault()
     try {
       const startTime = formAllDay
-        ? `${formStartDate}T00:00:00Z`
-        : `${formStartDate}T${formStartTime}:00Z`
+        ? combineLocalToISO(formStartDate, "00:00")
+        : combineLocalToISO(formStartDate, formStartTime)
       const endTime = formAllDay
-        ? `${formEndDate}T23:59:59Z`
-        : `${formEndDate}T${formEndTime}:00Z`
+        ? combineLocalToISO(formEndDate, "23:59")
+        : combineLocalToISO(formEndDate, formEndTime)
+
+      if (new Date(endTime) <= new Date(startTime)) {
+        error(t("calendar.endBeforeStart"))
+        return
+      }
 
       const data = {
         title: formTitle,
@@ -216,9 +243,9 @@ export default function CalendarPage() {
   const renderMonthView = () => {
     const days = getDaysInMonth(currentDate)
     return (
-      <div className="grid grid-cols-7 gap-px bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden">
+      <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
         {DAY_NAMES_KEYS.map((key) => (
-          <div key={key} className="bg-gray-50 dark:bg-gray-900/50 px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+          <div key={key} className="bg-muted/60 text-muted-foreground px-2 py-2 text-center text-xs font-medium">
             {t(`calendar.dayNames.${key}`)}
           </div>
         ))}
@@ -226,28 +253,28 @@ export default function CalendarPage() {
           <div
             key={i}
             className={cn(
-              "bg-white dark:bg-gray-800 min-h-[100px] p-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50",
-              !date && "bg-gray-50 dark:bg-gray-900/30",
-              date && isToday(date) && "ring-2 ring-indigo-500 ring-inset"
+              "bg-card min-h-[100px] p-1.5 cursor-pointer hover:bg-muted/50",
+              !date && "bg-muted/40",
+              date && isToday(date) && "ring-2 ring-primary ring-inset"
             )}
             onClick={() => date && handleCreateEvent()}
           >
             {date && (
               <>
-                <div className={cn("text-sm font-medium mb-1", isToday(date) ? "text-indigo-600" : "text-gray-900 dark:text-white")}>
+                <div className={cn("text-sm font-medium mb-1", isToday(date) ? "text-primary" : "text-foreground")}>
                   {date.getDate()}
                 </div>
                 {getEventsForDate(date).slice(0, 3).map((event) => (
                   <div
                     key={event.id}
                     onClick={(e) => { e.stopPropagation(); handleEditEvent(event) }}
-                    className="text-xs px-1.5 py-0.5 mb-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 truncate cursor-pointer hover:bg-indigo-200 dark:hover:bg-indigo-800/50"
+                    className="text-xs px-1.5 py-0.5 mb-0.5 rounded bg-primary/10 text-primary truncate cursor-pointer hover:bg-primary/20"
                   >
                     {event.title}
                   </div>
                 ))}
                 {getEventsForDate(date).length > 3 && (
-                  <div className="text-xs text-gray-400">+{getEventsForDate(date).length - 3} more</div>
+                  <div className="text-xs text-muted-foreground">+{getEventsForDate(date).length - 3} more</div>
                 )}
               </>
             )}
@@ -263,19 +290,19 @@ export default function CalendarPage() {
 
     return (
       <div className="overflow-auto max-h-[600px]">
-        <div className="grid grid-cols-8 gap-px bg-gray-200 dark:bg-gray-700 min-w-[700px]">
-          <div className="bg-gray-50 dark:bg-gray-900/50" />
+        <div className="grid grid-cols-8 gap-px bg-border min-w-[700px]">
+          <div className="bg-muted/60" />
           {days.map((d, i) => (
-            <div key={i} className={cn("bg-gray-50 dark:bg-gray-900/50 px-2 py-2 text-center text-xs font-medium", isToday(d) ? "text-indigo-600" : "text-gray-500 dark:text-gray-400")}>
+            <div key={i} className={cn("bg-muted/60 px-2 py-2 text-center text-xs font-medium", isToday(d) ? "text-primary" : "text-muted-foreground")}>
               <div>{t(`calendar.dayNames.${DAY_NAMES_KEYS[d.getDay()]}`)}</div>
-              <div className={cn("text-lg", isToday(d) && "bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto")}>
+              <div className={cn("text-lg", isToday(d) && "bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto")}>
                 {d.getDate()}
               </div>
             </div>
           ))}
           {hours.map((hour) => (
             <div key={hour} className="contents">
-              <div className="bg-gray-50 dark:bg-gray-900/50 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 text-right">
+              <div className="bg-muted/60 px-2 py-1 text-xs text-muted-foreground text-right">
                 {hour.toString().padStart(2, "0")}:00
               </div>
               {days.map((d, di) => {
@@ -284,12 +311,12 @@ export default function CalendarPage() {
                   return start.toDateString() === d.toDateString() && start.getHours() === hour
                 })
                 return (
-                  <div key={di} className="bg-white dark:bg-gray-800 min-h-[40px] border-b border-gray-100 dark:border-gray-700/50 relative">
+                  <div key={di} className="bg-card min-h-[40px] border-b border-border/50 relative">
                     {hourEvents.map((event) => (
                       <div
                         key={event.id}
                         onClick={() => handleEditEvent(event)}
-                        className="absolute inset-x-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs px-1 py-0.5 rounded truncate cursor-pointer z-10"
+                        className="absolute inset-x-0.5 bg-primary/10 text-primary text-xs px-1 py-0.5 rounded truncate cursor-pointer z-10"
                       >
                         {event.title}
                       </div>
@@ -307,27 +334,27 @@ export default function CalendarPage() {
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="slds-header">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("calendar.title")}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <h1 className="slds-header__title">{t("calendar.title")}</h1>
+            <p className="slds-header__description">
               {t("calendar.description")}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {!connectionStatus.google && (
-              <button onClick={handleConnectGoogle} className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+              <button onClick={handleConnectGoogle} className="slds-btn slds-btn--neutral text-sm">
                 <Link2 className="w-4 h-4" />
                 {t("calendar.connectGoogle")}
               </button>
             )}
             {connectionStatus.google && (
-              <button onClick={handleSync} className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+              <button onClick={handleSync} className="slds-btn slds-btn--neutral text-sm">
                 <RefreshCw className="w-4 h-4" />
                 {t("calendar.syncGoogle")}
               </button>
             )}
-            <button onClick={handleCreateEvent} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            <button onClick={handleCreateEvent} className="slds-btn slds-btn--brand">
               <Plus className="w-4 h-4" />
               {t("calendar.newEvent")}
             </button>
@@ -337,29 +364,29 @@ export default function CalendarPage() {
         {/* Controls */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={navigatePrev} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <button onClick={navigatePrev} className="slds-btn slds-btn--icon">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <button onClick={navigateToday} className="px-3 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button onClick={navigateToday} className="slds-btn slds-btn--neutral text-sm">
               {t("calendar.today")}
             </button>
-            <button onClick={navigateNext} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <button onClick={navigateNext} className="slds-btn slds-btn--icon">
               <ChevronRight className="w-5 h-5" />
             </button>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white ml-2">
+            <h2 className="text-lg font-semibold text-foreground ml-2">
               {t(`calendar.monthNames.${MONTH_NAMES_KEYS[currentDate.getMonth()]}`)} {currentDate.getFullYear()}
             </h2>
           </div>
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+          <div className="flex gap-1 bg-muted rounded-lg p-1">
             <button
               onClick={() => setViewMode("month")}
-              className={cn("px-3 py-1.5 text-sm rounded-md transition-colors", viewMode === "month" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400")}
+              className={cn("px-3 py-1.5 text-sm rounded-md transition-colors", viewMode === "month" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground")}
             >
               {t("calendar.month")}
             </button>
             <button
               onClick={() => setViewMode("week")}
-              className={cn("px-3 py-1.5 text-sm rounded-md transition-colors", viewMode === "week" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400")}
+              className={cn("px-3 py-1.5 text-sm rounded-md transition-colors", viewMode === "week" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground")}
             >
               {t("calendar.week")}
             </button>
@@ -368,7 +395,7 @@ export default function CalendarPage() {
 
         {/* Calendar */}
         {loading ? (
-          <div className="text-center py-12 text-gray-500">{t("calendar.loading")}</div>
+          <div className="text-center py-12 text-muted-foreground">{t("calendar.loading")}</div>
         ) : viewMode === "month" ? (
           renderMonthView()
         ) : (
@@ -377,76 +404,69 @@ export default function CalendarPage() {
       </div>
 
       {/* Event Form Modal */}
-      {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setFormOpen(false)} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {selectedEvent ? t("calendar.editEvent") : t("calendar.newEvent")}
-              </h2>
-              <button onClick={() => setFormOpen(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">✕</button>
-            </div>
-            <form onSubmit={handleSaveEvent} className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("calendar.eventTitle")} *</label>
-                <input type="text" required value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-              </div>
-              <div>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={formAllDay} onChange={(e) => setFormAllDay(e.target.checked)} className="rounded" />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{t("calendar.allDay")}</span>
-                </label>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("calendar.startLabel")} *</label>
-                  <input type="date" required value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                  {!formAllDay && (
-                    <input type="time" required value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("calendar.endLabel")} *</label>
-                  <input type="date" required value={formEndDate} onChange={(e) => setFormEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                  {!formAllDay && (
-                    <input type="time" required value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("calendar.location")}</label>
-                <input type="text" value={formLocation} onChange={(e) => setFormLocation(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("calendar.eventDescription")}</label>
-                <textarea rows={3} value={formDescription} onChange={(e) => setFormDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none" />
-              </div>
-              <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                {selectedEvent && (
-                  <button type="button" onClick={() => { setDeleteOpen(true) }} className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
-                    <Trash2 className="w-4 h-4" />
-                    {t("common.delete")}
-                  </button>
-                )}
-                <div className="flex gap-2 ml-auto">
-                  <button type="button" onClick={() => setFormOpen(false)} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">{t("common.cancel")}</button>
-                  <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                    {selectedEvent ? t("common.update") : t("common.create")}
-                  </button>
-                </div>
-              </div>
-            </form>
+      <Modal
+        isOpen={formOpen}
+        onClose={() => setFormOpen(false)}
+        title={selectedEvent ? t("calendar.editEvent") : t("calendar.newEvent")}
+      >
+        <form onSubmit={handleSaveEvent} className="space-y-4">
+          <div>
+            <label className="slds-label">{t("calendar.eventTitle")} *</label>
+            <input type="text" required value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
+              className="slds-input" />
           </div>
-        </div>
-      )}
+          <div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={formAllDay} onChange={(e) => setFormAllDay(e.target.checked)} className="rounded" />
+              <span className="text-sm text-foreground">{t("calendar.allDay")}</span>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="slds-label">{t("calendar.startLabel")} *</label>
+              <input type="date" required value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)}
+                className="slds-input" />
+              {!formAllDay && (
+                <input type="time" required value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)}
+                  className="slds-input mt-1" />
+              )}
+            </div>
+            <div>
+              <label className="slds-label">{t("calendar.endLabel")} *</label>
+              <input type="date" required value={formEndDate} onChange={(e) => setFormEndDate(e.target.value)}
+                className="slds-input" />
+              {!formAllDay && (
+                <input type="time" required value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)}
+                  className="slds-input mt-1" />
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="slds-label">{t("calendar.location")}</label>
+            <input type="text" value={formLocation} onChange={(e) => setFormLocation(e.target.value)}
+              className="slds-input" />
+          </div>
+          <div>
+            <label className="slds-label">{t("calendar.eventDescription")}</label>
+            <textarea rows={3} value={formDescription} onChange={(e) => setFormDescription(e.target.value)}
+              className="slds-input resize-none" />
+          </div>
+          <div className="slds-modal__footer justify-between">
+            {selectedEvent && (
+              <button type="button" onClick={() => { setDeleteOpen(true) }} className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                <Trash2 className="w-4 h-4" />
+                {t("common.delete")}
+              </button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <button type="button" onClick={() => setFormOpen(false)} className="slds-btn slds-btn--neutral">{t("common.cancel")}</button>
+              <button type="submit" className="slds-btn slds-btn--brand">
+                {selectedEvent ? t("common.update") : t("common.create")}
+              </button>
+            </div>
+          </div>
+        </form>
+      </Modal>
 
       <ConfirmDialog
         isOpen={deleteOpen}

@@ -145,7 +145,7 @@ export function TemplatesPanel({
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate font-medium text-foreground">{template.name}</h3>
-                  <span className="inline-flex rounded bg-gray-100 px-2 py-0.5 text-xs text-muted-foreground dark:bg-gray-700">
+                  <span className="slds-tag slds-tag--muted">
                     {template.category}
                   </span>
                 </div>
@@ -162,7 +162,7 @@ export function TemplatesPanel({
                   <button
                     type="button"
                     onClick={() => onEditTemplate(template)}
-                    className="rounded p-1.5 text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="rounded p-1.5 text-muted-foreground hover:bg-muted"
                     title={t("common.edit")}
                   >
                     <FileText className="h-4 w-4" />

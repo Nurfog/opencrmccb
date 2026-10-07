@@ -53,6 +53,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      # Uploaded documents survive `down`/rebuilds (backend default
+      # UPLOAD_DIR=./uploads resolves to /app/uploads; see Dockerfile).
+      - uploads-data:/app/uploads
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-crm_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@localhost:5432/${POSTGRES_DB:-crm_db}
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@localhost:6379
@@ -123,7 +127,9 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      # 127.0.0.1 (not localhost): Next listens on IPv4 only and busybox
+      # wget resolves localhost to ::1 first -> connection refused.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -230,7 +236,10 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/ || exit 1"]
+      # Probe the backend health endpoint through the proxy: `/` is a 307
+      # (absolute redirect to :3000) which fails from inside the container
+      # when Next only listens on IPv4.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/api/v1/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -240,6 +249,7 @@ services:
 
 volumes:
   pgdata:
+  uploads-data:
   loki-data:
   grafana-data:
   prometheus-data:

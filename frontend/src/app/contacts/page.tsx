@@ -11,6 +11,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { CsvImportButton } from "@/components/ui/csv-import-button"
 import { AdvancedFilters, ActiveFilters, type FilterField } from "@/components/ui/advanced-filters"
 import Link from "next/link"
 import { getInitials, cn } from "@/lib/utils"
@@ -51,12 +52,19 @@ export default function ContactsPage() {
     setLoading(true)
     setErrorState(null)
     try {
+      const company = typeof filterValues.company === "string" ? filterValues.company : undefined
+      const position = typeof filterValues.position === "string" ? filterValues.position : undefined
+      const created = Array.isArray(filterValues.created_after) ? filterValues.created_after : undefined
       const res = await contactsApi.list({
         page,
         per_page: perPage,
         search: search || undefined,
         sort_by: sortField,
         sort_order: sortDir,
+        company: company || undefined,
+        position: position || undefined,
+        created_after: created?.[0] || undefined,
+        created_before: created?.[1] || undefined,
       })
       setData(res)
     } catch (err: unknown) {
@@ -65,7 +73,7 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, sortField, sortDir, t])
+  }, [page, search, sortField, sortDir, filterValues, t])
 
   useEffect(() => {
     fetchContacts()
@@ -90,6 +98,14 @@ export default function ContactsPage() {
       setSortField(field)
       setSortDir("asc")
     }
+    setPage(1)
+  }
+
+  const handleFiltersChange = (
+    values: Record<string, string | [string, string] | undefined>
+  ) => {
+    setFilterValues(values)
+    setPage(1)
   }
 
   const toggleSelectAll = () => {
@@ -224,6 +240,7 @@ export default function ContactsPage() {
                 </button>
               </>
             )}
+            <CsvImportButton onImport={(csv) => contactsApi.importCsv(csv)} onDone={fetchContacts} />
             <button type="button" onClick={openCreate} className="slds-btn slds-btn--brand flex items-center gap-2">
               <Plus className="h-4 w-4" />
               {t("contacts.newContact")}
@@ -268,8 +285,8 @@ export default function ContactsPage() {
             <AdvancedFilters
               fields={filterFields}
               values={filterValues}
-              onChange={setFilterValues}
-              onClear={() => { setFilterValues({}); setPage(1); fetchContacts() }}
+              onChange={handleFiltersChange}
+              onClear={() => { setFilterValues({}); setPage(1); }}
             />
           </div>
         )}
@@ -277,7 +294,7 @@ export default function ContactsPage() {
         <ActiveFilters
           values={filterValues}
           fields={filterFields}
-          onChange={(v) => { setFilterValues(v); setPage(1); }}
+          onChange={handleFiltersChange}
         />
 
         {loading ? (

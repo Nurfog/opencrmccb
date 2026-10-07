@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, Search, LayoutGrid, List, X, CircleDollarSign } from "lucide-react"
+import { Plus, Search, Download, LayoutGrid, List, X, CircleDollarSign } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
 import { dealsApi, auditApi, type Deal } from "@/lib/api"
 import { DealForm } from "@/components/forms/deal-form"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { CsvImportButton } from "@/components/ui/csv-import-button"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { cn } from "@/lib/utils"
@@ -83,6 +84,23 @@ export default function DealsPage() {
     setSearchInput("")
     setSearch("")
     setPage(1)
+  }
+
+  const handleCsvExport = async () => {
+    try {
+      const { blob, filename } = await dealsApi.exportCsv()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename ?? "deals.csv"
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t("toast.error", { action: "export", entity: t("deals.title") })
+      error(msg)
+    }
   }
 
   const stageCounts = STAGE_CONFIG.map((stage) => ({
@@ -222,6 +240,11 @@ export default function DealsPage() {
               <Plus className="h-4 w-4" />
               {t("deals.newDeal")}
             </button>
+            <button type="button" onClick={handleCsvExport} className="slds-btn slds-btn--neutral flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              CSV
+            </button>
+            <CsvImportButton onImport={(csv) => dealsApi.importCsv(csv)} onDone={fetchDeals} />
           </div>
         </div>
 

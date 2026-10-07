@@ -1,5 +1,8 @@
 server:
   http_listen_port: 9080
+  # Loki also uses 9095 for gRPC and all services share the host network:
+  # disable promtail's unused gRPC server so Loki can bind 9095.
+  grpc_listen_port: 0
 
 positions:
   filename: /tmp/positions.yaml

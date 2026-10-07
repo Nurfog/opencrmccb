@@ -88,7 +88,12 @@
     "enable": "Enable",
     "disable": "Disable",
     "optional": "Optional",
-    "date": "Date"
+    "date": "Date",
+    "import": "Import",
+    "imported": "{count} imported",
+    "importPartial": "{imported} imported, {failed} failed",
+    "fileTooLarge": "File too large (max 2MB)",
+    "invalidFile": "Select a valid CSV file"
   },
   "auth": {
     "login": "Log In",

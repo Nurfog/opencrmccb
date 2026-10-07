@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, Search, Edit, Trash2, X, Building2 } from "lucide-react"
+import { Plus, Search, Download, Edit, Trash2, X, Building2 } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -11,6 +11,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { CsvImportButton } from "@/components/ui/csv-import-button"
 import Link from "next/link"
 
 export default function CompaniesPage() {
@@ -58,6 +59,23 @@ export default function CompaniesPage() {
     setSearchInput("")
     setSearch("")
     setPage(1)
+  }
+
+  const handleCsvExport = async () => {
+    try {
+      const { blob, filename } = await companiesApi.exportCsv()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename ?? "companies.csv"
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t("toast.error", { action: "export", entity: t("companies.title") })
+      error(msg)
+    }
   }
 
   const openCreate = () => {
@@ -118,6 +136,11 @@ export default function CompaniesPage() {
             <p className="slds-header__description">{t("companies.description")}</p>
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" onClick={handleCsvExport} className="slds-btn slds-btn--neutral flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              CSV
+            </button>
+            <CsvImportButton onImport={(csv) => companiesApi.importCsv(csv)} onDone={fetchCompanies} />
             <button type="button" onClick={openCreate} className="slds-btn slds-btn--brand flex items-center gap-2">
               <Plus className="h-4 w-4" />
               {t("companies.newCompany")}

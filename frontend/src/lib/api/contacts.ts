@@ -9,6 +9,10 @@ export const contactsApi = {
       search?: string;
       sort_by?: string;
       sort_order?: string;
+      company?: string;
+      position?: string;
+      created_after?: string;
+      created_before?: string;
     },
     signal?: AbortSignal
   ) => request<PaginatedResponse<Contact>>("/api/v1/contacts", { params, signal }),
@@ -44,6 +48,8 @@ export const contactsApi = {
   importCsv: (body: string) =>
     request<{ imported: number; errors: string[] }>("/api/v1/contacts/import", {
       method: "POST",
+      // text/csv (not JSON): the backend reads the raw body as bytes.
+      headers: { "Content-Type": "text/csv;charset=utf-8" },
       body,
     }),
 

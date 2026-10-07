@@ -88,7 +88,12 @@
     "enable": "Activar",
     "disable": "Desactivar",
     "optional": "Opcional",
-    "date": "Fecha"
+    "date": "Fecha",
+    "import": "Importar",
+    "imported": "{count} importados",
+    "importPartial": "{imported} importados, {failed} con errores",
+    "fileTooLarge": "Archivo muy grande (máx 2MB)",
+    "invalidFile": "Selecciona un archivo CSV válido"
   },
   "auth": {
     "login": "Iniciar Sesión",

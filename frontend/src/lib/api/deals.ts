@@ -49,6 +49,8 @@ export const dealsApi = {
   importCsv: (body: string) =>
     request<{ imported: number; errors: string[] }>("/api/v1/deals/import", {
       method: "POST",
+      // text/csv (not JSON): the backend reads the raw body as bytes.
+      headers: { "Content-Type": "text/csv;charset=utf-8" },
       body,
     }),
 

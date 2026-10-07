@@ -62,3 +62,18 @@ pub struct UpdateContact {
     #[validate(length(max = 1000, message = "Notes must be at most 1000 characters"))]
     pub notes: Option<String>,
 }
+
+/// Optional list filters (used by the contacts advanced-filters UI).
+/// All fields are optional; dates are `YYYY-MM-DD` strings parsed in the repo.
+#[derive(Debug, Clone, Default, Deserialize, Validate)]
+pub struct ContactFilters {
+    #[validate(length(max = 200, message = "Company filter must be at most 200 characters"))]
+    pub company: Option<String>,
+
+    #[validate(length(max = 200, message = "Position filter must be at most 200 characters"))]
+    pub position: Option<String>,
+
+    pub created_after: Option<String>,
+
+    pub created_before: Option<String>,
+}

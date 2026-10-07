@@ -83,8 +83,10 @@ pub async fn enqueue_event(
         .to_string();
 
     // 1. Find active webhooks subscribed to this event
+    // (explicit ::webhook_event cast: binding TEXT against the ENUM
+    // otherwise fails with "operator does not exist: webhook_event = text").
     let webhooks: Vec<(uuid::Uuid,)> =
-        sqlx::query_as("SELECT id FROM webhooks WHERE active = true AND event = $1")
+        sqlx::query_as("SELECT id FROM webhooks WHERE active = true AND event = $1::webhook_event")
             .bind(&event_type_str)
             .fetch_all(pool)
             .await?;

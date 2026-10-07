@@ -1,10 +1,93 @@
 use sqlx::PgPool;
+use sqlx::Postgres;
+use sqlx::QueryBuilder;
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::{Contact, CreateContact, PaginationParams, UpdateContact};
+use crate::models::{Contact, ContactFilters, CreateContact, PaginationParams, UpdateContact};
 
 const BASE_SELECT: &str = "SELECT id, first_name, last_name, email, phone, company_id, position, notes, created_at, updated_at FROM contacts";
+
+/// Shared WHERE builder for the COUNT and SELECT list queries.
+/// `sort_col`/`sort_dir` come from an allowlist (see `sort_column`), so
+/// interpolating them as identifiers is safe; all values use binds.
+fn push_contact_conditions(
+    qb: &mut QueryBuilder<'_, Postgres>,
+    params: &PaginationParams,
+    filters: &ContactFilters,
+) -> Result<(), AppError> {
+    let mut first = true;
+    let mut and = |qb: &mut QueryBuilder<'_, Postgres>| {
+        if first {
+            qb.push(" WHERE ");
+            first = false;
+        } else {
+            qb.push(" AND ");
+        }
+    };
+
+    if let Some(search) = params.search.as_deref().filter(|s| !s.trim().is_empty()) {
+        and(qb);
+        let pattern = format!("%{}%", crate::models::escape_like(search));
+        qb.push("(first_name ILIKE ");
+        qb.push_bind(pattern.clone());
+        qb.push(" ESCAPE '\\' OR last_name ILIKE ");
+        qb.push_bind(pattern.clone());
+        qb.push(" ESCAPE '\\' OR email ILIKE ");
+        qb.push_bind(pattern);
+        qb.push(" ESCAPE '\\')");
+    }
+
+    if let Some(company) = filters.company.as_deref().filter(|s| !s.trim().is_empty()) {
+        and(qb);
+        let pattern = format!("%{}%", crate::models::escape_like(company));
+        qb.push("EXISTS (SELECT 1 FROM companies co WHERE co.id = contacts.company_id AND co.name ILIKE ");
+        qb.push_bind(pattern);
+        qb.push(" ESCAPE '\\')");
+    }
+
+    if let Some(position) = filters.position.as_deref().filter(|s| !s.trim().is_empty()) {
+        and(qb);
+        let pattern = format!("%{}%", crate::models::escape_like(position));
+        qb.push("position ILIKE ");
+        qb.push_bind(pattern);
+        qb.push(" ESCAPE '\\'");
+    }
+
+    if let Some(after) = filters
+        .created_after
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        let date = parse_filter_date(after)?;
+        and(qb);
+        // Explicit ::date cast so the bind type is unambiguous for sqlx;
+        // Postgres coerces the date to timestamptz midnight for comparison.
+        qb.push("contacts.created_at >= ");
+        qb.push_bind(date);
+        qb.push("::date");
+    }
+
+    if let Some(before) = filters
+        .created_before
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        let date = parse_filter_date(before)?;
+        and(qb);
+        // Inclusive whole day.
+        qb.push("contacts.created_at < (");
+        qb.push_bind(date);
+        qb.push("::date + INTERVAL '1 day')");
+    }
+
+    Ok(())
+}
+
+fn parse_filter_date(s: &str) -> Result<chrono::NaiveDate, AppError> {
+    chrono::NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d")
+        .map_err(|_| AppError::Validation("Invalid date filter (expected YYYY-MM-DD)".into()))
+}
 
 pub struct PgContactRepo {
     pool: PgPool,
@@ -18,54 +101,33 @@ impl PgContactRepo {
     pub async fn find_all(
         &self,
         params: &PaginationParams,
+        filters: &ContactFilters,
     ) -> Result<(Vec<Contact>, i64), AppError> {
         let per_page = params.per_page();
         let offset = params.offset();
-        let sort_col = params.sort_column();
-        let sort_dir = params.sort_direction();
+        let sort_col = params.sort_column().to_string();
+        let sort_dir = params.sort_direction().to_string();
 
-        let search_filter = params
-            .search
-            .as_ref()
-            .map(|s| format!("%{}%", crate::models::escape_like(s)));
+        let mut count_qb: QueryBuilder<Postgres> =
+            QueryBuilder::new("SELECT COUNT(*) FROM contacts");
+        push_contact_conditions(&mut count_qb, params, filters)?;
+        let count_fut = count_qb.build_query_as::<(i64,)>().fetch_one(&self.pool);
 
-        let count_query = if search_filter.is_some() {
-            "SELECT COUNT(*) FROM contacts WHERE first_name ILIKE $1 ESCAPE '\\' OR last_name ILIKE $1 ESCAPE '\\' OR email ILIKE $1 ESCAPE '\\'".to_string()
-        } else {
-            "SELECT COUNT(*) FROM contacts".to_string()
-        };
-
-        let data_query = if search_filter.is_some() {
-            format!(
-                "{BASE_SELECT} WHERE first_name ILIKE $1 ESCAPE '\\' OR last_name ILIKE $1 ESCAPE '\\' OR email ILIKE $1 ESCAPE '\\'
-                 ORDER BY {sort_col} {sort_dir} LIMIT $2 OFFSET $3"
-            )
-        } else {
-            format!("{BASE_SELECT} ORDER BY {sort_col} {sort_dir} LIMIT $1 OFFSET $2")
-        };
+        let mut data_qb: QueryBuilder<Postgres> = QueryBuilder::new(BASE_SELECT);
+        push_contact_conditions(&mut data_qb, params, filters)?;
+        data_qb.push(" ORDER BY ");
+        data_qb.push(sort_col);
+        data_qb.push(" ");
+        data_qb.push(sort_dir);
+        data_qb.push(" LIMIT ");
+        data_qb.push_bind(per_page);
+        data_qb.push(" OFFSET ");
+        data_qb.push_bind(offset);
+        let data_fut = data_qb.build_query_as::<Contact>().fetch_all(&self.pool);
 
         // Run COUNT + SELECT concurrently instead of sequentially.
-        if let Some(search) = search_filter {
-            let search_clone = search.clone();
-            let count_fut = sqlx::query_as::<_, (i64,)>(&count_query)
-                .bind(search_clone)
-                .fetch_one(&self.pool);
-            let data_fut = sqlx::query_as::<_, Contact>(&data_query)
-                .bind(search)
-                .bind(per_page)
-                .bind(offset)
-                .fetch_all(&self.pool);
-            let (total, contacts) = tokio::join!(count_fut, data_fut);
-            Ok((contacts?, total?.0))
-        } else {
-            let count_fut = sqlx::query_as::<_, (i64,)>(&count_query).fetch_one(&self.pool);
-            let data_fut = sqlx::query_as::<_, Contact>(&data_query)
-                .bind(per_page)
-                .bind(offset)
-                .fetch_all(&self.pool);
-            let (total, contacts) = tokio::join!(count_fut, data_fut);
-            Ok((contacts?, total?.0))
-        }
+        let (total, contacts) = tokio::join!(count_fut, data_fut);
+        Ok((contacts?, total?.0))
     }
 
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Contact>, AppError> {
@@ -145,6 +207,17 @@ impl PgContactRepo {
         }
 
         Ok(old)
+    }
+
+    pub async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Contact>, AppError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let contacts = sqlx::query_as::<_, Contact>(&format!("{BASE_SELECT} WHERE id = ANY($1)"))
+            .bind(ids)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(contacts)
     }
 
     pub async fn bulk_delete(&self, ids: &[Uuid]) -> Result<usize, AppError> {

@@ -6,6 +6,7 @@ use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::AppState;
 use crate::error::AppError;
@@ -25,11 +26,15 @@ pub struct WhatsAppConfig {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct WhatsAppConfigInput {
+    #[validate(length(min = 1, max = 100))]
     pub phone_number_id: String,
+    #[validate(length(min = 1, max = 100))]
     pub business_account_id: String,
+    #[validate(length(min = 1, max = 2000))]
     pub api_token: String,
+    #[validate(length(max = 50))]
     pub phone_number: Option<String>,
 }
 
@@ -42,9 +47,11 @@ pub struct WhatsAppConfigResponse {
     pub webhook_verify_token: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SendMessageInput {
+    #[validate(length(min = 1, max = 50))]
     pub to: String,
+    #[validate(length(min = 1, max = 4096))]
     pub content: String,
     pub contact_id: Option<Uuid>,
 }
@@ -180,6 +187,9 @@ pub async fn update_whatsapp_config(
     perms
         .require("admin.access")
         .map_err(|_| AppError::Forbidden)?;
+    input
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let singleton_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
     let key = state.auth.token_encryption_key.as_deref();
     let enc_token = encrypt(&input.api_token, key);
@@ -219,6 +229,9 @@ pub async fn send_whatsapp_message(
     perms
         .require("contacts.create")
         .map_err(|_| AppError::Forbidden)?;
+    input
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let agent_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
 
     let config = sqlx::query_as::<_, WhatsAppConfig>(

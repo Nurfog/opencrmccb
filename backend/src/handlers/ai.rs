@@ -3,6 +3,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::AppState;
 use crate::middleware::auth::{Claims, UserPermissions};
@@ -18,11 +19,19 @@ pub struct AIConfig {
     pub is_active: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct AIConfigInput {
+    #[validate(length(max = 100))]
     pub provider: Option<String>,
+    // URL shape only: private IPs/hostnames are intentionally allowed
+    // (default Ollama runs on http://localhost:11434). This endpoint
+    // requires ai.use (admin-only in seeds), so SSRF blast radius is
+    // limited to admins; call_llm additionally has a bounded timeout.
+    #[validate(length(max = 2000), url)]
     pub api_url: Option<String>,
+    #[validate(length(max = 2000))]
     pub api_key: Option<String>,
+    #[validate(length(max = 200))]
     pub model: Option<String>,
 }
 
@@ -87,6 +96,9 @@ pub async fn update_ai_config(
     Json(input): Json<AIConfigInput>,
 ) -> Result<Json<AIConfigResponse>, StatusCode> {
     perms.require("ai.use").map_err(|_| StatusCode::FORBIDDEN)?;
+    input
+        .validate()
+        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
     let key = state.auth.token_encryption_key.as_deref();
     let enc_key = input.api_key.as_ref().map(|k| encrypt(k, key));
     let existing =
@@ -321,7 +333,7 @@ async fn call_llm(
     token_encryption_key: Option<&[u8]>,
 ) -> Result<String, ()> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
+        .timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|_| ())?;
     let prompt = format!("{}\n\n---\n{}", system, conversation);

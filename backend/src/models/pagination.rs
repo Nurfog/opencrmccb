@@ -30,7 +30,8 @@ impl PaginationParams {
 
     pub fn sort_column(&self) -> &str {
         match self.sort_by.as_deref() {
-            Some("name") => "first_name",
+            Some("name") | Some("first_name") => "first_name",
+            Some("last_name") => "last_name",
             Some("email") => "email",
             Some("phone") => "phone",
             Some("position") => "position",

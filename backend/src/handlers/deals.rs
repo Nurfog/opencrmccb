@@ -294,17 +294,24 @@ pub async fn export_deals(
 pub async fn import_deals(
     State(state): State<AppState>,
     perms: UserPermissions,
-    body: String,
+    body: axum::body::Bytes,
 ) -> Result<Json<ImportResult>, AppError> {
     perms
         .require("deals.create")
         .map_err(|_| AppError::Forbidden)?;
+    let body = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError::BadRequest("Import body must be UTF-8 text".into()))?;
     if body.len() > 2 * 1024 * 1024 {
         return Err(AppError::BadRequest(
             "Import body too large (max 2MB)".into(),
         ));
     }
     let rows = parse_csv_rows(&body);
+    if rows.len() > 1000 {
+        return Err(AppError::BadRequest(
+            "Too many rows (max 1000 per import)".into(),
+        ));
+    }
 
     let mut imported = 0;
     let mut errors = Vec::new();

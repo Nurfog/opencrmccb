@@ -38,8 +38,11 @@ pub struct PipelineStage {
 pub struct PipelineInput {
     #[validate(length(min = 1, max = 200))]
     pub name: String,
+    #[validate(length(min = 1, max = 100), custom(function = "validate_slug"))]
     pub slug: String,
+    #[validate(length(max = 2000))]
     pub description: Option<String>,
+    #[validate(length(max = 50))]
     pub entity_type: Option<String>,
 }
 
@@ -47,9 +50,55 @@ pub struct PipelineInput {
 pub struct StageInput {
     #[validate(length(min = 1, max = 200))]
     pub name: String,
+    #[validate(range(min = 0))]
     pub position: i32,
+    #[validate(custom(function = "validate_hex_color_opt"))]
     pub color: Option<String>,
+    #[validate(range(min = 0, max = 100))]
     pub probability: Option<i32>,
+}
+
+fn validate_slug(value: &str) -> Result<(), validator::ValidationError> {
+    if value
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+    {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new(
+            "Slug must be lowercase alphanumeric with dashes/underscores",
+        ))
+    }
+}
+
+fn validate_hex_color_opt(value: &&String) -> Result<(), validator::ValidationError> {
+    let v = value.trim_start_matches('#');
+    if (v.len() == 3 || v.len() == 6) && v.chars().all(|c| c.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new(
+            "Color must be hex like #RGB or #RRGGBB",
+        ))
+    }
+}
+
+fn validate_domain_opt(value: &&String) -> Result<(), validator::ValidationError> {
+    let v = value.as_str();
+    let ok = !v.is_empty()
+        && v.len() <= 253
+        && !v.contains("://")
+        && !v
+            .chars()
+            .any(|c| c.is_whitespace() || c == '/' || c == '\\' || c == '@')
+        && v.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_');
+    if ok {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new(
+            "Custom domain must be a plain hostname without scheme",
+        ))
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -397,13 +446,19 @@ pub struct Branding {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct BrandingInput {
+    #[validate(length(max = 255))]
     pub company_name: Option<String>,
-    #[validate(length(max = 500))]
+    #[validate(length(max = 500), url)]
     pub logo_url: Option<String>,
+    #[validate(custom(function = "validate_hex_color_opt"))]
     pub primary_color: Option<String>,
+    #[validate(custom(function = "validate_hex_color_opt"))]
     pub secondary_color: Option<String>,
+    #[validate(custom(function = "validate_hex_color_opt"))]
     pub accent_color: Option<String>,
+    #[validate(length(max = 500), url)]
     pub favicon_url: Option<String>,
+    #[validate(custom(function = "validate_domain_opt"))]
     pub custom_domain: Option<String>,
 }
 

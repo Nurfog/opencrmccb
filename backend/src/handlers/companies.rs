@@ -322,17 +322,24 @@ pub async fn export_companies(
 pub async fn import_companies(
     State(state): State<AppState>,
     perms: UserPermissions,
-    body: String,
+    body: axum::body::Bytes,
 ) -> Result<Json<ImportResult>, AppError> {
     perms
         .require("companies.create")
         .map_err(|_| AppError::Forbidden)?;
+    let body = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError::BadRequest("Import body must be UTF-8 text".into()))?;
     if body.len() > 2 * 1024 * 1024 {
         return Err(AppError::BadRequest(
             "Import body too large (max 2MB)".into(),
         ));
     }
     let rows = parse_csv_rows(&body);
+    if rows.len() > 1000 {
+        return Err(AppError::BadRequest(
+            "Too many rows (max 1000 per import)".into(),
+        ));
+    }
 
     let mut imported = 0;
     let mut errors = Vec::new();
@@ -343,46 +350,26 @@ pub async fn import_companies(
             continue;
         }
 
-        let name = fields[0].trim().to_string();
-        let industry = fields
-            .get(1)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        let website = fields
-            .get(2)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        let phone = fields
-            .get(3)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        let email = fields
-            .get(4)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        // Basic email validation.
-        if let Some(ref e) = email
-            && !(e.contains('@') && e.contains('.') && e.len() <= 254)
-        {
-            errors.push(format!("Línea {}: email inválido", row_num + 2));
+        // Validate through the same rules as single-create.
+        let candidate = CreateCompany {
+            name: fields[0].trim().to_string(),
+            industry: opt_field(fields, 1),
+            website: opt_field(fields, 2),
+            phone: opt_field(fields, 3),
+            email: opt_field(fields, 4),
+            address: opt_field(fields, 5),
+            city: opt_field(fields, 6),
+            country: opt_field(fields, 7),
+            notes: opt_field(fields, 8),
+        };
+        if let Err(e) = candidate.validate() {
+            errors.push(format!(
+                "Línea {}: {}",
+                row_num + 2,
+                first_validation_message(&e)
+            ));
             continue;
         }
-        let address = fields
-            .get(5)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        let city = fields
-            .get(6)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        let country = fields
-            .get(7)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        let notes = fields
-            .get(8)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
 
         let result = sqlx::query_as::<_, Company>(
             r#"
@@ -391,15 +378,15 @@ pub async fn import_companies(
             RETURNING id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at
             "#,
         )
-        .bind(&name)
-        .bind(&industry)
-        .bind(&website)
-        .bind(&phone)
-        .bind(&email)
-        .bind(&address)
-        .bind(&city)
-        .bind(&country)
-        .bind(&notes)
+        .bind(&candidate.name)
+        .bind(&candidate.industry)
+        .bind(&candidate.website)
+        .bind(&candidate.phone)
+        .bind(&candidate.email)
+        .bind(&candidate.address)
+        .bind(&candidate.city)
+        .bind(&candidate.country)
+        .bind(&candidate.notes)
         .fetch_one(&state.db)
         .await;
 
@@ -410,4 +397,20 @@ pub async fn import_companies(
     }
 
     Ok(Json(ImportResult { imported, errors }))
+}
+
+fn opt_field(fields: &[String], index: usize) -> Option<String> {
+    fields
+        .get(index)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn first_validation_message(e: &validator::ValidationErrors) -> String {
+    e.field_errors()
+        .values()
+        .flat_map(|errs| errs.iter())
+        .filter_map(|e| e.message.as_ref().map(|m| m.to_string()))
+        .next()
+        .unwrap_or_else(|| "validación inválida".to_string())
 }

@@ -23,15 +23,33 @@ pub struct DealImportRow {
 }
 
 pub fn escape_csv(value: &str) -> String {
+    // OWASP CSV Injection: a cell starting with = + - @ (after leading
+    // spaces/tabs, which spreadsheets trim) is evaluated as a formula.
+    // Prefixing a single quote neutralizes it; Excel/Sheets display the
+    // text without executing. Apply before RFC 4180 quoting below.
+    let needs_prefix = matches!(
+        value.trim_start_matches([' ', '\t']).chars().next(),
+        Some('=') | Some('+') | Some('-') | Some('@')
+    );
+    let value = if needs_prefix {
+        format!("'{value}")
+    } else {
+        value.to_string()
+    };
     if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
         format!("\"{}\"", value.replace('"', "\"\""))
     } else {
-        value.to_string()
+        value
     }
 }
 
 pub fn parse_csv_rows(content: &str) -> Vec<Vec<String>> {
-    let mut rdr = csv::Reader::from_reader(content.as_bytes());
+    // flexible(true): ragged rows (fewer/more fields than the header) are
+    // returned as-is instead of being silently dropped, so importers can
+    // report them as errors instead of losing data quietly.
+    let mut rdr = csv::ReaderBuilder::new()
+        .flexible(true)
+        .from_reader(content.as_bytes());
     let mut rows = Vec::new();
 
     for result in rdr.records() {

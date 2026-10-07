@@ -35,7 +35,7 @@ impl PgDealRepo {
         notes: Option<&str>,
     ) -> Result<Deal, AppError> {
         let row = sqlx::query(
-            "INSERT INTO deals (title, value, currency, stage, contact_id, company_id, expected_close_date, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
+            "INSERT INTO deals (title, value, currency, stage, contact_id, company_id, expected_close_date, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, title, value, currency, stage, position, contact_id, company_id, pipeline_id, pipeline_stage_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
         )
         .bind(title)
         .bind(value)
@@ -53,7 +53,7 @@ impl PgDealRepo {
 
     pub async fn update(&self, id: Uuid, input: &UpdateDeal) -> Result<Option<Deal>, AppError> {
         let row = sqlx::query(
-            "UPDATE deals SET title = COALESCE($2, title), value = COALESCE($3, value), currency = COALESCE($4, currency), stage = COALESCE($5, stage), contact_id = COALESCE($6, contact_id), company_id = COALESCE($7, company_id), expected_close_date = COALESCE($8, expected_close_date), notes = COALESCE($9, notes), updated_at = NOW() WHERE id = $1 RETURNING id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
+            "UPDATE deals SET title = COALESCE($2, title), value = COALESCE($3, value), currency = COALESCE($4, currency), stage = COALESCE($5, stage), contact_id = COALESCE($6, contact_id), company_id = COALESCE($7, company_id), expected_close_date = COALESCE($8, expected_close_date), notes = COALESCE($9, notes), updated_at = NOW() WHERE id = $1 RETURNING id, title, value, currency, stage, position, contact_id, company_id, pipeline_id, pipeline_stage_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
         )
         .bind(id)
         .bind(&input.title)
@@ -77,7 +77,7 @@ impl PgDealRepo {
         position: Option<i32>,
     ) -> Result<Option<Deal>, AppError> {
         let row = sqlx::query(
-            "UPDATE deals SET stage = $2, position = COALESCE($3, position), updated_at = NOW() WHERE id = $1 RETURNING id, title, value, currency, stage, position, contact_id, company_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
+            "UPDATE deals SET stage = $2, position = COALESCE($3, position), updated_at = NOW() WHERE id = $1 RETURNING id, title, value, currency, stage, position, contact_id, company_id, pipeline_id, pipeline_stage_id, expected_close_date, notes, (SELECT CONCAT(c.first_name, ' ', c.last_name) FROM contacts c WHERE c.id = contact_id) as contact_name, (SELECT co.name FROM companies co WHERE co.id = company_id) as company_name, created_at, updated_at"
         )
         .bind(id)
         .bind(stage)

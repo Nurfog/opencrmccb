@@ -44,7 +44,10 @@ WORKDIR /app
 
 COPY --from=builder /app/target/release/crm-backend .
 
-RUN chown appuser:appuser /app/crm-backend
+# Upload dir must be writable by appuser; a named volume is mounted here in
+# compose (uploads survive `down`/rebuilds). Ownership is copied into a fresh
+# volume on first mount.
+RUN mkdir -p /app/uploads && chown appuser:appuser /app/crm-backend /app/uploads
 
 USER appuser
 

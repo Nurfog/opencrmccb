@@ -8,7 +8,9 @@ use validator::Validate;
 use crate::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::{Claims, UserPermissions};
-use crate::models::{Contact, CreateContact, PaginatedResponse, PaginationParams, UpdateContact};
+use crate::models::{
+    Contact, ContactFilters, CreateContact, PaginatedResponse, PaginationParams, UpdateContact,
+};
 use crate::services::contact_service::ContactService;
 
 #[derive(Debug, Deserialize, Validate)]
@@ -21,13 +23,17 @@ pub async fn list_contacts(
     State(state): State<AppState>,
     perms: UserPermissions,
     Query(params): Query<PaginationParams>,
+    Query(filters): Query<ContactFilters>,
 ) -> Result<Json<PaginatedResponse<Contact>>, AppError> {
     perms
         .require("contacts.view")
         .map_err(|_| AppError::Forbidden)?;
+    filters
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
 
     let svc = ContactService::new(&state.contact_repo);
-    Ok(Json(svc.list(&params).await?))
+    Ok(Json(svc.list(&params, &filters).await?))
 }
 
 pub async fn create_contact(
@@ -126,6 +132,7 @@ pub struct BulkDeleteResponse {
 
 pub async fn bulk_delete_contacts(
     State(state): State<AppState>,
+    claims: axum::extract::Extension<Claims>,
     perms: UserPermissions,
     Json(input): Json<BulkDeleteRequest>,
 ) -> Result<Json<BulkDeleteResponse>, AppError> {
@@ -135,8 +142,9 @@ pub async fn bulk_delete_contacts(
         .map_err(|_| AppError::Forbidden)?;
     input.validate()?;
 
+    let user_id = Uuid::parse_str(&claims.sub).ok();
     let svc = ContactService::new(&state.contact_repo);
-    let deleted = svc.bulk_delete(&input.ids).await?;
+    let deleted = svc.bulk_delete(&input.ids, &state, user_id).await?;
 
     Ok(Json(BulkDeleteResponse { deleted }))
 }
@@ -144,11 +152,15 @@ pub async fn bulk_delete_contacts(
 pub async fn import_contacts(
     State(state): State<AppState>,
     perms: UserPermissions,
-    body: String,
+    body: axum::body::Bytes,
 ) -> Result<Json<crate::models::ImportResult>, AppError> {
     perms
         .require("contacts.create")
         .map_err(|_| AppError::Forbidden)?;
+    // Bytes (not String): accepts any content-type (the JS client sends
+    // text/csv); reject non-UTF8 explicitly instead of axum's 415.
+    let body = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError::BadRequest("Import body must be UTF-8 text".into()))?;
     // 2MB cap validated here too (defense in depth; global RequestBodyLimitLayer enforces it).
     if body.len() > 2 * 1024 * 1024 {
         return Err(AppError::BadRequest(

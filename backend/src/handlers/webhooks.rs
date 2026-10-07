@@ -17,7 +17,7 @@ pub async fn list_webhooks(
         .require("webhooks.view")
         .map_err(|_| AppError::Forbidden)?;
     let webhooks = sqlx::query_as::<_, Webhook>(
-        "SELECT id, url, event as \"event: WebhookEvent\", secret, active, created_at, updated_at FROM webhooks ORDER BY created_at DESC",
+        "SELECT id, url, event, secret, active, created_at, updated_at FROM webhooks ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await?;
@@ -36,12 +36,20 @@ pub async fn create_webhook(
     input
         .validate()
         .map_err(|_| AppError::Validation("Invalid webhook data".into()))?;
+    // Fail fast at creation: the dispatcher (webhook_worker) would refuse
+    // non-public URLs anyway (SSRF guard). Rejecting here avoids storing
+    // webhooks that can never fire (e.g. metadata IPs, loopback, RFC1918).
+    if !crate::services::webhook_worker::is_webhook_url_allowed(&input.url) {
+        return Err(AppError::Validation(
+            "Webhook URL must be a public http(s) URL".into(),
+        ));
+    }
 
     let webhook = sqlx::query_as::<_, Webhook>(
         r#"
         INSERT INTO webhooks (url, event, secret)
         VALUES ($1, $2, $3)
-        RETURNING id, url, event as "event: WebhookEvent", secret, active, created_at, updated_at
+        RETURNING id, url, event, secret, active, created_at, updated_at
         "#,
     )
     .bind(&input.url)
@@ -65,10 +73,20 @@ pub async fn update_webhook(
     input
         .validate()
         .map_err(|_| AppError::Validation("Invalid webhook data".into()))?;
+    // Same SSRF guard as creation, but only when the URL actually changes:
+    // legacy rows with non-public URLs can still be edited (e.g. rotating
+    // the secret) without being locked out.
+    if let Some(url) = input.url.as_deref()
+        && !crate::services::webhook_worker::is_webhook_url_allowed(url)
+    {
+        return Err(AppError::Validation(
+            "Webhook URL must be a public http(s) URL".into(),
+        ));
+    }
 
     // Check webhook exists
     let existing = sqlx::query_as::<_, Webhook>(
-        "SELECT id, url, event as \"event: WebhookEvent\", secret, active, created_at, updated_at FROM webhooks WHERE id = $1",
+        "SELECT id, url, event, secret, active, created_at, updated_at FROM webhooks WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -88,7 +106,7 @@ pub async fn update_webhook(
         r#"
         UPDATE webhooks SET url = $1, active = $2, secret = $3, updated_at = NOW()
         WHERE id = $4
-        RETURNING id, url, event as "event: WebhookEvent", secret, active, created_at, updated_at
+        RETURNING id, url, event, secret, active, created_at, updated_at
         "#,
     )
     .bind(new_url)
@@ -109,8 +127,8 @@ pub async fn list_deliveries(
     perms
         .require("webhooks.view")
         .map_err(|_| AppError::Forbidden)?;
-    // Verify webhook exists
-    let exists = sqlx::query_scalar::<_, i64>("SELECT 1 FROM webhooks WHERE id = $1")
+    // Verify webhook exists (`SELECT 1` yields INT4, hence i32).
+    let exists = sqlx::query_scalar::<_, i32>("SELECT 1 FROM webhooks WHERE id = $1")
         .bind(id)
         .fetch_optional(&state.db)
         .await?;
@@ -121,7 +139,7 @@ pub async fn list_deliveries(
 
     let deliveries = sqlx::query_as::<_, WebhookDelivery>(
         r#"
-        SELECT id, webhook_id, event_type, payload, status as "status: WebhookStatus",
+        SELECT id, webhook_id, event_type, payload, status,
                attempts, next_attempt_at, response_status, response_body, created_at, updated_at
         FROM webhook_deliveries
         WHERE webhook_id = $1

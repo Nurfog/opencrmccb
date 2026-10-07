@@ -1,6 +1,8 @@
 use axum::Json;
 use axum::extract::{Path, State};
+use serde::Deserialize;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::AppState;
 use crate::error::AppError;
@@ -92,21 +94,33 @@ pub async fn delete_notification(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct TestEmailInput {
+    #[validate(email(message = "To email must be valid"))]
+    pub to: String,
+    #[validate(length(max = 500, message = "Subject must be at most 500 characters"))]
+    pub subject: Option<String>,
+    #[validate(length(max = 10000, message = "Body must be at most 10000 characters"))]
+    pub body: Option<String>,
+}
+
 pub async fn send_test_email(
     State(state): State<AppState>,
     _claims: axum::extract::Extension<crate::middleware::auth::Claims>,
     perms: UserPermissions,
-    Json(payload): Json<serde_json::Value>,
+    Json(input): Json<TestEmailInput>,
 ) -> Result<axum::http::StatusCode, AppError> {
     perms
         .require("notifications.manage")
         .map_err(|_| AppError::Forbidden)?;
 
-    let to = payload["to"]
-        .as_str()
-        .ok_or_else(|| AppError::BadRequest("Missing 'to' field".into()))?;
-    let subject = payload["subject"].as_str().unwrap_or("Test Email");
-    let body = payload["body"].as_str().unwrap_or("This is a test email.");
+    input
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    let to = input.to.as_str();
+    let subject = input.subject.as_deref().unwrap_or("Test Email");
+    let body = input.body.as_deref().unwrap_or("This is a test email.");
 
     crate::services::email::send_email(
         &state.smtp.host,

@@ -34,6 +34,16 @@ fn parse_csv_rows_empty_input() {
 }
 
 #[test]
+fn parse_csv_rows_ragged_rows_are_kept() {
+    // Rows with fewer/more fields than the header must not vanish silently.
+    let input = "a,b,c\n1,2\n3,4,5,6\n";
+    let rows = parse_csv_rows(input);
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0], vec!["1", "2"]);
+    assert_eq!(rows[1], vec!["3", "4", "5", "6"]);
+}
+
+#[test]
 fn parse_csv_rows_header_only() {
     let input = "name,email\n";
     let rows = parse_csv_rows(input);
@@ -69,6 +79,23 @@ fn escape_csv_carriage_return() {
 #[test]
 fn escape_csv_combined() {
     assert_eq!(escape_csv("a,b\nc"), "\"a,b\nc\"");
+}
+
+#[test]
+fn escape_csv_formula_injection_neutralized() {
+    // OWASP CSV Injection: leading = + - @ must be prefixed with a quote.
+    assert_eq!(
+        escape_csv("=HYPERLINK(\"http://evil\")"),
+        "\"'=HYPERLINK(\"\"http://evil\"\")\""
+    );
+    assert_eq!(escape_csv("+cmd|' /C calc'!A0"), "'+cmd|' /C calc'!A0");
+    assert_eq!(escape_csv("-2+3"), "'-2+3");
+    assert_eq!(escape_csv("@SUM(1+1)"), "'@SUM(1+1)");
+    // Spreadsheets trim leading whitespace, so "  =1+1" is still dangerous.
+    assert_eq!(escape_csv("  =1+1"), "'  =1+1");
+    // Benign values are untouched.
+    assert_eq!(escape_csv("hello"), "hello");
+    assert_eq!(escape_csv("user@example.com"), "user@example.com");
 }
 
 #[test]

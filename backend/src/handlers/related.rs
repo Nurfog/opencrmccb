@@ -34,7 +34,7 @@ pub async fn get_contact_activities(
         .require("contacts.view")
         .map_err(|_| AppError::Forbidden)?;
     let activities = sqlx::query_as::<_, Activity>(
-        "SELECT id, subject, description, activity_type as \"activity_type: ActivityType\", due_date, completed, contact_id, deal_id, created_at, updated_at FROM activities WHERE contact_id = $1 ORDER BY due_date DESC"
+        "SELECT id, subject, description, activity_type, due_date, completed, contact_id, deal_id, company_id, COALESCE(recurrence_type, 'none') AS recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at FROM activities WHERE contact_id = $1 ORDER BY due_date DESC"
     )
     .bind(id)
     .fetch_all(&state.db)
@@ -88,7 +88,7 @@ pub async fn get_deal_activities(
         .require("deals.view")
         .map_err(|_| AppError::Forbidden)?;
     let activities = sqlx::query_as::<_, Activity>(
-        "SELECT id, subject, description, activity_type as \"activity_type: ActivityType\", due_date, completed, contact_id, deal_id, created_at, updated_at FROM activities WHERE deal_id = $1 ORDER BY due_date DESC"
+        "SELECT id, subject, description, activity_type, due_date, completed, contact_id, deal_id, company_id, COALESCE(recurrence_type, 'none') AS recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at FROM activities WHERE deal_id = $1 ORDER BY due_date DESC"
     )
     .bind(id)
     .fetch_all(&state.db)

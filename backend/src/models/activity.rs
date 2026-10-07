@@ -14,7 +14,9 @@ pub enum ActivityType {
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(rename_all = "lowercase")]
+// No Postgres ENUM exists for this (M015 stores VARCHAR(20)): map the enum
+// to/from text labels instead.
+#[sqlx(type_name = "varchar", rename_all = "lowercase")]
 pub enum RecurrenceType {
     None,
     Daily,

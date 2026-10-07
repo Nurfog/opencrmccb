@@ -33,7 +33,7 @@ pub async fn list_activities(
     let offset = params.pagination.offset();
 
     let mut query = String::from(
-        "SELECT id, activity_type as \"activity_type: ActivityType\", subject, description, contact_id, deal_id, company_id, due_date, completed, created_at, updated_at FROM activities WHERE 1=1",
+        "SELECT id, activity_type, subject, description, contact_id, deal_id, company_id, due_date, completed, COALESCE(recurrence_type, 'none') AS recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at FROM activities WHERE 1=1",
     );
     let mut param_idx = 1i32;
 
@@ -94,7 +94,7 @@ pub async fn create_activity(
         r#"
         INSERT INTO activities (activity_type, subject, description, contact_id, deal_id, company_id, due_date, recurrence_type, recurrence_interval, recurrence_end_date)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id, activity_type as "activity_type: ActivityType", subject, description, contact_id, deal_id, company_id, due_date, completed, recurrence_type as "recurrence_type: RecurrenceType", recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at
+        RETURNING id, activity_type, subject, description, contact_id, deal_id, company_id, due_date, completed, recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at
         "#,
     )
     .bind(input.activity_type)
@@ -136,7 +136,7 @@ pub async fn update_activity(
         .require("activities.edit")
         .map_err(|_| AppError::Forbidden)?;
     let old = sqlx::query_as::<_, Activity>(
-        "SELECT id, activity_type as \"activity_type: ActivityType\", subject, description, contact_id, deal_id, company_id, due_date, completed, created_at, updated_at FROM activities WHERE id = $1"
+        "SELECT id, activity_type, subject, description, contact_id, deal_id, company_id, due_date, completed, COALESCE(recurrence_type, 'none') AS recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at FROM activities WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -156,7 +156,7 @@ pub async fn update_activity(
             completed = COALESCE($9, completed),
             updated_at = NOW()
         WHERE id = $1
-        RETURNING id, activity_type as "activity_type: ActivityType", subject, description, contact_id, deal_id, company_id, due_date, completed, recurrence_type as "recurrence_type: RecurrenceType", recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at
+        RETURNING id, activity_type, subject, description, contact_id, deal_id, company_id, due_date, completed, recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at
         "#,
     )
     .bind(id)
@@ -200,7 +200,7 @@ pub async fn delete_activity(
         .require("activities.delete")
         .map_err(|_| AppError::Forbidden)?;
     let old = sqlx::query_as::<_, Activity>(
-        "SELECT id, activity_type as \"activity_type: ActivityType\", subject, description, contact_id, deal_id, company_id, due_date, completed, created_at, updated_at FROM activities WHERE id = $1"
+        "SELECT id, activity_type, subject, description, contact_id, deal_id, company_id, due_date, completed, COALESCE(recurrence_type, 'none') AS recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at FROM activities WHERE id = $1"
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -246,7 +246,7 @@ pub async fn complete_activity(
         UPDATE activities
         SET completed = true, updated_at = NOW()
         WHERE id = $1
-        RETURNING id, activity_type as "activity_type: ActivityType", subject, description, contact_id, deal_id, company_id, due_date, completed, recurrence_type as "recurrence_type: RecurrenceType", recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at
+        RETURNING id, activity_type, subject, description, contact_id, deal_id, company_id, due_date, completed, recurrence_type, recurrence_interval, recurrence_end_date, parent_activity_id, created_at, updated_at
         "#,
     )
     .bind(id)

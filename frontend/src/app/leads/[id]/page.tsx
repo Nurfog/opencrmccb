@@ -74,9 +74,33 @@ export default function LeadDetailPage() {
   }, [id])
 
   useEffect(() => {
-    fetchLead()
-    fetchActivities()
-  }, [fetchLead, fetchActivities])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await leadsApi.get(id as string)
+        if (!cancelled) {
+          setLead(res)
+        }
+      } catch {
+        if (!cancelled) {
+          router.push("/leads")
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    ;(async () => {
+      try {
+        const res = await leadsApi.getActivities(id as string)
+        if (!cancelled) {
+          setActivities(res)
+        }
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, router])
 
   const handleDelete = async () => {
     if (!lead) return

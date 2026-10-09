@@ -59,22 +59,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [translations, setTranslations] = useState<Translations>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadTranslations = useCallback(async (l: Locale) => {
-    setIsLoading(true);
-    try {
-      const mod = await import(`@/lib/i18n/${l}.json`);
-      setTranslations(mod.default ?? mod);
-    } catch {
-      setTranslations({});
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   // Note: no direct loadTranslations() call here — the [locale] effect below
   // is the single loader (avoids a double fetch + last-writer-wins race).
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
+    setIsLoading(true);
     try {
       localStorage.setItem(STORAGE_KEY, l);
     } catch {
@@ -83,8 +72,21 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    loadTranslations(locale);
-  }, [locale, loadTranslations]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const mod = await import(`@/lib/i18n/${locale}.json`);
+        if (!cancelled) setTranslations(mod.default ?? mod);
+      } catch {
+        if (!cancelled) setTranslations({});
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
 
   // Keep <html lang> in sync for screen readers/SEO after a language switch
   // (initial value is set pre-hydration in app/layout.tsx).

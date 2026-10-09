@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, ArrowLeft, CheckCircle, Eye, EyeOff } from "lucide-react";
@@ -21,11 +21,8 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!token) {
-      setError(t("auth.invalidToken", "Token inválido o faltante."));
-    }
-  }, [token, t]);
+  // No effect needed: when there is no token the form below is replaced by
+  // the invalid-token notice, so there is nothing to initialize via setState.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

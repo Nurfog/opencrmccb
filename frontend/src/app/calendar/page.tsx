@@ -65,14 +65,45 @@ export default function CalendarPage() {
   }, [])
 
   useEffect(() => {
-    fetchEvents()
-    fetchStatus()
-  }, [fetchEvents, fetchStatus])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const start = new Date(currentDate)
+        start.setDate(1)
+        start.setMonth(start.getMonth() - 1)
+        const end = new Date(currentDate)
+        end.setDate(1)
+        end.setMonth(end.getMonth() + 2)
+
+        const res = await calendarApi.listEvents({
+          start: start.toISOString(),
+          end: end.toISOString(),
+        })
+        if (!cancelled) {
+          setEvents(res)
+        }
+      } catch {} finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    ;(async () => {
+      try {
+        const res = await calendarApi.status()
+        if (!cancelled) {
+          setConnectionStatus(res)
+        }
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentDate])
 
   const navigatePrev = () => {
     const d = new Date(currentDate)
     if (viewMode === "month") d.setMonth(d.getMonth() - 1)
     else d.setDate(d.getDate() - 7)
+    setLoading(true)
     setCurrentDate(d)
   }
 
@@ -80,10 +111,14 @@ export default function CalendarPage() {
     const d = new Date(currentDate)
     if (viewMode === "month") d.setMonth(d.getMonth() + 1)
     else d.setDate(d.getDate() + 7)
+    setLoading(true)
     setCurrentDate(d)
   }
 
-  const navigateToday = () => setCurrentDate(new Date())
+  const navigateToday = () => {
+    setLoading(true)
+    setCurrentDate(new Date())
+  }
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear()

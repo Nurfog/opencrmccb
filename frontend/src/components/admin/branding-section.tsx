@@ -32,7 +32,26 @@ export function BrandingSection() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { fetchBranding() }, [fetchBranding])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const b = await adminApi.getBranding()
+        if (!cancelled) {
+          setBranding(b)
+          setBName(b.company_name ?? "")
+          setBLogo(b.logo_url ?? "")
+          setBPrimary(b.primary_color ?? "#2563eb")
+          setBSecondary(b.secondary_color ?? "#1e40af")
+          setBAccent(b.accent_color ?? "#10b981")
+          setBDomain(b.custom_domain ?? "")
+        }
+      } catch { /* ignore */ }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault()

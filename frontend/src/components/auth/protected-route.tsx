@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -16,13 +16,14 @@ export function ProtectedRoute({ children, requiredPermission }: ProtectedRouteP
   const isLoading = useAuthStore((s) => s.isLoading);
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const loadUser = useAuthStore((s) => s.loadUser);
-  const [mounted, setMounted] = useState(false);
+  // Mounted flag without setState-in-effect: true on client, false on server.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const permissionsLoaded = !!user && !!user.permissions?.length;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Wait for the initial session check (AuthProvider.initialize -> loadUser)
   // before deciding: otherwise a valid cookie session flashes to /login.

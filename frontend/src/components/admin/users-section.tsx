@@ -31,7 +31,28 @@ export function UsersSection() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { fetchUsers(); fetchUserProfiles() }, [fetchUsers, fetchUserProfiles])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await usersApi.list()
+        if (!cancelled) {
+          setUsers(res.data)
+        }
+      } catch { /* ignore */ }
+    })()
+    ;(async () => {
+      try {
+        const res = await adminApi.listProfiles()
+        if (!cancelled) {
+          setUserProfiles(res)
+        }
+      } catch { /* ignore */ }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const openAssignModal = (user: User) => {
     setAssigningUser(user)

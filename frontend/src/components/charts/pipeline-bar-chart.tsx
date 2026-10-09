@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
 import {
   BarChart,
   Bar,
@@ -16,17 +16,16 @@ interface PipelineBarChartProps {
 }
 
 export function PipelineBarChart({ stages }: PipelineBarChartProps) {
-  const [isDark, setIsDark] = useState(false)
-
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains("dark"))
-
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"))
-    })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
-    return () => observer.disconnect()
-  }, [])
+  // Subscribe to the theme class on <html> without setState-in-effect.
+  const isDark = useSyncExternalStore(
+    (onChange) => {
+      const observer = new MutationObserver(onChange)
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+      return () => observer.disconnect()
+    },
+    () => document.documentElement.classList.contains("dark"),
+    () => false
+  )
 
   return (
     <ResponsiveContainer width="100%" height="100%">

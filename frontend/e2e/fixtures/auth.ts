@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks -- `use` here is Playwright's fixture hook, not a React hook. */
 import { test as base, type Page, type BrowserContext } from "@playwright/test";
 
 const API_BASE = process.env.API_URL || "http://localhost:8000";

@@ -18,6 +18,11 @@ import { formatDate, getInitials, cn, downloadBlob } from "@/lib/utils"
 type SortField = "first_name" | "last_name" | "email" | "phone" | "position"
 type SortDir = "asc" | "desc"
 
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (sortField !== field) return <ChevronUp className="h-3 w-3 opacity-30" />
+  return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+}
+
 export default function ContactsPage() {
   const { t } = useI18n()
   const { success, error } = useToast()
@@ -68,22 +73,50 @@ export default function ContactsPage() {
   }, [page, search, sortField, sortDir, t])
 
   useEffect(() => {
-    fetchContacts()
-  }, [fetchContacts])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await contactsApi.list({
+          page,
+          per_page: perPage,
+          search: search || undefined,
+          sort_by: sortField,
+          sort_order: sortDir,
+        })
+        if (!cancelled) {
+          setData(res)
+          setErrorState(null)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : t("common.noResults")
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [page, search, sortField, sortDir, t])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setPage(1)
     setSearch(searchInput)
   }
 
   const clearSearch = () => {
     setSearchInput("")
+    setLoading(true)
     setSearch("")
     setPage(1)
   }
 
   const toggleSort = (field: SortField) => {
+    setLoading(true)
     if (sortField === field) {
       setSortDir((prev) => (prev === "asc" ? "desc" : "asc"))
     } else {
@@ -174,11 +207,9 @@ export default function ContactsPage() {
 
   const handleCsvExport = async () => {
     try {
+      // text/csv comes back as text (api-client returns non-JSON as-is)
       const res = await contactsApi.exportCsv()
-      const blob = res instanceof Blob
-        ? res
-        : new Blob([res], { type: "text/csv;charset=utf-8;" })
-      downloadBlob(blob, "contacts.csv")
+      downloadBlob(new Blob([res], { type: "text/csv;charset=utf-8;" }), "contacts.csv")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t("toast.error", { action: "export", entity: t("contacts.title") })
       error(msg)
@@ -192,12 +223,9 @@ export default function ContactsPage() {
     }
   }
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ChevronUp className="h-3 w-3 opacity-30" />
-    return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
-  }
-
   const totalPages = data ? data.total_pages : 0
+
+  const sortIconProps = { sortField, sortDir }
 
   return (
     <AppLayout>
@@ -308,22 +336,22 @@ export default function ContactsPage() {
                       </th>
                       <th>
                         <button type="button" onClick={() => toggleSort("first_name")} className="flex items-center gap-1">
-                          {t("contacts.name")} <SortIcon field="first_name" />
+                          {t("contacts.name")} <SortIcon field="first_name" {...sortIconProps} />
                         </button>
                       </th>
                       <th>
                         <button type="button" onClick={() => toggleSort("email")} className="flex items-center gap-1">
-                          {t("contacts.email")} <SortIcon field="email" />
+                          {t("contacts.email")} <SortIcon field="email" {...sortIconProps} />
                         </button>
                       </th>
                       <th>
                         <button type="button" onClick={() => toggleSort("phone")} className="flex items-center gap-1">
-                          {t("contacts.phone")} <SortIcon field="phone" />
+                          {t("contacts.phone")} <SortIcon field="phone" {...sortIconProps} />
                         </button>
                       </th>
                       <th>
                         <button type="button" onClick={() => toggleSort("position")} className="flex items-center gap-1">
-                          {t("contacts.position")} <SortIcon field="position" />
+                          {t("contacts.position")} <SortIcon field="position" {...sortIconProps} />
                         </button>
                       </th>
                       <th className="w-24">{t("common.actions")}</th>
@@ -377,7 +405,10 @@ export default function ContactsPage() {
               totalPages={totalPages}
               total={data.total}
               perPage={perPage}
-              onPageChange={setPage}
+              onPageChange={(p) => {
+                setLoading(true)
+                setPage(p)
+              }}
             />
           </>
         )}

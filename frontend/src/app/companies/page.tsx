@@ -46,17 +46,38 @@ export default function CompaniesPage() {
   }, [page, search, t])
 
   useEffect(() => {
-    fetchCompanies()
-  }, [fetchCompanies])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await companiesApi.list({ page, per_page: perPage, search: search || undefined })
+        if (!cancelled) {
+          setData(res)
+          setErrorState(null)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : t("common.noResults")
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [page, search, t])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setPage(1)
     setSearch(searchInput)
   }
 
   const clearSearch = () => {
     setSearchInput("")
+    setLoading(true)
     setSearch("")
     setPage(1)
   }
@@ -202,7 +223,10 @@ export default function CompaniesPage() {
               totalPages={totalPages}
               total={data.total}
               perPage={perPage}
-              onPageChange={setPage}
+              onPageChange={(p) => {
+                setLoading(true)
+                setPage(p)
+              }}
             />
           </>
         )}

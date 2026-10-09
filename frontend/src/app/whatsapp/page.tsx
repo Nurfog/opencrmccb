@@ -77,8 +77,23 @@ export default function WhatsAppPage() {
   }, [])
 
   useEffect(() => {
-    fetchConversations()
-  }, [fetchConversations])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await whatsAppApi.getConversations()
+        if (!cancelled) {
+          setConversations(res)
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const fetchMessages = useCallback(async (phone?: string) => {
     if (!phone) return
@@ -91,8 +106,23 @@ export default function WhatsAppPage() {
   }, [])
 
   useEffect(() => {
-    if (selectedPhone) fetchMessages(selectedPhone)
-  }, [selectedPhone, fetchMessages])
+    let cancelled = false
+    if (selectedPhone) {
+      ;(async () => {
+        try {
+          const res = await whatsAppApi.getMessages()
+          if (!cancelled) {
+            setMessages(res.filter(m => m.from_number === selectedPhone || m.to_number === selectedPhone))
+          }
+        } catch {
+          // ignore
+        }
+      })()
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPhone])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })

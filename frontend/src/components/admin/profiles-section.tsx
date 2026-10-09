@@ -35,7 +35,20 @@ export function ProfilesSection() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { fetchProfiles() }, [fetchProfiles])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await adminApi.listProfiles()
+        if (!cancelled) {
+          setProfiles(res)
+        }
+      } catch { /* ignore */ }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const openProfForm = (p?: Profile) => {
     setEditingProf(p ?? null)

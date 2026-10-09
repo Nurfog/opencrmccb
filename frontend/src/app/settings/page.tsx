@@ -48,24 +48,56 @@ export default function SettingsPage() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === "integrations") fetchIntegrations()
-  }, [activeTab, fetchIntegrations])
+    let cancelled = false
+    if (activeTab === "integrations") {
+      ;(async () => {
+        try {
+          const res = await integrationsApi.list()
+          if (!cancelled) {
+            setIntegrations(res)
+          }
+        } catch {
+          // ignore
+        } finally {
+          if (!cancelled) setIntegrationsLoading(false)
+        }
+      })()
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab])
 
   // Check for OAuth callback result in URL params
   useEffect(() => {
+    let cancelled = false
     const params = new URLSearchParams(window.location.search)
     const integration = params.get("integration")
     const status = params.get("status")
     if (integration && status === "connected") {
       success(t("settings.integrationConnected", { provider: integration }))
       window.history.replaceState({}, "", "/settings")
-      fetchIntegrations()
+      ;(async () => {
+        try {
+          const res = await integrationsApi.list()
+          if (!cancelled) {
+            setIntegrations(res)
+          }
+        } catch {
+          // ignore
+        } finally {
+          if (!cancelled) setIntegrationsLoading(false)
+        }
+      })()
     }
     if (integration && status === "error") {
       error(t("settings.integrationError", { provider: integration }))
       window.history.replaceState({}, "", "/settings")
     }
-  }, [success, error, t, fetchIntegrations])
+    return () => {
+      cancelled = true
+    }
+  }, [success, error, t])
 
   const handleConnect = async (provider: string) => {
     try {
@@ -84,7 +116,7 @@ export default function SettingsPage() {
         error(t("settings.invalidAuthUrl", "Invalid authorization URL received."))
         return
       }
-      window.location.href = res.auth_url
+      window.location.assign(res.auth_url)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t("toast.error", { action: "connect", entity: provider })
       error(msg)
@@ -485,7 +517,10 @@ export default function SettingsPage() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (tab.id === "integrations") setIntegrationsLoading(true)
+                  setActiveTab(tab.id)
+                }}
                 className={cn(
                   "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                   activeTab === tab.id

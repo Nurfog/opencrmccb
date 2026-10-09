@@ -138,7 +138,12 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
     }
   }, [])
 
-  useEffect(() => {
+  // Reset fields when a different deal is edited or the dialog is reopened.
+  // Done during render (React's "adjust state on props change" pattern) instead
+  // of an effect to avoid a synchronous setState inside useEffect.
+  const [prevReset, setPrevReset] = useState<{ data: unknown; open: boolean } | null>(null)
+  if (prevReset?.data !== initialData || prevReset?.open !== isOpen) {
+    setPrevReset({ data: initialData, open: isOpen })
     if (initialData) {
       setTitle(initialData.title ?? "")
       setAmount(initialData.value != null ? String(initialData.value) : "")
@@ -172,7 +177,7 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
       setSelectedCompany(null)
       setCompanyResults([])
     }
-  }, [initialData, isOpen])
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

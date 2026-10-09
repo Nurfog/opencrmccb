@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Modal } from "@/components/ui/modal"
 import { CompanyAsyncSelect } from "@/components/ui/company-async-select"
 import { type Company } from "@/lib/api"
@@ -24,7 +24,12 @@ export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactF
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
+  // Reset fields when a different contact is edited or the dialog is reopened.
+  // Done during render (React's "adjust state on props change" pattern) instead
+  // of an effect to avoid a synchronous setState inside useEffect.
+  const [prevReset, setPrevReset] = useState<{ data: unknown; open: boolean } | null>(null)
+  if (prevReset?.data !== initialData || prevReset?.open !== isOpen) {
+    setPrevReset({ data: initialData, open: isOpen })
     if (initialData) {
       setFirstName(initialData.first_name ?? "")
       setLastName(initialData.last_name ?? "")
@@ -46,7 +51,7 @@ export function ContactForm({ isOpen, onClose, onSubmit, initialData }: ContactF
       setNotes("")
       setSelectedCompany(null)
     }
-  }, [initialData, isOpen])
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

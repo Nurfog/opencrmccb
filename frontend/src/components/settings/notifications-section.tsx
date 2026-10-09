@@ -14,10 +14,9 @@ export function NotificationsSection() {
   const [pushNotifs, setPushNotifs] = useState(true)
   const [weeklyDigest, setWeeklyDigest] = useState(false)
   const [marketingEmails, setMarketingEmails] = useState(false)
-  const [notifPrefsLoading, setNotifPrefsLoading] = useState(false)
+  const [notifPrefsLoading, setNotifPrefsLoading] = useState(true)
 
   useEffect(() => {
-    setNotifPrefsLoading(true)
     notificationsApi.getPreferences()
       .then((prefs) => {
         setEmailNotifs(prefs.email_enabled)

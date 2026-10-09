@@ -68,8 +68,43 @@ export default function DashboardPage() {
   }, [t])
 
   useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Partial render: one failing widget must not blank the whole page.
+        const [statsRes, pipelineRes, topDealsRes, activitiesRes] = await Promise.allSettled([
+          dashboardApi.stats(),
+          dashboardApi.pipeline(),
+          dashboardApi.topDeals(),
+          dashboardApi.recentActivities(),
+        ])
+        if (!cancelled) {
+          setErrorState(null)
+          if (statsRes.status === "fulfilled") setStats(statsRes.value)
+          if (pipelineRes.status === "fulfilled") setPipeline(pipelineRes.value.stages)
+          if (topDealsRes.status === "fulfilled") setTopDeals(topDealsRes.value.deals)
+          if (activitiesRes.status === "fulfilled") setRecentActivities(activitiesRes.value.activities)
+          const firstError = [statsRes, pipelineRes, topDealsRes, activitiesRes].find(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          )
+          if (firstError) {
+            const err = firstError.reason
+            setErrorState(err instanceof Error ? err.message : t("common.noResults"))
+          }
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : t("common.noResults")
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [t])
 
   const handleCreateDeal = async (data: Record<string, unknown>) => {
     try {

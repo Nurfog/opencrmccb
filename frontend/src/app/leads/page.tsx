@@ -18,6 +18,15 @@ import Link from "next/link"
 type SortField = "first_name" | "company_name" | "score" | "lead_source" | "created_at"
 type SortDir = "asc" | "desc"
 
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (sortField !== field) return null
+  return sortDir === "asc" ? (
+    <ChevronUp className="inline w-4 h-4 ml-1" />
+  ) : (
+    <ChevronDown className="inline w-4 h-4 ml-1" />
+  )
+}
+
 const STATUS_COLORS: Record<string, string> = {
   new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
   contacted: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
@@ -96,21 +105,54 @@ export default function LeadsPage() {
   }, [])
 
   useEffect(() => {
-    fetchLeads()
-  }, [fetchLeads])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const params: Record<string, unknown> = {
+          page,
+          per_page: perPage,
+          sort: sortField,
+          sort_dir: sortDir,
+        }
+        if (search) params.search = search
+        if (statusFilter) params.status = statusFilter
+        if (sourceFilter) params.lead_source = sourceFilter
 
-  useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+        const res = await leadsApi.list(params as Parameters<typeof leadsApi.list>[0])
+        if (!cancelled) {
+          setData(res)
+          setErrorState(null)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "Error loading leads"
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    ;(async () => {
+      try {
+        const res = await leadsApi.stats()
+        if (!cancelled) setStats(res)
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [page, search, sortField, sortDir, statusFilter, sourceFilter])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setPage(1)
     setSearch(searchInput)
   }
 
   const clearSearch = () => {
     setSearchInput("")
+    setLoading(true)
     setSearch("")
     setPage(1)
   }
@@ -122,17 +164,11 @@ export default function LeadsPage() {
       setSortField(field)
       setSortDir("asc")
     }
+    setLoading(true)
     setPage(1)
   }
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null
-    return sortDir === "asc" ? (
-      <ChevronUp className="inline w-4 h-4 ml-1" />
-    ) : (
-      <ChevronDown className="inline w-4 h-4 ml-1" />
-    )
-  }
+  const sortIconProps = { sortField, sortDir }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -261,7 +297,7 @@ export default function LeadsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("leads.status")}</label>
               <select
                 value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+                onChange={(e) => { setLoading(true); setStatusFilter(e.target.value); setPage(1) }}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">{t("common.all")}</option>
@@ -277,7 +313,7 @@ export default function LeadsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("leads.source")}</label>
               <select
                 value={sourceFilter}
-                onChange={(e) => { setSourceFilter(e.target.value); setPage(1) }}
+                onChange={(e) => { setLoading(true); setSourceFilter(e.target.value); setPage(1) }}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">{t("common.all")}</option>
@@ -289,7 +325,7 @@ export default function LeadsPage() {
             {(statusFilter || sourceFilter) && (
               <button
                 type="button"
-                onClick={() => { setStatusFilter(""); setSourceFilter(""); setPage(1) }}
+                onClick={() => { setLoading(true); setStatusFilter(""); setSourceFilter(""); setPage(1) }}
                 className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 self-end"
               >
                 <X className="w-4 h-4" />
@@ -326,7 +362,7 @@ export default function LeadsPage() {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
                         >
                           <button type="button" onClick={() => handleSort("first_name")} className="inline-flex items-center gap-1 uppercase tracking-wider">
-                            {t("leads.name")} <SortIcon field="first_name" />
+                            {t("leads.name")} <SortIcon field="first_name" {...sortIconProps} />
                           </button>
                         </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -340,7 +376,7 @@ export default function LeadsPage() {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
                         >
                           <button type="button" onClick={() => handleSort("score")} className="inline-flex items-center gap-1 uppercase tracking-wider">
-                            {t("leads.score")} <SortIcon field="score" />
+                            {t("leads.score")} <SortIcon field="score" {...sortIconProps} />
                           </button>
                         </th>
                       <th
@@ -348,7 +384,7 @@ export default function LeadsPage() {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
                         >
                           <button type="button" onClick={() => handleSort("lead_source")} className="inline-flex items-center gap-1 uppercase tracking-wider">
-                            {t("leads.source")} <SortIcon field="lead_source" />
+                            {t("leads.source")} <SortIcon field="lead_source" {...sortIconProps} />
                           </button>
                         </th>
                       <th
@@ -356,7 +392,7 @@ export default function LeadsPage() {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
                         >
                           <button type="button" onClick={() => handleSort("created_at")} className="inline-flex items-center gap-1 uppercase tracking-wider">
-                            {t("leads.created")} <SortIcon field="created_at" />
+                            {t("leads.created")} <SortIcon field="created_at" {...sortIconProps} />
                           </button>
                         </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -433,7 +469,7 @@ export default function LeadsPage() {
                   totalPages={data.total_pages}
                   total={data.total}
                   perPage={perPage}
-                  onPageChange={setPage}
+                  onPageChange={(p) => { setLoading(true); setPage(p) }}
                 />
               </div>
             </>

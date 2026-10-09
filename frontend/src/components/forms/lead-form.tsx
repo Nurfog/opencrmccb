@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { leadsApi, type Lead } from "@/lib/api"
 import { useToast } from "@/contexts/toast-context"
 import { useI18n } from "@/contexts/i18n-context"
@@ -41,7 +41,12 @@ export function LeadForm({ open, lead, onClose, onSuccess }: LeadFormProps) {
     { value: "other", label: t("leads.sources.other") },
   ]
 
-  useEffect(() => {
+  // Reset fields when a different lead is edited or the dialog is reopened.
+  // Done during render (React's "adjust state on props change" pattern) instead
+  // of an effect to avoid a synchronous setState inside useEffect.
+  const [prevReset, setPrevReset] = useState<{ data: unknown; open: boolean } | null>(null)
+  if (prevReset?.data !== lead || prevReset?.open !== open) {
+    setPrevReset({ data: lead, open })
     if (lead) {
       setFirstName(lead.first_name)
       setLastName(lead.last_name)
@@ -65,7 +70,7 @@ export function LeadForm({ open, lead, onClose, onSuccess }: LeadFormProps) {
       setLeadSource("other")
       setNotes("")
     }
-  }, [lead, open])
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

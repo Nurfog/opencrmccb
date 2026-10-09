@@ -62,8 +62,29 @@ export default function AuditPage() {
   }, [entityFilter, t])
 
   useEffect(() => {
-    fetchAudit()
-  }, [fetchAudit])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await auditApi.list({
+          entity_type: entityFilter ?? undefined,
+        })
+        if (!cancelled) {
+          setLogs(res)
+          setErrorState(null)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : t("common.noResults")
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [entityFilter, t])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -130,7 +151,7 @@ export default function AuditPage() {
               <button
                 key={e.id ?? "all"}
                 type="button"
-                onClick={() => setEntityFilter(e.id) }
+                onClick={() => { setLoading(true); setEntityFilter(e.id) }}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                   entityFilter === e.id

@@ -28,7 +28,20 @@ export function PipelinesSection() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { fetchPipelines() }, [fetchPipelines])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await adminApi.listPipelines()
+        if (!cancelled) {
+          setPipelines(res)
+        }
+      } catch { /* ignore */ }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const openPipeForm = (p?: PipelineWithStages) => {
     setEditingPipe(p ?? null)

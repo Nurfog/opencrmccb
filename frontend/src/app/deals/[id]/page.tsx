@@ -68,7 +68,7 @@ export default function DealDetailPage() {
       }
     }
     fetchData()
-  }, [id, router, error])
+  }, [id, router, error, t])
 
   const handleUpdate = async (formData: Record<string, unknown>) => {
     try {

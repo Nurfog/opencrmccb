@@ -53,8 +53,34 @@ export default function ReportsPage() {
   }, [t])
 
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [pipelineRes, winLossRes] = await Promise.allSettled([
+          reportsApi.pipeline(),
+          reportsApi.winLoss(),
+        ])
+        if (!cancelled) {
+          if (pipelineRes.status === "fulfilled") setPipelineReport(pipelineRes.value as PipelineReport)
+          if (winLossRes.status === "fulfilled") setWinLossReport(winLossRes.value as WinLossReport)
+          const firstError = [pipelineRes, winLossRes].find(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          )
+          if (firstError) {
+            const err = firstError.reason
+            setErrorState(err instanceof Error ? err.message : t("common.noResults"))
+          } else {
+            setErrorState(null)
+          }
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [t])
 
   const totalDeals = pipelineReport?.total_deals ?? 0
   const totalRevenue = pipelineReport?.total_value ?? 0

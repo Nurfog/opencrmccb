@@ -33,7 +33,20 @@ export function WebhooksSection() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { fetchWebhooks() }, [fetchWebhooks])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await webhooksApi.list()
+        if (!cancelled) {
+          setWebhooks(res.data)
+        }
+      } catch { /* ignore */ }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleCreateWebhook = async (e: React.FormEvent) => {
     e.preventDefault()

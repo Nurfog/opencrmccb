@@ -28,12 +28,12 @@ export function ConvertLeadDialog({ open, lead, onClose, onSuccess }: ConvertLea
     }
   }, [open])
 
-  useEffect(() => {
-    if (lead && pipelines.length > 0 && !selectedPipelineId) {
-      // Default to first pipeline
-      setSelectedPipelineId(pipelines[0].pipeline.id)
-    }
-  }, [lead, pipelines, selectedPipelineId])
+  // Default to the first pipeline once pipelines load. Done during render
+  // (React's "adjust state on props change" pattern) instead of an effect
+  // to avoid a synchronous setState inside useEffect.
+  if (lead && pipelines.length > 0 && !selectedPipelineId) {
+    setSelectedPipelineId(pipelines[0].pipeline.id)
+  }
 
   const selectedPipeline = pipelines.find(p => p.pipeline.id === selectedPipelineId)
   const isCompany = selectedPipeline?.pipeline.entity_type === "company"

@@ -65,9 +65,39 @@ export default function EmailPage() {
   }, [])
 
   useEffect(() => {
-    if (tab === "logs") fetchLogs()
-    if (tab === "templates") fetchTemplates()
-  }, [tab, fetchLogs, fetchTemplates])
+    let cancelled = false
+    if (tab === "logs") {
+      ;(async () => {
+        try {
+          const res = await emailApi.listLogs({ page: logsPage, per_page: 20 })
+          if (!cancelled) {
+            setLogs(res)
+          }
+        } catch {
+          // The page keeps the current empty state and lets future refreshes recover.
+        } finally {
+          if (!cancelled) setLogsLoading(false)
+        }
+      })()
+    }
+    if (tab === "templates") {
+      ;(async () => {
+        try {
+          const res = await emailApi.listTemplates()
+          if (!cancelled) {
+            setTemplates(res)
+          }
+        } catch {
+          // The templates grid renders its empty state when loading fails.
+        } finally {
+          if (!cancelled) setTemplatesLoading(false)
+        }
+      })()
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [tab, logsPage])
 
   const resetTemplateForm = () => {
     setEditingTemplate(null)
@@ -83,6 +113,7 @@ export default function EmailPage() {
       setTo("")
       setSubject("")
       setBody("")
+      setLogsLoading(true)
       setTab("logs")
     } catch (err) {
       error(err instanceof Error ? err.message : t("email.failedToSend"))
@@ -101,6 +132,7 @@ export default function EmailPage() {
     try {
       await emailApi.sendFromTemplate(template.id, { to })
       success(t("email.emailSentFromTemplate", { name: template.name }))
+      setLogsLoading(true)
       setTab("logs")
     } catch (err) {
       error(err instanceof Error ? err.message : t("email.failedToSend"))
@@ -173,7 +205,11 @@ export default function EmailPage() {
             <button
               key={tabKey}
               type="button"
-              onClick={() => setTab(tabKey)}
+              onClick={() => {
+                if (tabKey === "logs") setLogsLoading(true)
+                if (tabKey === "templates") setTemplatesLoading(true)
+                setTab(tabKey)
+              }}
               className={cn(
                 "border-b-2 px-4 py-3 text-sm font-medium transition-colors",
                 tab === tabKey
@@ -199,7 +235,7 @@ export default function EmailPage() {
           />
         )}
 
-        {tab === "logs" && <LogsPanel logs={logs} loading={logsLoading} onPageChange={setLogsPage} />}
+        {tab === "logs" && <LogsPanel logs={logs} loading={logsLoading} onPageChange={(p) => { setLogsLoading(true); setLogsPage(p) }} />}
 
         {tab === "templates" && (
           <TemplatesPanel

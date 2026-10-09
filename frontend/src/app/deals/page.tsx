@@ -70,17 +70,44 @@ export default function DealsPage() {
   }, [page, search, activeStage, t])
 
   useEffect(() => {
-    fetchDeals()
-  }, [fetchDeals])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await dealsApi.list({
+          page,
+          per_page: perPage,
+          search: search || undefined,
+          stage: activeStage ?? undefined,
+        })
+        if (!cancelled) {
+          setDeals(res.data)
+          setTotalCount(res.total)
+          setErrorState(null)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : t("common.noResults")
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [page, search, activeStage, t])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setPage(1)
     setSearch(searchInput)
   }
 
   const clearSearch = () => {
     setSearchInput("")
+    setLoading(true)
     setSearch("")
     setPage(1)
   }
@@ -93,6 +120,7 @@ export default function DealsPage() {
   const totalPages = Math.ceil(totalCount / perPage)
 
   const handleStageFilter = (stageId: string | null) => {
+    setLoading(true)
     setActiveStage((prev) => (prev === stageId ? null : stageId))
     setPage(1)
   }
@@ -295,7 +323,7 @@ export default function DealsPage() {
             totalPages={totalPages}
             totalCount={totalCount}
             perPage={perPage}
-            onPageChange={setPage}
+            onPageChange={(p) => { setLoading(true); setPage(p) }}
             onView={openView}
             onEdit={openEdit}
             onDelete={openDelete}

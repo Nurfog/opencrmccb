@@ -84,16 +84,40 @@ export default function DocumentsPage() {
   }, [activeFolder, search, t])
 
   useEffect(() => {
-    fetchDocuments()
-  }, [fetchDocuments])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await documentsApi.list({
+          folder: activeFolder === "All" ? undefined : activeFolder.toLowerCase(),
+          search: search || undefined,
+        })
+        if (!cancelled) {
+          setDocs(res)
+          setErrorState(null)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : t("common.noResults")
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [activeFolder, search, t])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setSearch(searchInput)
   }
 
   const clearSearch = () => {
     setSearchInput("")
+    setLoading(true)
     setSearch("")
   }
 
@@ -199,7 +223,7 @@ export default function DocumentsPage() {
             <button
               key={folder}
               type="button"
-              onClick={() => setActiveFolder(folder)}
+              onClick={() => { setLoading(true); setActiveFolder(folder) }}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors",
                 activeFolder === folder

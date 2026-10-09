@@ -43,7 +43,7 @@ export default function ActivitiesPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
-  const [overlapWarning, setOverlapWarning] = useState<string | null>(null)
+  // overlapWarning is derived during render below (see checkOverlap).
 
   const [formSubject, setFormSubject] = useState("")
   const [formType, setFormType] = useState("task")
@@ -73,8 +73,34 @@ export default function ActivitiesPage() {
   }, [t])
 
   useEffect(() => {
-    fetchActivities()
-  }, [fetchActivities])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [acts, cals] = await Promise.all([
+          activitiesApi.list(),
+          calendarApi.listEvents({
+            start: new Date(Date.now() - 30 * 86400000).toISOString(),
+            end: new Date(Date.now() + 60 * 86400000).toISOString(),
+          }),
+        ])
+        if (!cancelled) {
+          setActivities(acts)
+          setCalEvents(cals)
+          setErrorState(null)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : t("common.noResults")
+          setErrorState(msg)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [t])
 
   // Check for overlapping events
   const checkOverlap = (start: string, end: string, excludeId?: string): string | null => {
@@ -102,14 +128,11 @@ export default function ActivitiesPage() {
     return null
   }
 
-  useEffect(() => {
-    if (formDate) {
-      const endMs = new Date(formDate).getTime() + 3600000
-      setOverlapWarning(checkOverlap(formDate, new Date(endMs).toISOString()))
-    } else {
-      setOverlapWarning(null)
-    }
-  }, [formDate, activities, calEvents])
+  // Derived during render (pure computation from form inputs + loaded events),
+  // not state synced by an effect.
+  const overlapWarning = formDate
+    ? checkOverlap(formDate, new Date(new Date(formDate).getTime() + 3600000).toISOString())
+    : null
 
   const allCalendarEvents: EventInput[] = [
     ...activities.map((a) => ({

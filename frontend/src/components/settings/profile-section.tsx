@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useCallback, useState, useEffect } from "react"
+import { useRef, useCallback, useState } from "react"
 import { Camera, Save } from "lucide-react"
 import { useI18n } from "@/contexts/i18n-context"
 import { useAuthStore } from "@/stores/auth-store"
@@ -17,15 +17,15 @@ export function ProfileSection() {
   const [email, setEmail] = useState("")
   const [profileLoading, setProfileLoading] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [prevUser, setPrevUser] = useState(user)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (user) {
-      setFirstName(user.first_name ?? "")
-      setLastName(user.last_name ?? "")
-      setEmail(user.email ?? "")
-    }
-  }, [user])
+  if (user !== prevUser) {
+    setPrevUser(user)
+    setFirstName(user?.first_name ?? "")
+    setLastName(user?.last_name ?? "")
+    setEmail(user?.email ?? "")
+  }
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

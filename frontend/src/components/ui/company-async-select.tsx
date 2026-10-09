@@ -37,13 +37,19 @@ export function CompanyAsyncSelect({
     }
   }, [])
 
-  useEffect(() => {
+  // Keep the search box in sync with the selected value. Done during render
+  // (React's "adjust state on props change" pattern) instead of an effect
+  // to avoid a synchronous setState inside useEffect. User typing is preserved
+  // because the sync only runs when value or dropdownOpen actually change.
+  const [prevSync, setPrevSync] = useState<{ v: Company | null | undefined; open: boolean } | null>(null)
+  if (prevSync?.v !== value || prevSync?.open !== dropdownOpen) {
+    setPrevSync({ v: value, open: dropdownOpen })
     if (value) {
       setSearch(value.name)
     } else if (!dropdownOpen) {
       setSearch("")
     }
-  }, [value, dropdownOpen])
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

@@ -10,7 +10,7 @@
 - [x] Proyecto Rust con edición 2024, compilación clean con clippy -D warnings
 - [x] Framework web Axum 0.8 con tower middleware
 - [x] Conexión a PostgreSQL 17 con pool de conexiones SQLx
-- [x] 31 migraciones de base de datos (users, companies, contacts, deals, activities, documents, audit_log, webhooks, leads, tags, notifications, email, calendar, RBAC, webhooks deliveries)
+- [x] 34 migraciones de base de datos (users, companies, contacts, deals, activities, documents, audit_log, webhooks, leads, tags, notifications, email, calendar, RBAC, webhooks deliveries, whatsapp/IA permissions)
 - [x] Endpoints REST API:
   - **Auth:** register, login, refresh (rate limited), logout, profile, change password
   - **Contacts:** CRUD, bulk delete, CSV export/import
@@ -211,7 +211,7 @@ _Siguiente tarea: Notificaciones in-app en tiempo real (WebSockets/SSE)_
 - [ ] Actividad historial automática al crear/editar entidades
   - [ ] Conectar el Audit Log o disparar inserciones en la tabla `activities` (tipo 'System') en el backend
 - [ ] Rate limiter distribuido con Redis (persistente)
-  - [ ] Reemplazar limiter in-memory de Axum por comandos incrementales en Redis
+  - [x] Limiter con backend Redis + fallback en memoria (sliding window atómico en Lua)
 - [x] Health check endpoint que verifique DB
 - [x] **Frontend API split** — Dividir `api.ts` (1313 líneas) en módulos
   - [x] `api-client.ts` con lógica de request y refresh
@@ -238,8 +238,8 @@ _Siguiente tarea: Notificaciones in-app en tiempo real (WebSockets/SSE)_
 - [ ] Breadcrumbs dinámicos
 
 ### Técnico / Deuda
-- [ ] Eliminar pgvector del schema si no se usa
-- [ ] Migrar de `version: '3.8'` en docker-compose (obsoleto)
+- [x] `version:` obsoleta eliminada de los docker-compose (ya no existe esa clave)
+- [ ] Embeddings con pgvector (el tipo `VECTOR(1536)` e índices ivfflat ya existen; falta generarlos)
 - [x] Agregar graceful shutdown al backend (ya implementado en main.rs)
 - [ ] Cachear búsquedas frecuentes con Redis
 - [ ] Agregar tests de integración para handlers

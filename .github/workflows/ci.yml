@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege for all jobs (H27).
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend
@@ -44,10 +48,14 @@ jobs:
         run: cargo fmt -- --check
       - name: Clippy
         run: cargo clippy -- -D warnings
-      - name: Build
-        run: cargo build --release
+      - name: Security audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Test
         run: cargo test -- --test-threads=1
+      - name: Build
+        run: cargo build --release
 
   frontend:
     name: Frontend
@@ -57,18 +65,20 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
       - uses: pnpm/action-setup@v4
         with:
           version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build
-        run: pnpm build
       - name: Lint
         run: pnpm lint
+      - name: Build
+        run: pnpm build
 
   e2e:
     name: E2E Tests
@@ -92,62 +102,76 @@ jobs:
       DATABASE_URL: postgres://crm_user:crm_password@localhost:5432/crm_db
       JWT_SECRET: test-jwt-secret-that-is-at-least-32-chars!!
       REFRESH_TOKEN_SECRET: test-refresh-secret-that-is-at-least-32-chars!!
+      # Migrations run at backend boot via the tracked runner (RUN_MIGRATIONS).
+      RUN_MIGRATIONS: true
+      FRONTEND_URL: http://localhost:3000
+      BACKEND_PUBLIC_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost:3000
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
       - uses: pnpm/action-setup@v4
         with:
           version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: backend
+          workspaces: "backend -> target"
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
-      - name: Run migrations
+      - name: Build backend
+        run: cargo build --release
+        working-directory: backend
+      - name: Start backend
         run: |
-          for f in database/migrations/*.sql; do
-            psql "$DATABASE_URL" -f "$f"
+          ../backend/target/release/crm-backend > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/api/v1/health > /dev/null 2>&1; then
+              echo "Backend ready"
+              exit 0
+            fi
+            sleep 2
           done
-        working-directory: .
-      - name: Build and start backend
-        run: |
-          cd ../backend
-          cargo build --release
-          ./target/release/crm-backend &
+          echo "Backend failed to start:"; tail -50 /tmp/backend.log; exit 1
         env:
           SERVER_PORT: 8000
-      - name: Start frontend
-        run: pnpm dev &
-      - name: Wait for servers
+      - name: Build and start frontend
         run: |
+          pnpm build
+          (pnpm start > /tmp/frontend.log 2>&1 & echo $! > /tmp/frontend.pid)
           for i in $(seq 1 30); do
-            if curl -s http://localhost:3000 > /dev/null 2>&1; then
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
               echo "Frontend ready"
-              break
+              exit 0
             fi
             sleep 2
           done
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8000/api/v1/health > /dev/null 2>&1; then
-              echo "Backend ready"
-              break
-            fi
-            sleep 2
-          done
+          echo "Frontend failed to start:"; tail -50 /tmp/frontend.log; exit 1
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
       - name: Run E2E tests
         run: pnpm exec playwright test --project=chromium
         env:
           CI: true
           BASE_URL: http://localhost:3000
           API_URL: http://localhost:8000
+      - name: Dump server logs on failure
+        if: failure()
+        run: |
+          echo "=== backend ==="; tail -100 /tmp/backend.log
+          echo "=== frontend ==="; tail -100 /tmp/frontend.log
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()

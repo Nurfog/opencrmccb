@@ -218,16 +218,16 @@ opencmrccb/
 │   │   ├── lib.rs             # Library exports
 │   │   ├── config.rs          # Environment configuration
 │   │   ├── db.rs              # Database connection pool
-│   │   ├── handlers/          # 26 handler modules
+│   │   ├── handlers/          # 23 handler modules (auth, contacts, calendar, whatsapp, …)
 │   │   ├── middleware/        # Auth, rate limiting, metrics
-│   │   ├── models/            # 22 model modules
+│   │   ├── models/            # 19 model modules
 │   │   └── services/          # Email service
 │   ├── tests/                 # 7 test files (unit + integration, require Postgres)
 │   ├── Cargo.toml
 │   └── Dockerfile
 ├── frontend/                   # Next.js 15 + Tailwind
 │   ├── src/
-│   │   ├── app/               # 13 pages (App Router)
+│   │   ├── app/               # 19 routes (App Router)
 │   │   ├── components/        # UI, charts, kanban, auth
 │   │   ├── contexts/          # i18n, toast, theme, auth
 │   │   ├── hooks/             # Keyboard shortcuts
@@ -236,7 +236,7 @@ opencmrccb/
 │   ├── package.json
 │   └── Dockerfile
 ├── database/
-│   └── migrations/            # 33 SQL migrations
+│   └── migrations/            # 34 SQL migrations (tracked, idempotent)
 ├── monitoring/
 │   ├── prometheus.yml
 │   ├── promtail-config.yml
@@ -261,7 +261,7 @@ opencmrccb/
 | Feature | Implementation |
 |---------|---------------|
 | Authentication | JWT with HS256 + refresh token rotation |
-| Authorization | Role-based (admin, user) |
+| Authorization | Capability-based (profiles + `profile_permissions`, e.g. `contacts.view`, `admin.access`) |
 | Rate Limiting | 5 requests/min/IP on auth |
 | Input Validation | email, length, range on all models |
 | SQL Injection | Parameterized queries (SQLx) |
@@ -278,7 +278,7 @@ opencmrccb/
 |----------|---------|-------------|
 | `DATABASE_URL` | `postgres://crm_user:crm_password@localhost:5432/crm_db` | PostgreSQL connection |
 | `JWT_SECRET` | **required** | JWT signing secret |
-| `REFRESH_TOKEN_SECRET` | falls back to JWT_SECRET | Refresh token secret |
+| `REFRESH_TOKEN_SECRET` | **required** (≥32 chars, must differ from `JWT_SECRET`) | Refresh token secret |
 | `ACCESS_TOKEN_EXPIRY_MINUTES` | `15` | Access token TTL |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | `30` | Refresh token TTL |
 | `SERVER_HOST` | `0.0.0.0` | Backend bind address |
@@ -292,23 +292,35 @@ opencmrccb/
 | `EMAIL_ENABLED` | `false` | Toggle email |
 | `UPLOAD_DIR` | `./uploads` | File upload directory |
 | `MAX_FILE_SIZE_MB` | `10` | Max upload size |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend API URL |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend API URL (baked at build time) |
+| `FRONTEND_URL` | `http://localhost:3000` | Frontend URL (OAuth redirects) |
+| `BACKEND_PUBLIC_URL` | `http://localhost:8000` | Reachable backend URL (OAuth `redirect_uri`) |
+| `TOKEN_ENCRYPTION_KEY` | _(unset = plaintext)_ | Base64 32-byte key for at-rest secrets |
+| `REQUIRE_ENCRYPTION` | `false` | Refuse boot without encryption key |
+| `RUN_MIGRATIONS` | `true` | Tracked migration runner at boot |
+| `WHATSAPP_APP_SECRET` | _(unset = webhooks rejected)_ | Meta app secret (HMAC verify) |
+| `REDIS_URL` | _(unset = in-memory limiter)_ | Redis for rate limiting |
 
 ## Local Development
+
+> Compose fails fast on missing secrets: copy `.env.example` to `.env` and
+> fill `POSTGRES_PASSWORD`, `JWT_SECRET`, `REFRESH_TOKEN_SECRET` (≥32 chars,
+> distinct) and `GRAFANA_ADMIN_PASSWORD` first.
 
 ### Backend
 
 ```bash
 cd backend
-JWT_SECRET=your-secret-key cargo run
+cp ../.env.example ../.env   # then fill the required secrets
+cargo run                    # needs DATABASE_URL in .env
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ### Tests
@@ -321,11 +333,11 @@ cargo test
 ### Backup
 
 ```bash
-# Create backup
+# Create backup (last 7 kept, optional GPG via BACKUP_ENCRYPTION_PASSWORD)
 ./scripts/backup-db.sh
 
-# Restore from backup
-./scripts/restore-db.sh backups/crm_db_20260620_120000.sql.gz
+# Restore from backup (takes a pre-restore safety dump; --yes for CI)
+./scripts/restore-db.sh backups/crm_backup_20260620_120000.sql.gz
 ```
 
 ## Roadmap

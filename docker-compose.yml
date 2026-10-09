@@ -1,9 +1,13 @@
+# NOTE: network_mode: host is a deliberate dev-only choice (see README).
+# All services share the host network; there is no network isolation.
+# For production use a bridge network with service names instead.
 services:
   db:
     build:
       context: ./database
       dockerfile: Dockerfile
     network_mode: host
+    restart: unless-stopped
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
@@ -19,6 +23,7 @@ services:
   redis:
     image: redis:7-alpine
     network_mode: host
+    restart: unless-stopped
     command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
@@ -32,7 +37,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      network: host
     network_mode: host
     restart: unless-stopped
     volumes:
@@ -45,7 +49,7 @@ services:
       # manage migrations externally.
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       MIGRATIONS_DIR: /app/migrations
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET must be set in .env}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
@@ -59,7 +63,7 @@ services:
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
-      FRONTEND_URL: http://localhost:3000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
     depends_on:
       db:
@@ -71,11 +75,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      network: host
+      # NOTE: NEXT_PUBLIC_* is inlined at build time, not read at runtime.
+      # For a non-localhost API host, rebuild with e.g.:
+      #   NEXT_PUBLIC_API_URL=https://api.example.com docker compose build frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     network_mode: host
     restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
       interval: 30s
@@ -88,53 +94,93 @@ services:
   prometheus:
     image: prom/prometheus:v2.51.0
     network_mode: host
+    restart: unless-stopped
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   loki:
     image: grafana/loki:2.9.4
     network_mode: host
+    restart: unless-stopped
     volumes:
       - loki-data:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   promtail:
     image: grafana/promtail:2.9.4
     network_mode: host
+    restart: unless-stopped
     volumes:
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Required for docker_sd_configs discovery (see monitoring/promtail-config.yml).
+      # Privilege-escalation surface if promtail is compromised: dev-only, do not
+      # expose promtail's port; in prod prefer file/journald collection instead.
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
       - promtail-positions:/tmp
     command: -config.file=/etc/promtail/config.yml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9080/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - loki
+      loki:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:11.5.0
     network_mode: host
+    restart: unless-stopped
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in .env}
       GF_SERVER_HTTP_PORT: 3001
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - prometheus
-      - loki
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
     network_mode: host
+    restart: unless-stopped
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:

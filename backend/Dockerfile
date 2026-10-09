@@ -1,4 +1,6 @@
-FROM rust:1.88-slim AS deps
+# Pinned to the same toolchain CI tests (see .github/workflows/ci.yml).
+ARG RUST_VERSION=1.97.1
+FROM rust:${RUST_VERSION}-slim AS deps
 
 WORKDIR /app
 
@@ -14,7 +16,7 @@ RUN mkdir src && \
     cargo build --release --locked && \
     rm -rf src
 
-FROM rust:1.88-slim AS builder
+FROM rust:${RUST_VERSION}-slim AS builder
 
 WORKDIR /app
 

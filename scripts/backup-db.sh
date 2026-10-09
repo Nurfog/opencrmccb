@@ -4,10 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Load .env if present
+# Load .env WITHOUT executing it: only plain KEY=value lines are imported
+# (sourcing .env would run arbitrary shell code).
 if [ -f "$PROJECT_DIR/.env" ]; then
     set -a
-    source "$PROJECT_DIR/.env"
+    while IFS='=' read -r key value; do
+        case "$key" in
+            ''|'#'*) : ;;
+            *[!A-Z0-9_]*|'') : ;;
+            *) export "$key=$value" ;;
+        esac
+    done < <(grep -E '^[A-Z_][A-Z0-9_]*=' "$PROJECT_DIR/.env" || true)
     set +a
 fi
 
@@ -36,7 +43,8 @@ FILESIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 echo "Backup completed successfully ($FILESIZE)"
 echo "File: $BACKUP_FILE"
 
-# Keep only last 7 backups
-cd "$BACKUP_DIR"
-ls -1t crm_backup_*.sql.gz crm_backup_*.sql.gz.gpg 2>/dev/null | tail -n +8 | xargs -r rm --
+# Keep only last 7 backups (newline-safe rotation over both extensions)
+find "$BACKUP_DIR" -maxdepth 1 -name 'crm_backup_*.sql.gz*' -printf '%T@ %p\n' 2>/dev/null \
+    | sort -n | head -n -7 | cut -d' ' -f2- \
+    | while IFS= read -r old; do rm -f -- "$old"; done
 echo "Old backups cleaned (keeping last 7)"

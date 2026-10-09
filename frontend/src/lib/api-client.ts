@@ -72,9 +72,14 @@ async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
+      // Cookie-first (httpOnly refresh_token); fall back to the in-memory
+      // token in the body for browsers blocking third-party cookies.
+      // The backend accepts both (cookie, then body).
+      const body = refreshToken ? JSON.stringify({ refresh_token: refreshToken }) : undefined;
       const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body,
         credentials: "include",
       });
       if (!res.ok) {

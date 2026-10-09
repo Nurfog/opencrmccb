@@ -1,4 +1,13 @@
 /** @type {import('next').NextConfig} */
+// API origin derived from env so production deployments aren't locked to
+// localhost (the browser must be allowed to reach the real backend host).
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+let apiOrigin = '';
+try {
+  apiOrigin = new URL(apiUrl).origin;
+} catch {
+  apiOrigin = 'http://localhost:8000';
+}
 const securityHeaders = [
   {
     key: 'X-Frame-Options',
@@ -28,7 +37,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' http://localhost:8000 https://*.googleapis.com https://*.microsoftonline.com",
+      `connect-src 'self' ${apiOrigin} https://*.googleapis.com https://*.microsoftonline.com`,
       "frame-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",

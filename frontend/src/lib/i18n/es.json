@@ -91,8 +91,23 @@
     "date": "Fecha"
   },
   "auth": {
-    "login": "Iniciar Sesión",
-    "register": "Crear Cuenta",
+    "login": {
+      "title": "Iniciar sesión",
+      "subtitle": "Accede a tu cuenta de OpenCRM",
+      "button": "Iniciar sesión",
+      "noAccount": "¿No tienes una cuenta?",
+      "registerLink": "Regístrate aquí"
+    },
+    "register": {
+      "title": "Crear cuenta",
+      "subtitle": "Regístrate en OpenCRM",
+      "button": "Crear cuenta",
+      "hasAccount": "¿Ya tienes una cuenta?",
+      "loginLink": "Inicia sesión",
+      "requiredFields": "Todos los campos son obligatorios",
+      "passwordLength": "La contraseña debe tener al menos 6 caracteres",
+      "passwordsDoNotMatch": "Las contraseñas no coinciden"
+    },
     "email": "Correo Electrónico",
     "password": "Contraseña",
     "confirmPassword": "Confirmar Contraseña",
@@ -119,7 +134,7 @@
     "changePasswordFailed": "Error al cambiar la contraseña.",
     "resetFailed": "Error al enviar el enlace. Intenta novamente.",
     "invalidToken": "Token inválido o faltante.",
-    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres.",
+    "passwordTooShort": "La contraseña debe tener al menos 6 caracteres.",
     "resetSuccess": "Tu contraseña ha sido restablecida exitosamente.",
     "resetPasswordInstructions": "Ingresa tu nueva contraseña."
   },

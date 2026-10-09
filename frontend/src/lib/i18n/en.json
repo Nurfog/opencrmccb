@@ -91,8 +91,23 @@
     "date": "Date"
   },
   "auth": {
-    "login": "Log In",
-    "register": "Sign Up",
+    "login": {
+      "title": "Log In",
+      "subtitle": "Access your OpenCRM account",
+      "button": "Sign In",
+      "noAccount": "Don't have an account?",
+      "registerLink": "Sign up here"
+    },
+    "register": {
+      "title": "Sign Up",
+      "subtitle": "Create your OpenCRM account",
+      "button": "Create Account",
+      "hasAccount": "Already have an account?",
+      "loginLink": "Log in",
+      "requiredFields": "All fields are required",
+      "passwordLength": "Password must be at least 6 characters",
+      "passwordsDoNotMatch": "Passwords do not match"
+    },
     "email": "Email Address",
     "password": "Password",
     "confirmPassword": "Confirm Password",
@@ -119,7 +134,7 @@
     "changePasswordFailed": "Failed to change password.",
     "resetFailed": "Failed to send reset link. Please try again.",
     "invalidToken": "Invalid or missing token.",
-    "passwordTooShort": "Password must be at least 8 characters.",
+    "passwordTooShort": "Password must be at least 6 characters.",
     "resetSuccess": "Your password has been reset successfully.",
     "resetPasswordInstructions": "Enter your new password."
   },

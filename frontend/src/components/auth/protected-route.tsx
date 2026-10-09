@@ -13,6 +13,7 @@ export function ProtectedRoute({ children, requiredPermission }: ProtectedRouteP
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const loadUser = useAuthStore((s) => s.loadUser);
   const [mounted, setMounted] = useState(false);
@@ -23,25 +24,27 @@ export function ProtectedRoute({ children, requiredPermission }: ProtectedRouteP
     setMounted(true);
   }, []);
 
+  // Wait for the initial session check (AuthProvider.initialize -> loadUser)
+  // before deciding: otherwise a valid cookie session flashes to /login.
   useEffect(() => {
-    if (mounted && !isAuthenticated) {
+    if (mounted && !isLoading && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [mounted, isAuthenticated, router]);
+  }, [mounted, isLoading, isAuthenticated, router]);
 
   useEffect(() => {
-    if (mounted && isAuthenticated && requiredPermission && !permissionsLoaded) {
+    if (mounted && !isLoading && isAuthenticated && requiredPermission && !permissionsLoaded) {
       loadUser();
     }
-  }, [mounted, isAuthenticated, requiredPermission, permissionsLoaded, loadUser]);
+  }, [mounted, isLoading, isAuthenticated, requiredPermission, permissionsLoaded, loadUser]);
 
   useEffect(() => {
-    if (mounted && isAuthenticated && requiredPermission && permissionsLoaded && !hasPermission(requiredPermission)) {
+    if (mounted && !isLoading && isAuthenticated && requiredPermission && permissionsLoaded && !hasPermission(requiredPermission)) {
       router.replace("/");
     }
-  }, [mounted, isAuthenticated, requiredPermission, permissionsLoaded, hasPermission, router]);
+  }, [mounted, isLoading, isAuthenticated, requiredPermission, permissionsLoaded, hasPermission, router]);
 
-  if (!mounted) {
+  if (!mounted || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />

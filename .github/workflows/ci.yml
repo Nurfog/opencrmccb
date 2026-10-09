@@ -49,9 +49,9 @@ jobs:
       - name: Clippy
         run: cargo clippy -- -D warnings
       - name: Security audit
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo install cargo-audit --version 0.21.2 --locked
+          cargo audit
       - name: Test
         run: cargo test -- --test-threads=1
       - name: Build

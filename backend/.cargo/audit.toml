@@ -1,0 +1,15 @@
+# cargo-audit configuration.
+# Each `ignore` below documents an accepted risk (2026-10-09 review).
+# Re-check on every sqlx / rust_decimal major bump.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2026-0235: rkyv 0.7 OOB reads in archives containing Rc/Arc.
+    # The app never (de)serializes rkyv archives; pulled in via rust_decimal
+    # and not even present in `cargo tree`. Fix needs rkyv >= 0.8 (major).
+    "RUSTSEC-2026-0235",
+    # RUSTSEC-2023-0071: rsa Marvin Attack (timing sidechannel, no upstream fix).
+    # rsa comes from sqlx-mysql; the backend only uses the Postgres driver,
+    # so the vulnerable code path is unreachable.
+    "RUSTSEC-2023-0071",
+]

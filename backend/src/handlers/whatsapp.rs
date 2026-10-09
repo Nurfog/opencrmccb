@@ -149,7 +149,7 @@ pub async fn get_whatsapp_config(
     perms: UserPermissions,
 ) -> Result<Json<WhatsAppConfigResponse>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let config = sqlx::query_as::<_, WhatsAppConfig>(
         "SELECT * FROM whatsapp_config WHERE is_active = true ORDER BY created_at DESC LIMIT 1",
@@ -178,7 +178,7 @@ pub async fn update_whatsapp_config(
     Json(input): Json<WhatsAppConfigInput>,
 ) -> Result<Json<WhatsAppConfigResponse>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.manage")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let singleton_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
     let key = state.auth.token_encryption_key.as_deref();
@@ -218,7 +218,7 @@ pub async fn send_whatsapp_message(
     Json(input): Json<SendMessageInput>,
 ) -> Result<Json<MessageResponse>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let agent_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
@@ -304,7 +304,7 @@ pub async fn get_messages(
     Query(params): Query<MessageFilter>,
 ) -> Result<Json<Vec<MessageResponse>>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let messages = if let Some(cid) = params.contact_id {
         sqlx::query_as::<_, (Uuid, String, String, String, String, String, chrono::DateTime<chrono::Utc>)>(
@@ -578,7 +578,7 @@ pub async fn get_lead_assignment_config(
     perms: UserPermissions,
 ) -> Result<Json<LeadAssignmentConfig>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let config = sqlx::query_as::<_, (String, i32, bool, bool)>(
         "SELECT strategy, max_active_leads, territory_enabled, notify_on_assign FROM lead_assignment_config LIMIT 1"
@@ -604,7 +604,7 @@ pub async fn update_lead_assignment_config(
     Json(input): Json<LeadAssignmentInput>,
 ) -> Result<Json<LeadAssignmentConfig>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.manage")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let strategy = input.strategy.unwrap_or_else(|| "round_robin".into());
     let max_leads = input.max_active_leads.unwrap_or(10);
@@ -645,7 +645,7 @@ pub async fn assign_lead(
     Json(input): Json<AssignLeadInput>,
 ) -> Result<Json<AgentAssignment>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let agent_id = assign_lead_to_agent(
         &state,
@@ -682,7 +682,7 @@ pub async fn list_conversations(
     perms: UserPermissions,
 ) -> Result<Json<Vec<ConversationSummary>>, StatusCode> {
     perms
-        .require("contacts.view")
+        .require("whatsapp.view")
         .map_err(|_| StatusCode::FORBIDDEN)?;
     let rows = sqlx::query_as::<_, ConversationRow>(
         r#"

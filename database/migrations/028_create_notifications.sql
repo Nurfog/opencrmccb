@@ -1,5 +1,9 @@
 -- Up
-CREATE TYPE notification_type AS ENUM ('mention', 'deal_assigned', 'system_alert');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type') THEN
+        CREATE TYPE notification_type AS ENUM ('mention', 'deal_assigned', 'system_alert');
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

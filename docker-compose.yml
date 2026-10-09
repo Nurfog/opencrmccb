@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: crm_db
       POSTGRES_USER: crm_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_db"]
       interval: 10s
@@ -19,9 +19,11 @@ services:
   redis:
     image: redis:7-alpine
     network_mode: host
-    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password}
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,12 +35,21 @@ services:
       network: host
     network_mode: host
     restart: unless-stopped
+    volumes:
+      - ./database/migrations:/app/migrations:ro
     environment:
-      DATABASE_URL: postgres://crm_user:${POSTGRES_PASSWORD:-crm_password}@localhost:5432/crm_db
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@localhost:6379
+      DATABASE_URL: postgres://crm_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@localhost:5432/crm_db
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@localhost:6379
+      # Tracked, idempotent runner (backend/src/migrator.rs). The DB image only
+      # seeds on first init; this covers pre-existing volumes. Set false if you
+      # manage migrations externally.
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      MIGRATIONS_DIR: /app/migrations
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET must be set in .env}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      REQUIRE_ENCRYPTION: ${REQUIRE_ENCRYPTION:-false}
       SMTP_HOST: ${SMTP_HOST:-localhost}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -48,6 +59,7 @@ services:
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
       FRONTEND_URL: http://localhost:3000
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
     depends_on:
       db:
         condition: service_healthy
@@ -108,7 +120,7 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in .env}
       GF_SERVER_HTTP_PORT: 3001
     depends_on:
       - prometheus

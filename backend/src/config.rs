@@ -19,6 +19,7 @@ pub struct ServerConfig {
     pub port: u16,
     pub cors_origins: String,
     pub frontend_url: String,
+    pub backend_public_url: String,
 }
 
 #[derive(Clone)]
@@ -86,6 +87,10 @@ impl Config {
                     .unwrap_or_else(|_| "http://localhost:3000".into()),
                 frontend_url: std::env::var("FRONTEND_URL")
                     .unwrap_or_else(|_| "http://localhost:3000".into()),
+                // Publicly reachable base URL of this backend (used as OAuth
+                // redirect_uri target). Must be reachable from the user's browser.
+                backend_public_url: std::env::var("BACKEND_PUBLIC_URL")
+                    .unwrap_or_else(|_| "http://localhost:8000".into()),
             },
             auth,
             smtp,
@@ -125,6 +130,21 @@ impl Config {
                 None
             }
         });
+
+        // Fail-open (plaintext) only for local dev. In prod, set a valid
+        // base64 32-byte TOKEN_ENCRYPTION_KEY and REQUIRE_ENCRYPTION=true.
+        let require_encryption = std::env::var("REQUIRE_ENCRYPTION")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        match (&token_encryption_key, require_encryption) {
+            (None, true) => panic!(
+                "TOKEN_ENCRYPTION_KEY is missing or not a base64 32-byte key, but REQUIRE_ENCRYPTION=true. Generate with: openssl rand -base64 32"
+            ),
+            (None, false) => tracing::warn!(
+                "TOKEN_ENCRYPTION_KEY not set: integration secrets (WhatsApp/AI/calendar/OAuth tokens) will be stored in PLAINTEXT. Set a base64 32-byte key for any non-dev deployment."
+            ),
+            (Some(_), _) => {}
+        }
 
         AuthConfig {
             jwt_secret,

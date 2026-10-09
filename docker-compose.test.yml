@@ -21,7 +21,8 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgres://crm_user:crm_password@db-test:5432/crm_db_test
-      JWT_SECRET: test-secret-key
+      JWT_SECRET: test-jwt-secret-that-is-at-least-32-chars!!
+      REFRESH_TOKEN_SECRET: test-refresh-secret-that-is-at-least-32-chars!!
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
     depends_on:

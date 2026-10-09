@@ -29,6 +29,17 @@ async fn main() {
     let config = config::Config::from_env();
     let cors_origins = config.parse_cors_origins();
     let pool = db::create_pool(&config.database.url).await;
+
+    // Apply pending SQL migrations (tracked in schema_migrations, safe to
+    // re-run). Required because the DB image only seeds migrations on first
+    // init; pre-existing volumes would otherwise never migrate.
+    if crm_backend::migrator::run_migrations_enabled() {
+        let dir = crm_backend::migrator::migration_dir();
+        match crm_backend::migrator::run_pending_migrations(&pool, &dir).await {
+            Ok(n) => tracing::info!("Migrations from {dir}: {n} applied, rest already up to date"),
+            Err(e) => panic!("Failed to run DB migrations from {dir}: {e}"),
+        }
+    }
     tokio::spawn(crm_backend::services::webhook_worker::start_worker(
         pool.clone(),
     ));
@@ -60,6 +71,7 @@ async fn main() {
             max_file_size_mb: config.upload.max_file_size_mb,
         },
         frontend_url: config.server.frontend_url.clone(),
+        backend_public_url: config.server.backend_public_url.clone(),
         oauth: OAuthConfig {
             google: config.oauth.google.clone(),
             microsoft: config.oauth.microsoft.clone(),

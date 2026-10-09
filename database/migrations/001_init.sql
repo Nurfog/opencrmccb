@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS contacts (
 );
 
 -- Deals table
-CREATE TYPE deal_stage AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'deal_stage') THEN
+        CREATE TYPE deal_stage AS ENUM (
     'lead',
     'qualified',
     'proposal',
@@ -57,6 +59,8 @@ CREATE TYPE deal_stage AS ENUM (
     'closed_won',
     'closed_lost'
 );
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS deals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -74,13 +78,17 @@ CREATE TABLE IF NOT EXISTS deals (
 );
 
 -- Activities table
-CREATE TYPE activity_type AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'activity_type') THEN
+        CREATE TYPE activity_type AS ENUM (
     'call',
     'email',
     'meeting',
     'task',
     'note'
 );
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS activities (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -25,13 +25,20 @@ let refreshToken: string | null = null;
 let csrfToken: string | null = null;
 let onLogout: (() => void) | null = null;
 
+function getCookie(name: string): string | null {
+  if (typeof window === "undefined") return null;
+  const cookies = document.cookie.split(";");
+  for (const c of cookies) {
+    const idx = c.indexOf("=");
+    if (idx === -1) continue;
+    const key = c.slice(0, idx).trim();
+    if (key === name) return c.slice(idx + 1);
+  }
+  return null;
+}
+
 if (typeof window !== "undefined") {
-  const cookies = document.cookie.split(";").reduce((acc, c) => {
-    const [key, val] = c.trim().split("=");
-    if (key) acc[key] = val ?? "";
-    return acc;
-  }, {} as Record<string, string>);
-  csrfToken = cookies["csrf_token"] ?? null;
+  csrfToken = getCookie("csrf_token");
 }
 
 export function setTokens(access: string, refresh: string): void {
@@ -45,14 +52,7 @@ export function getAccessToken(): string | null {
 
 export function getCsrfToken(): string | null {
   if (csrfToken) return csrfToken;
-  if (typeof window !== "undefined") {
-    const cookies = document.cookie.split(";").reduce((acc, c) => {
-      const [key, val] = c.trim().split("=");
-      if (key) acc[key] = val ?? "";
-      return acc;
-    }, {} as Record<string, string>);
-    csrfToken = cookies["csrf_token"] ?? null;
-  }
+  csrfToken = getCookie("csrf_token");
   return csrfToken;
 }
 
@@ -89,12 +89,7 @@ async function refreshAccessToken(): Promise<string | null> {
         refreshToken = newRefresh;
       }
       if (typeof window !== "undefined") {
-        const cookies = document.cookie.split(";").reduce((acc, c) => {
-          const [key, val] = c.trim().split("=");
-          if (key) acc[key] = val ?? "";
-          return acc;
-        }, {} as Record<string, string>);
-        csrfToken = cookies["csrf_token"] ?? null;
+        csrfToken = getCookie("csrf_token");
       }
       return accessToken;
     } catch {
@@ -132,7 +127,7 @@ export async function request<T>(
     ...(options.headers as Record<string, string> | undefined),
   };
 
-  if (!bodyIsFormData) {
+  if (!bodyIsFormData && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -180,7 +175,13 @@ export async function request<T>(
 
   if (res.status === 204) return undefined as T;
 
-  return res.json();
+  const text = await res.text();
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError("Invalid JSON response", res.status, { text });
+  }
 }
 
 export async function downloadFile(

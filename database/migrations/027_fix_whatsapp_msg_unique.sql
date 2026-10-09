@@ -4,4 +4,4 @@
 -- DROP INDEX is neither needed nor allowed (Postgres rejects dropping an index
 -- that a constraint depends on).
 ALTER TABLE whatsapp_messages DROP CONSTRAINT IF EXISTS uq_whatsapp_msg_id;
-CREATE UNIQUE INDEX uq_whatsapp_msg_id_notnull ON whatsapp_messages(message_id) WHERE message_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_msg_id_notnull ON whatsapp_messages(message_id) WHERE message_id IS NOT NULL;

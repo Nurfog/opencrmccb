@@ -46,10 +46,17 @@ pub fn refresh_routes() -> Router<AppState> {
 }
 
 pub fn integration_callback_routes() -> Router<AppState> {
-    Router::new().route(
-        "/api/v1/integrations/{provider}/callback",
-        get(handlers::oauth::callback),
-    )
+    Router::new()
+        .route(
+            "/api/v1/integrations/{provider}/callback",
+            get(handlers::oauth::callback),
+        )
+        // Public: the OAuth provider redirects the user's browser here without
+        // JWT; user identity comes from the verified `state` parameter.
+        .route(
+            "/api/v1/calendar/{provider}/callback",
+            get(handlers::calendar::calendar_callback),
+        )
 }
 
 pub fn auth_routes() -> Router<AppState> {
@@ -295,14 +302,6 @@ pub fn auth_routes() -> Router<AppState> {
         .route(
             "/api/v1/calendar/auth/{provider}",
             get(handlers::calendar::get_auth_url),
-        )
-        .route(
-            "/api/v1/calendar/{provider}/callback",
-            get(handlers::calendar::google_callback),
-        )
-        .route(
-            "/api/v1/calendar/microsoft/callback",
-            get(handlers::calendar::microsoft_callback),
         )
         .route(
             "/api/v1/calendar/sync/google",

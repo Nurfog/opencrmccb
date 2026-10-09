@@ -1,4 +1,6 @@
-CREATE TYPE webhook_event AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'webhook_event') THEN
+        CREATE TYPE webhook_event AS ENUM (
     'deal_created',
     'deal_updated',
     'deal_deleted',
@@ -6,6 +8,8 @@ CREATE TYPE webhook_event AS ENUM (
     'contact_updated',
     'contact_deleted'
 );
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS webhooks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

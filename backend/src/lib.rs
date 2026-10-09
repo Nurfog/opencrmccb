@@ -6,6 +6,7 @@ pub mod envelope;
 pub mod error;
 pub mod handlers;
 pub mod middleware;
+pub mod migrator;
 pub mod models;
 pub mod queries;
 pub mod repositories;
@@ -66,6 +67,7 @@ pub struct AppState {
     pub smtp: SmtpConfig,
     pub upload: UploadConfig,
     pub frontend_url: String,
+    pub backend_public_url: String,
     pub oauth: OAuthConfig,
     pub contact_repo: std::sync::Arc<repositories::contact_repo::PgContactRepo>,
     pub deal_repo: std::sync::Arc<repositories::deal_repo::PgDealRepo>,

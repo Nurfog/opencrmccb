@@ -86,7 +86,9 @@ pub async fn update_ai_config(
     perms: UserPermissions,
     Json(input): Json<AIConfigInput>,
 ) -> Result<Json<AIConfigResponse>, StatusCode> {
-    perms.require("ai.use").map_err(|_| StatusCode::FORBIDDEN)?;
+    perms
+        .require("ai.manage")
+        .map_err(|_| StatusCode::FORBIDDEN)?;
     let key = state.auth.token_encryption_key.as_deref();
     let enc_key = input.api_key.as_ref().map(|k| encrypt(k, key));
     let existing =

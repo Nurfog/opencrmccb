@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS pipeline_stages (
 );
 
 -- Link deals to pipelines
-ALTER TABLE deals ADD COLUMN pipeline_id UUID REFERENCES pipelines(id);
-ALTER TABLE deals ADD COLUMN pipeline_stage_id UUID REFERENCES pipeline_stages(id);
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS pipeline_id UUID REFERENCES pipelines(id);
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS pipeline_stage_id UUID REFERENCES pipeline_stages(id);
 
 -- ─── Perfiles y permisos ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS profiles (
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS profile_permissions (
     UNIQUE(profile_id, permission)
 );
 
-ALTER TABLE users ADD COLUMN profile_id UUID REFERENCES profiles(id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id);
 
 -- ─── Branding ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS branding (
@@ -71,6 +71,7 @@ DECLARE
 BEGIN
     SELECT id INTO p_id FROM pipelines WHERE slug = 'persons';
 
+    IF NOT EXISTS (SELECT 1 FROM pipeline_stages WHERE pipeline_id = p_id) THEN
     INSERT INTO pipeline_stages (pipeline_id, name, position, color, probability, is_default) VALUES
       (p_id, 'Nuevo contacto',    0, '#6B7280', 10,  true),
       (p_id, 'Calificado',        1, '#3B82F6', 25,  false),
@@ -79,6 +80,7 @@ BEGIN
       (p_id, 'Ganado',            4, '#10B981', 100, false),
       (p_id, 'Perdido',           5, '#EF4444', 0,   false)
     ON CONFLICT DO NOTHING;
+    END IF;
 END $$;
 
 -- Stages for Personas Jurídicas
@@ -88,6 +90,7 @@ DECLARE
 BEGIN
     SELECT id INTO p_id FROM pipelines WHERE slug = 'companies';
 
+    IF NOT EXISTS (SELECT 1 FROM pipeline_stages WHERE pipeline_id = p_id) THEN
     INSERT INTO pipeline_stages (pipeline_id, name, position, color, probability, is_default) VALUES
       (p_id, 'Prospección',       0, '#6B7280', 5,   true),
       (p_id, 'Contacto inicial',  1, '#3B82F6', 15,  false),
@@ -97,6 +100,7 @@ BEGIN
       (p_id, 'Cerrado',           5, '#10B981', 100, false),
       (p_id, 'Descartado',        6, '#EF4444', 0,   false)
     ON CONFLICT DO NOTHING;
+    END IF;
 END $$;
 
 -- Profiles por defecto

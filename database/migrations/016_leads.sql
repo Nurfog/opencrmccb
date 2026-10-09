@@ -1,5 +1,7 @@
 -- Leads table
-CREATE TYPE lead_status AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lead_status') THEN
+        CREATE TYPE lead_status AS ENUM (
     'new',
     'contacted',
     'qualified',
@@ -7,8 +9,12 @@ CREATE TYPE lead_status AS ENUM (
     'converted',
     'recycled'
 );
+    END IF;
+END $$;
 
-CREATE TYPE lead_source AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lead_source') THEN
+        CREATE TYPE lead_source AS ENUM (
     'web',
     'referral',
     'cold_call',
@@ -19,8 +25,10 @@ CREATE TYPE lead_source AS ENUM (
     'event',
     'other'
 );
+    END IF;
+END $$;
 
-CREATE TABLE leads (
+CREATE TABLE IF NOT EXISTS leads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
@@ -43,15 +51,15 @@ CREATE TABLE leads (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_leads_status ON leads(status);
-CREATE INDEX idx_leads_assigned ON leads(assigned_to);
-CREATE INDEX idx_leads_source ON leads(lead_source);
-CREATE INDEX idx_leads_score ON leads(score DESC);
-CREATE INDEX idx_leads_created ON leads(created_at DESC);
-CREATE INDEX idx_leads_email ON leads(email);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(lead_source);
+CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(score DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email);
 
 -- Lead activities (track interactions before conversion)
-CREATE TABLE lead_activities (
+CREATE TABLE IF NOT EXISTS lead_activities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
     type VARCHAR(50) NOT NULL,
@@ -63,4 +71,4 @@ CREATE TABLE lead_activities (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_lead_activities_lead ON lead_activities(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_activities_lead ON lead_activities(lead_id);

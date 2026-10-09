@@ -1,5 +1,9 @@
 -- Up
-CREATE TYPE webhook_status AS ENUM ('pending', 'processing', 'success', 'failed');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'webhook_status') THEN
+        CREATE TYPE webhook_status AS ENUM ('pending', 'processing', 'success', 'failed');
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS webhook_deliveries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

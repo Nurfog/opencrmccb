@@ -114,6 +114,13 @@ pub async fn register(
         .await
         .map_err(|_| AppError::Internal("Database error".into()))?;
 
+    // Serialize first-user checks: without this, two concurrent registrations
+    // on an empty users table would both see "no users" and create two admins.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('crm_first_user_register'))")
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal("Database error".into()))?;
+
     // Atomically check if any users exist inside a transaction
     let existing: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users LIMIT 1")
         .fetch_optional(&mut *tx)
@@ -351,12 +358,20 @@ pub async fn refresh_token(
 
     let token_hash = hash_token(&refresh_token_str);
 
+    // All checks and the rotation happen inside one transaction with a row
+    // lock, so two concurrent requests with the same token cannot both pass.
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|_| AppError::Internal("Database error".into()))?;
+
     let stored_token = sqlx::query_as::<_, RefreshToken>(
-        "SELECT id, user_id, token_hash, expires_at, revoked, created_at FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2"
+        "SELECT id, user_id, token_hash, expires_at, revoked, created_at FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2 FOR UPDATE"
     )
     .bind(&token_hash)
     .bind(user_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Unauthorized)?;
 
@@ -367,13 +382,19 @@ pub async fn refresh_token(
         );
         sqlx::query("UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1")
             .bind(user_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal("Database error".into()))?;
+        tx.commit()
             .await
             .map_err(|_| AppError::Internal("Database error".into()))?;
         return Err(AppError::Unauthorized);
     }
 
     if stored_token.expires_at < chrono::Utc::now() {
+        tx.rollback()
+            .await
+            .map_err(|_| AppError::Internal("Database error".into()))?;
         return Err(AppError::Unauthorized);
     }
 
@@ -381,15 +402,9 @@ pub async fn refresh_token(
         "SELECT id, email, first_name, last_name, profile_id, created_at, updated_at FROM users WHERE id = $1"
     )
     .bind(user_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Unauthorized)?;
-
-    let mut tx = state
-        .db
-        .begin()
-        .await
-        .map_err(|_| AppError::Internal("Database error".into()))?;
 
     sqlx::query("UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1")
         .bind(&token_hash)

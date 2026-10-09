@@ -8,5 +8,9 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TRIGGER trg_notification_preferences_updated_at BEFORE UPDATE ON notification_preferences
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_notification_preferences_updated_at' AND tgrelid = 'notification_preferences'::regclass) THEN
+        CREATE TRIGGER trg_notification_preferences_updated_at BEFORE UPDATE ON notification_preferences
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    END IF;
+END $$;

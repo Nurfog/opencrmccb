@@ -1,5 +1,5 @@
 -- Email logs table
-CREATE TABLE email_logs (
+CREATE TABLE IF NOT EXISTS email_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     from_email VARCHAR(255) NOT NULL,
     to_email VARCHAR(255) NOT NULL,
@@ -17,12 +17,12 @@ CREATE TABLE email_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_email_logs_entity ON email_logs(entity_type, entity_id);
-CREATE INDEX idx_email_logs_sent_by ON email_logs(sent_by);
-CREATE INDEX idx_email_logs_sent_at ON email_logs(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_logs_entity ON email_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_email_logs_sent_by ON email_logs(sent_by);
+CREATE INDEX IF NOT EXISTS idx_email_logs_sent_at ON email_logs(sent_at DESC);
 
 -- Email templates
-CREATE TABLE email_templates (
+CREATE TABLE IF NOT EXISTS email_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     subject VARCHAR(500) NOT NULL,
@@ -34,10 +34,10 @@ CREATE TABLE email_templates (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_email_templates_category ON email_templates(category);
+CREATE INDEX IF NOT EXISTS idx_email_templates_category ON email_templates(category);
 
 -- OAuth tokens for calendar providers
-CREATE TABLE calendar_tokens (
+CREATE TABLE IF NOT EXISTS calendar_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider VARCHAR(20) NOT NULL CHECK (provider IN ('google', 'microsoft')),
@@ -50,10 +50,10 @@ CREATE TABLE calendar_tokens (
     UNIQUE(user_id, provider)
 );
 
-CREATE INDEX idx_calendar_tokens_user ON calendar_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_tokens_user ON calendar_tokens(user_id);
 
 -- Calendar events (synced from providers)
-CREATE TABLE calendar_events (
+CREATE TABLE IF NOT EXISTS calendar_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider VARCHAR(20) NOT NULL CHECK (provider IN ('google', 'microsoft')),
@@ -71,6 +71,6 @@ CREATE TABLE calendar_events (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_calendar_events_user ON calendar_events(user_id);
-CREATE INDEX idx_calendar_events_time ON calendar_events(start_time, end_time);
-CREATE INDEX idx_calendar_events_entity ON calendar_events(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_user ON calendar_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_time ON calendar_events(start_time, end_time);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_entity ON calendar_events(entity_type, entity_id);

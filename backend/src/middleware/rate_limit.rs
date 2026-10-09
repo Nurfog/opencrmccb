@@ -4,14 +4,13 @@ use std::net::IpAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::{
     extract::Request,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use redis::AsyncCommands;
 use std::time::Instant;
 use tokio::sync::RwLock;
 use tower::{Layer, Service};
@@ -87,21 +86,33 @@ impl RateLimiter {
         match &*self.inner {
             RateLimiterInner::Redis { conn } => {
                 let key = format!("rate_limit:{}", ip);
-                let now = Instant::now();
-                let window_start_ms = (now - Duration::from_secs(WINDOW_SECS))
-                    .elapsed()
-                    .as_millis() as u64;
-                let now_ms = now.elapsed().as_millis() as u64;
+                let now_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                let window_start_ms = now_ms.saturating_sub(WINDOW_SECS.saturating_mul(1000));
+                // Unique member per request so concurrent hits are counted
+                // independently instead of collapsing into a single ZSET entry.
+                let member = format!("{}:{}", now_ms, uuid::Uuid::new_v4());
 
+                // Atomic sliding-window check: evict old entries, add the
+                // current hit, refresh TTL and return the cardinality.
+                let script = redis::Script::new(
+                    r"redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1])
+                      redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
+                      redis.call('EXPIRE', KEYS[1], ARGV[4])
+                      return redis.call('ZCARD', KEYS[1])",
+                );
                 let mut conn = conn.clone();
-                // Remove expired entries, add current, set TTL, count
-                let _: () = conn
-                    .zrembyscore(&key, 0, window_start_ms)
+                let count: i64 = script
+                    .key(key)
+                    .arg(window_start_ms)
+                    .arg(now_ms)
+                    .arg(member)
+                    .arg(WINDOW_SECS as i64)
+                    .invoke_async(&mut conn)
                     .await
-                    .unwrap_or(());
-                let _: () = conn.zadd(&key, &key, now_ms).await.unwrap_or(());
-                let _: () = conn.expire(&key, WINDOW_SECS as i64).await.unwrap_or(());
-                let count: i64 = conn.zcard(&key).await.unwrap_or(0);
+                    .unwrap_or(0);
 
                 count >= MAX_REQUESTS as i64
             }

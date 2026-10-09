@@ -1,12 +1,13 @@
 import { useDraggable } from "@dnd-kit/core"
 import { Edit, Trash2, Eye } from "lucide-react"
+import type { Deal } from "@/lib/api"
 
 interface KanbanCardProps {
-  deal: any
+  deal: Deal
   formatCurrency: (value: number, currency: string) => string
-  onView: (deal: any) => void
-  onEdit: (deal: any) => void
-  onDelete: (deal: any) => void
+  onView: (deal: Deal) => void
+  onEdit: (deal: Deal) => void
+  onDelete: (deal: Deal) => void
 }
 
 export function KanbanCard({
@@ -37,7 +38,7 @@ export function KanbanCard({
       className="slds-kanban__card"
     >
       <div className="space-y-3">
-        <div className="font-medium text-sm leading-tight">{deal.title || deal.name}</div>
+        <div className="font-medium text-sm leading-tight">{deal.title}</div>
         <div className="text-base font-semibold text-salesforce-blue dark:text-blue-400">
           {formatCurrency(deal.value ?? 0, deal.currency ?? "USD")}
         </div>

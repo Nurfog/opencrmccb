@@ -127,7 +127,16 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
   const companyRef = useRef<HTMLDivElement>(null)
   const quickContactFormRef = useRef<HTMLDivElement>(null)
   const quickCompanyFormRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Separate timers: sharing one cancels the other field's search.
+  const contactDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const companyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (contactDebounceRef.current) clearTimeout(contactDebounceRef.current)
+      if (companyDebounceRef.current) clearTimeout(companyDebounceRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (initialData) {
@@ -208,16 +217,16 @@ export function DealForm({ isOpen, onClose, onSubmit, initialData }: DealFormPro
     setContactSearch(value)
     setSelectedContact(null)
     setContactDropdownOpen(true)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => searchContacts(value), 300)
+    if (contactDebounceRef.current) clearTimeout(contactDebounceRef.current)
+    contactDebounceRef.current = setTimeout(() => searchContacts(value), 300)
   }
 
   const handleCompanyInputChange = (value: string) => {
     setCompanySearch(value)
     setSelectedCompany(null)
     setCompanyDropdownOpen(true)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => searchCompanies(value), 300)
+    if (companyDebounceRef.current) clearTimeout(companyDebounceRef.current)
+    companyDebounceRef.current = setTimeout(() => searchCompanies(value), 300)
   }
 
   const selectContact = (contact: Contact) => {

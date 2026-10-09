@@ -32,6 +32,12 @@ export function CompanyAsyncSelect({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
     if (value) {
       setSearch(value.name)
     } else if (!dropdownOpen) {
@@ -134,7 +140,7 @@ export function CompanyAsyncSelect({
                 className="slds-input text-sm"
                 value={newCompanyName}
                 onChange={(e) => setNewCompanyName(e.target.value)}
-                placeholder={t("contacts.companyName") ?? "Company name"}
+                placeholder={t("companies.companyName", "Company name")}
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -192,7 +198,7 @@ export function CompanyAsyncSelect({
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-brand hover:bg-gray-50 dark:hover:bg-gray-700 text-left border-t border-gray-200 dark:border-gray-700"
               >
                 <Plus className="h-4 w-4" />
-                <span>{t("admin.newCompany") ?? "Create new company"}</span>
+                <span>{t("deals.createNewCompany", "Create new company")}</span>
               </button>
               {results.length === 0 && search.trim() && (
                 <div className="px-3 py-4 text-center text-sm text-muted-foreground">

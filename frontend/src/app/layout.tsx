@@ -15,6 +15,15 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Pre-hydration: apply stored locale/theme before first paint to
+            avoid lang mismatch + theme flash (keys mirror the contexts). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var l=localStorage.getItem('opencrm-locale');if(l==='es'||l==='en'){document.documentElement.lang=l}else if((navigator.language||'').slice(0,2)==='es'){document.documentElement.lang='es'}var t=localStorage.getItem('opencrm-theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <ThemeProvider>
           <I18nProvider>

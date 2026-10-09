@@ -8,6 +8,21 @@
     "noResults": "No se encontraron resultados para \"{query}\"",
     "showAll": "Mostrar los {count} resultados"
   },
+  "notifications": {
+    "updateError": "No se pudo actualizar la notificación.",
+    "deleteError": "No se pudo eliminar la notificación."
+  },
+  "phone": {
+    "call": "Llamada",
+    "phone": "Teléfono",
+    "voipCall": "Llamada VoIP",
+    "videoCall": "Videollamada",
+    "newVideoCall": "Nueva videollamada",
+    "copyNumber": "Copiar número",
+    "copied": "Copiado",
+    "videoProvider": "Proveedor de videollamada",
+    "noConnection": "Sin conexión — abrir Meet"
+  },
   "pagination": {
     "page": "Página {page} de {total}",
     "noResults": "Sin resultados",
@@ -39,6 +54,7 @@
     "save": "Guardar",
     "cancel": "Cancelar",
     "close": "Cerrar",
+    "tryAgain": "Reintentar",
     "view": "Ver",
     "actions": "Acciones",
     "filters": "Filtros",
@@ -330,6 +346,7 @@
     "integrationsDescription": "Conecta tus servicios externos para potenciar el CRM",
     "integrationConnected": "Integración con {provider} conectada exitosamente",
     "integrationError": "Error al conectar con {provider}",
+    "invalidAuthUrl": "URL de autorización inválida recibida.",
     "emailNotifications": "Notificaciones por correo",
     "emailNotificationsDesc": "Recibe notificaciones por correo para eventos importantes",
     "newContactNotifications": "Notificaciones de nuevos contactos",
@@ -462,6 +479,7 @@
     "extractedLeadDescription": "Datos extraídos automáticamente de la conversación con IA",
     "saveAsContact": "Guardar como contacto",
     "saveLeadSuccess": "Lead guardado como contacto",
+    "saveLeadError": "Error al guardar contacto",
     "extractError": "Error al extraer lead",
     "sendError": "Error al enviar mensaje",
     "incomingOutgoing": "Mensajes entrantes y salientes",

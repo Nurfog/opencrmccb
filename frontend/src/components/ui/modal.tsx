@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useI18n } from "@/contexts/i18n-context"
 
 interface ModalProps {
   isOpen: boolean
@@ -22,6 +23,7 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalProps) {
+  const { t } = useI18n()
   const overlayRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
@@ -111,7 +113,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
             type="button"
             onClick={onClose}
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <X className="h-5 w-5" />
           </button>

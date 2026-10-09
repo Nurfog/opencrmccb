@@ -65,35 +65,37 @@ export function Sidebar({ onClose }: SidebarProps) {
     return pathname.startsWith(href);
   }
 
-  // Filter nav items based on permissions
-  // If user has no permissions (not loaded / no migration yet), show all items
+  // Filter nav items based on permissions. Each module maps to the exact
+  // `*.view` permission its backend handlers require (see 035 migration).
+  // No fail-open: the sidebar only renders inside ProtectedRoute, which
+  // waits for the session load, so "not loaded" here means "no grants".
   const hasPermissionsLoaded = user && user.permissions?.length > 0;
 
   const filteredMainNav = mainNav.filter((item) => {
-    if (item.href === "/dashboard") return true;
-    if (!hasPermissionsLoaded) return true;
+    if (!hasPermissionsLoaded) return false;
     const permissionMap: Record<string, string> = {
+      "/dashboard": "dashboard.view",
       "/contacts": "contacts.view",
       "/companies": "companies.view",
       "/deals": "deals.view",
-      "/leads": "contacts.view",
-      "/email": "contacts.view",
-      "/calendar": "contacts.view",
+      "/leads": "leads.view",
+      "/email": "email.view",
+      "/calendar": "calendar.view",
       "/activities": "activities.view",
       "/reports": "reports.view",
-      "/documents": "contacts.view",
-      "/whatsapp": "contacts.view",
+      "/documents": "documents.view",
+      "/whatsapp": "whatsapp.view",
     };
     const requiredPermission = permissionMap[item.href];
     return !requiredPermission || hasPermission(requiredPermission);
   });
 
   const filteredBottomNav = bottomNav.filter((item) => {
-    if (!hasPermissionsLoaded) return true;
+    if (!hasPermissionsLoaded) return false;
     if (item.href === "/settings") return true;
     if (item.href === "/help") return true;
     if (item.href === "/admin") return hasPermission("admin.access");
-    if (item.href === "/audit") return hasPermission("admin.access");
+    if (item.href === "/audit") return hasPermission("audit.view");
     return true;
   });
 

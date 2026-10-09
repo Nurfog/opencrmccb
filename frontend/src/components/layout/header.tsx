@@ -49,17 +49,8 @@ export function Header({ onMenuClick }: HeaderProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        document.getElementById("global-search")?.focus();
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
+  // Note: the ⌘K/Ctrl+K shortcut is owned by GlobalSearch (it focuses its
+  // own input). No duplicate listener here.
   async function handleLogout() {
     setShowUserMenu(false);
     await logout();

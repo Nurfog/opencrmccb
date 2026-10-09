@@ -49,26 +49,3 @@ export function DashboardSkeleton() {
     </div>
   )
 }
-
-export function KanbanSkeleton() {
-  return (
-    <div className="slds-kanban">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="slds-kanban__column space-y-2">
-          <div className="slds-kanban__column-header">
-            <Skeleton className="h-5 w-24" />
-          </div>
-          <div className="slds-kanban__column-body min-h-[300px]">
-            {Array.from({ length: 3 }).map((_, j) => (
-              <div key={j} className="slds-kanban__card space-y-2">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-                <Skeleton className="h-3 w-2/3" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}

@@ -178,7 +178,7 @@ export default function AuditPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium capitalize">{event.action}</span>
                       <span className={cn("slds-badge text-xs", entityColor)}>
-                        {t(`${event.entity_type}.title` as any) || event.entity_type}
+                        {t(`${event.entity_type}.title`) || event.entity_type}
                       </span>
                       <span className="text-sm text-muted-foreground">#{event.entity_id.slice(0, 8)}</span>
                     </div>

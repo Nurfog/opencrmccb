@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Plus, FileText, Folder, Upload, Download, Trash2, Search, X, File, Image, FileSpreadsheet, FileArchive } from "lucide-react"
+import { FileText, Folder, Upload, Download, Trash2, Search, X, File, Image, FileSpreadsheet, FileArchive } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/modal"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { formatDate, formatNumber, cn } from "@/lib/utils"
+import { formatDate, formatNumber, cn, downloadBlob } from "@/lib/utils"
 
 const FOLDERS = ["All", "Contracts", "Reports", "Invoices", "Proposals", "Other"]
 
@@ -122,12 +122,7 @@ export default function DocumentsPage() {
       error(t("toast.error", { action: "download", entity: t("documents.title") }))
       return
     }
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = doc.original_name
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, doc.original_name)
   }
 
   const handleUpload = async (e: React.FormEvent) => {

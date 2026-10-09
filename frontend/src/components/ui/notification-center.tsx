@@ -5,6 +5,7 @@ import { Bell, Check, CheckCheck, Trash2, X } from "lucide-react"
 import { notificationsApi, type Notification } from "@/lib/api"
 import { formatDate, cn } from "@/lib/utils"
 import { useI18n } from "@/contexts/i18n-context"
+import { useToast } from "@/contexts/toast-context"
 
 export function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -13,6 +14,7 @@ export function NotificationCenter() {
   const [loading, setLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
+  const toast = useToast()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,35 +47,38 @@ export function NotificationCenter() {
   const handleMarkAsRead = async (id: string) => {
     try {
       await notificationsApi.markAsRead(id)
-      setNotifications(notifications.map(n =>
+      // Functional update: concurrent taps must not drop each other.
+      setNotifications(prev => prev.map(n =>
         n.id === id ? { ...n, read: true } : n
       ))
       setUnreadCount(prev => Math.max(0, prev - 1))
     } catch {
-      // Handle error
+      toast.error(t("notifications.updateError", "Could not update the notification."))
     }
   }
 
   const handleMarkAllAsRead = async () => {
     try {
       await notificationsApi.markAllAsRead()
-      setNotifications(notifications.map(n => ({ ...n, read: true })))
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
       setUnreadCount(0)
     } catch {
-      // Handle error
+      toast.error(t("notifications.updateError", "Could not update the notifications."))
     }
   }
 
   const handleDelete = async (id: string) => {
     try {
       await notificationsApi.delete(id)
-      const notif = notifications.find(n => n.id === id)
-      setNotifications(notifications.filter(n => n.id !== id))
-      if (notif && !notif.read) {
-        setUnreadCount(prev => Math.max(0, prev - 1))
-      }
+      setNotifications(prev => {
+        const notif = prev.find(n => n.id === id)
+        if (notif && !notif.read) {
+          setUnreadCount(count => Math.max(0, count - 1))
+        }
+        return prev.filter(n => n.id !== id)
+      })
     } catch {
-      // Handle error
+      toast.error(t("notifications.deleteError", "Could not delete the notification."))
     }
   }
 

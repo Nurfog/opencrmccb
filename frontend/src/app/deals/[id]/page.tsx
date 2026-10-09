@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TagsInput } from "@/components/ui/tags-input"
 import Link from "next/link"
 import { formatDate, formatCurrency, cn } from "@/lib/utils"
+import { stageI18nKey } from "@/components/deals/deals-constants"
 
 type Tab = "overview" | "activities"
 
@@ -134,7 +135,10 @@ export default function DealDetailPage() {
             <h1 className="slds-header__title">{deal.title}</h1>
             <div className="flex items-center gap-3 mt-1">
               <span className={cn("px-2 py-1 text-xs rounded-full", stageColors[deal.stage] || "bg-gray-100 text-gray-800")}>
-                {t(`stages.${deal.stage}` as any) || deal.stage}
+                {(() => {
+                  const key = stageI18nKey[deal.stage?.toLowerCase()]
+                  return key ? t(key) : deal.stage
+                })()}
               </span>
               <span className="text-lg font-semibold text-green-600 dark:text-green-400">
                 {formatCurrency(deal.value, deal.currency)}

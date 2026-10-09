@@ -36,19 +36,20 @@ export default function ReportsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     setErrorState(null)
-    try {
-      const [pipelineRes, winLossRes] = await Promise.all([
-        reportsApi.pipeline(),
-        reportsApi.winLoss(),
-      ])
-      setPipelineReport(pipelineRes as PipelineReport)
-      setWinLossReport(winLossRes as WinLossReport)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t("common.noResults")
-      setErrorState(msg)
-    } finally {
-      setLoading(false)
+    const [pipelineRes, winLossRes] = await Promise.allSettled([
+      reportsApi.pipeline(),
+      reportsApi.winLoss(),
+    ])
+    if (pipelineRes.status === "fulfilled") setPipelineReport(pipelineRes.value as PipelineReport)
+    if (winLossRes.status === "fulfilled") setWinLossReport(winLossRes.value as WinLossReport)
+    const firstError = [pipelineRes, winLossRes].find(
+      (r): r is PromiseRejectedResult => r.status === "rejected"
+    )
+    if (firstError) {
+      const err = firstError.reason
+      setErrorState(err instanceof Error ? err.message : t("common.noResults"))
     }
+    setLoading(false)
   }, [t])
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function ReportsPage() {
     )
   }
 
-  if (errorState) {
+  if (errorState && !pipelineReport && !winLossReport) {
     return (
       <AppLayout>
         <div className="animate-fade-in space-y-6">

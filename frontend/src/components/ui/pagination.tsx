@@ -34,7 +34,7 @@ export function Pagination({ page, totalPages, total, perPage, onPageChange }: P
   }
 
   return (
-    <div className="flex items-center justify-between text-sm">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between text-sm">
       <span className="text-muted-foreground">
         {total === 0
           ? t("pagination.noResults")

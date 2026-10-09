@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, ChevronLeft, ChevronRight, Clock, MapPin, Trash2, Edit, RefreshCw, Link2, Calendar as CalendarIcon } from "lucide-react"
+import { Plus, ChevronLeft, ChevronRight, Trash2, Edit, RefreshCw, Link2 } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -204,10 +204,21 @@ export default function CalendarPage() {
     }
   }
 
+  const openAuthUrl = (url: string): boolean => {
+    try {
+      const target = new URL(url)
+      if (target.protocol !== "https:") return false
+      window.open(url, "_blank", "noopener")
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const handleConnectGoogle = async () => {
     try {
       const res = await calendarApi.getAuthUrl("google")
-      window.open(res.url, "_blank")
+      if (!openAuthUrl(res.url)) error(t("calendar.authError"))
     } catch {
       error(t("calendar.authError"))
     }
@@ -225,12 +236,21 @@ export default function CalendarPage() {
         {days.map((date, i) => (
           <div
             key={i}
+            role={date ? "button" : undefined}
+            tabIndex={date ? 0 : undefined}
+            aria-label={date ? date.toLocaleDateString() : undefined}
             className={cn(
               "bg-white dark:bg-gray-800 min-h-[100px] p-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50",
               !date && "bg-gray-50 dark:bg-gray-900/30",
               date && isToday(date) && "ring-2 ring-indigo-500 ring-inset"
             )}
             onClick={() => date && handleCreateEvent()}
+            onKeyDown={(e) => {
+              if (date && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault()
+                handleCreateEvent()
+              }
+            }}
           >
             {date && (
               <>
@@ -240,7 +260,17 @@ export default function CalendarPage() {
                 {getEventsForDate(date).slice(0, 3).map((event) => (
                   <div
                     key={event.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={event.title}
                     onClick={(e) => { e.stopPropagation(); handleEditEvent(event) }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleEditEvent(event)
+                      }
+                    }}
                     className="text-xs px-1.5 py-0.5 mb-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 truncate cursor-pointer hover:bg-indigo-200 dark:hover:bg-indigo-800/50"
                   >
                     {event.title}

@@ -20,6 +20,7 @@ export function GlobalSearch({ className }: GlobalSearchProps) {
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -43,6 +44,8 @@ export function GlobalSearch({ className }: GlobalSearchProps) {
   }, [])
 
   useEffect(() => {
+    const requestId = ++requestIdRef.current
+    const controller = new AbortController()
     const searchTimeout = setTimeout(async () => {
       if (query.trim().length < 2) {
         setResults(null)
@@ -51,17 +54,24 @@ export function GlobalSearch({ className }: GlobalSearchProps) {
 
       setLoading(true)
       try {
-        const data = await searchApi.search({ q: query.trim() })
+        const data = await searchApi.search({ q: query.trim() }, { signal: controller.signal })
+        // Ignore stale responses: a newer keystroke already fired.
+        if (requestIdRef.current !== requestId) return
         setResults(data)
         setIsOpen(true)
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return
+        if (requestIdRef.current !== requestId) return
         setResults(null)
       } finally {
-        setLoading(false)
+        if (requestIdRef.current === requestId) setLoading(false)
       }
     }, 300)
 
-    return () => clearTimeout(searchTimeout)
+    return () => {
+      clearTimeout(searchTimeout)
+      controller.abort()
+    }
   }, [query])
 
   const handleSelect = (type: string, id: string) => {
@@ -99,9 +109,13 @@ export function GlobalSearch({ className }: GlobalSearchProps) {
           placeholder={t("search.placeholder")}
           className="w-full bg-white/10 border border-white/20 rounded-lg pl-10 pr-12 py-2 text-sm text-white placeholder-white/50 outline-none focus:border-white/40 focus:bg-white/15 transition-colors"
         />
-        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden items-center gap-0.5 rounded border border-white/20 px-1.5 py-0.5 text-[10px] text-white/50 sm:flex">
-          <span className="text-xs">⌘</span>K
-        </kbd>
+        {loading ? (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true" />
+        ) : (
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden items-center gap-0.5 rounded border border-white/20 px-1.5 py-0.5 text-[10px] text-white/50 sm:flex">
+            <span className="text-xs">⌘</span>K
+          </kbd>
+        )}
       </form>
 
       {isOpen && results && (

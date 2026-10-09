@@ -8,6 +8,21 @@
     "noResults": "No results found for \"{query}\"",
     "showAll": "Show all {count} results"
   },
+  "notifications": {
+    "updateError": "Could not update the notification.",
+    "deleteError": "Could not delete the notification."
+  },
+  "phone": {
+    "call": "Call",
+    "phone": "Phone",
+    "voipCall": "VoIP call",
+    "videoCall": "Video call",
+    "newVideoCall": "New video call",
+    "copyNumber": "Copy number",
+    "copied": "Copied",
+    "videoProvider": "Video call provider",
+    "noConnection": "Not connected — open Meet"
+  },
   "pagination": {
     "page": "Page {page} of {total}",
     "noResults": "No results",
@@ -38,6 +53,7 @@
     "save": "Save",
     "cancel": "Cancel",
     "close": "Close",
+    "tryAgain": "Try again",
     "view": "View",
     "actions": "Actions",
     "filters": "Filters",
@@ -330,6 +346,7 @@
     "integrationsDescription": "Connect your external services to enhance the CRM",
     "integrationConnected": "Integration with {provider} connected successfully",
     "integrationError": "Error connecting to {provider}",
+    "invalidAuthUrl": "Invalid authorization URL received.",
     "emailNotifications": "Email notifications",
     "emailNotificationsDesc": "Receive email notifications for important events",
     "newContactNotifications": "New contact notifications",
@@ -462,6 +479,7 @@
     "extractedLeadDescription": "Data automatically extracted from the conversation using AI",
     "saveAsContact": "Save as contact",
     "saveLeadSuccess": "Lead saved as contact",
+    "saveLeadError": "Error saving contact",
     "extractError": "Error extracting lead",
     "sendError": "Error sending message",
     "incomingOutgoing": "Incoming and outgoing messages",

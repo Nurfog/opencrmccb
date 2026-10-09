@@ -2,6 +2,7 @@
 
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { KanbanColumn } from "./kanban-column"
+import type { Deal } from "@/lib/api"
 
 interface Stage {
   id: string
@@ -11,12 +12,12 @@ interface Stage {
 
 interface KanbanBoardProps {
   stages: Stage[]
-  deals: any[]
+  deals: Deal[]
   onStageChange: (dealId: string, newStage: string, position?: number) => void
   formatCurrency: (value: number, currency: string) => string
-  onView: (deal: any) => void
-  onEdit: (deal: any) => void
-  onDelete: (deal: any) => void
+  onView: (deal: Deal) => void
+  onEdit: (deal: Deal) => void
+  onDelete: (deal: Deal) => void
 }
 
 export function KanbanBoard({
@@ -43,6 +44,11 @@ export function KanbanBoard({
     }
   }
 
+  // Backend stages are snake_case ids ("closed_won"); normalize both sides
+  // so legacy display names ("Closed Won") still land in the right column
+  // instead of vanishing (or matching two columns at once).
+  const normalizeStage = (s: string) => s.toLowerCase().replace(/\s+/g, "_")
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="slds-kanban">
@@ -50,7 +56,7 @@ export function KanbanBoard({
           <KanbanColumn
             key={stage.id}
             stage={stage}
-            deals={deals.filter((d) => d.stage === stage.name || d.stage === stage.id)}
+            deals={deals.filter((d) => normalizeStage(d.stage) === stage.id)}
             formatCurrency={formatCurrency}
             onView={onView}
             onEdit={onEdit}

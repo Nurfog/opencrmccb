@@ -180,6 +180,13 @@ export async function request<T>(
 
   if (res.status === 204) return undefined as T;
 
+  // Non-JSON payloads (e.g. text/csv exports) are returned as text so typed
+  // request<string> callers keep working instead of hitting a JSON parse error.
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return (await res.text()) as T;
+  }
+
   const text = await res.text();
   if (!text) return undefined as T;
   try {

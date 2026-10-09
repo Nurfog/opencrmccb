@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import dynamic from "next/dynamic"
-import { DollarSign, Users, Building2, TrendingUp, TrendingDown, Briefcase, BarChart3, Activity, Target, Plus, ArrowRight, Phone, Mail, Calendar, FileText } from "lucide-react"
+import { DollarSign, Users, Building2, TrendingUp, TrendingDown, Briefcase, BarChart3, Activity, Target, Plus, Phone, Mail, Calendar, FileText } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useAuthStore } from "@/stores/auth-store"
@@ -46,23 +46,25 @@ export default function DashboardPage() {
   const fetchStats = useCallback(async () => {
     setLoading(true)
     setErrorState(null)
-    try {
-      const [statsData, pipelineData, topDealsData, activitiesData] = await Promise.all([
-        dashboardApi.stats(),
-        dashboardApi.pipeline(),
-        dashboardApi.topDeals(),
-        dashboardApi.recentActivities(),
-      ])
-      setStats(statsData)
-      setPipeline(pipelineData.stages)
-      setTopDeals(topDealsData.deals)
-      setRecentActivities(activitiesData.activities)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t("common.noResults")
-      setErrorState(msg)
-    } finally {
-      setLoading(false)
+    // Partial render: one failing widget must not blank the whole page.
+    const [statsRes, pipelineRes, topDealsRes, activitiesRes] = await Promise.allSettled([
+      dashboardApi.stats(),
+      dashboardApi.pipeline(),
+      dashboardApi.topDeals(),
+      dashboardApi.recentActivities(),
+    ])
+    if (statsRes.status === "fulfilled") setStats(statsRes.value)
+    if (pipelineRes.status === "fulfilled") setPipeline(pipelineRes.value.stages)
+    if (topDealsRes.status === "fulfilled") setTopDeals(topDealsRes.value.deals)
+    if (activitiesRes.status === "fulfilled") setRecentActivities(activitiesRes.value.activities)
+    const firstError = [statsRes, pipelineRes, topDealsRes, activitiesRes].find(
+      (r): r is PromiseRejectedResult => r.status === "rejected"
+    )
+    if (firstError) {
+      const err = firstError.reason
+      setErrorState(err instanceof Error ? err.message : t("common.noResults"))
     }
+    setLoading(false)
   }, [t])
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (errorState) {
+  if (errorState && !stats && pipeline.length === 0 && topDeals.length === 0 && recentActivities.length === 0) {
     return (
       <AppLayout>
         <div className="animate-fade-in space-y-6">

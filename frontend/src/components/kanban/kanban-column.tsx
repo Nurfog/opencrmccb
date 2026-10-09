@@ -1,5 +1,6 @@
 import { useDroppable } from "@dnd-kit/core"
 import { KanbanCard } from "./kanban-card"
+import type { Deal } from "@/lib/api"
 
 interface Stage {
   id: string
@@ -9,11 +10,11 @@ interface Stage {
 
 interface KanbanColumnProps {
   stage: Stage
-  deals: any[]
+  deals: Deal[]
   formatCurrency: (value: number, currency: string) => string
-  onView: (deal: any) => void
-  onEdit: (deal: any) => void
-  onDelete: (deal: any) => void
+  onView: (deal: Deal) => void
+  onEdit: (deal: Deal) => void
+  onDelete: (deal: Deal) => void
 }
 
 export function KanbanColumn({

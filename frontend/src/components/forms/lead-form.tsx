@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X } from "lucide-react"
 import { leadsApi, type Lead } from "@/lib/api"
 import { useToast } from "@/contexts/toast-context"
 import { useI18n } from "@/contexts/i18n-context"
+import { Modal } from "@/components/ui/modal"
 
 interface LeadFormProps {
   open: boolean
@@ -101,21 +101,13 @@ export function LeadForm({ open, lead, onClose, onSuccess }: LeadFormProps) {
     }
   }
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {lead ? t("leads.editLead") : t("leads.newLead")}
-          </h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      title={lead ? t("leads.editLead") : t("leads.newLead")}
+      size="lg"
+    >
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -263,7 +255,6 @@ export function LeadForm({ open, lead, onClose, onSuccess }: LeadFormProps) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }

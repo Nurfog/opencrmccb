@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { MessageCircle, Send, Search, Phone, Video, MoreVertical, Check, CheckCheck, Clock, User, RefreshCw, UserPlus } from "lucide-react"
+import { MessageCircle, Send, Search, Phone, Video, MoreVertical, Check, CheckCheck, Clock, RefreshCw, UserPlus } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
 import { whatsAppApi, aiApi, contactsApi, type WhatsAppConversation, type WhatsAppMessage, type LeadExtraction } from "@/lib/api"
 import { Modal } from "@/components/ui/modal"
 import { EmptyState } from "@/components/ui/empty-state"
-import { formatDate, cn, formatDateTime } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
 
 export default function WhatsAppPage() {
   const { t } = useI18n()
@@ -136,7 +136,10 @@ export default function WhatsAppPage() {
     <AppLayout>
       <div className="animate-fade-in h-[calc(100vh-8rem)] flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
         {/* ─── Left panel: conversation list ─── */}
-        <div className="w-80 lg:w-96 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950">
+        {/* On mobile show either the list or the chat, never both squeezed. */}
+        <div className={selectedPhone
+          ? "hidden lg:flex w-80 lg:w-96 flex-col border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950"
+          : "flex w-full lg:w-96 flex-col border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950"}>
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <div className="flex items-center gap-3">
@@ -225,7 +228,8 @@ export default function WhatsAppPage() {
         </div>
 
         {/* ─── Right panel: chat ─── */}
-        <div className="flex-1 flex flex-col">
+        {/* Hidden on mobile until a conversation is selected. */}
+        <div className={selectedPhone ? "flex-1 flex flex-col" : "hidden lg:flex flex-1 flex-col"}>
           {selectedPhone ? (
             <>
               {/* Chat header */}

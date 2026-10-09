@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, type ReactNode } from "react"
 import { Phone, Copy, Check, PhoneCall, Video, ExternalLink, Monitor } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useI18n } from "@/contexts/i18n-context"
 
 const PHONE_REGEX = /(\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}(?:[\s-]?(?:ext|x|extensión|interno)\s?\d{1,5})?/g
 
@@ -13,13 +14,18 @@ interface PhoneLinkProps {
 }
 
 export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [videoOpen, setVideoOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLDivElement>(null)
 
-  const cleanNumber = phone.replace(/[\s.-]/g, "").replace(/^00/, "+")
+  // Sanitize for tel:: digits only, preserving an international prefix.
+  // Anything else (extensions, parens, letters) never reaches the href.
+  const trimmed = phone.trim()
+  const digits = trimmed.replace(/\D/g, "")
+  const cleanNumber = trimmed.startsWith("+") || trimmed.startsWith("00") ? `+${digits}` : digits
   const telHref = `tel:${cleanNumber}`
 
   const integrations = getIntegrations()
@@ -94,7 +100,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1 text-sm">
           <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Llamada
+            {t("phone.call")}
           </div>
           <a
             href={telHref}
@@ -103,7 +109,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
           >
             <PhoneCall className="h-4 w-4 text-green-500" />
             <div>
-              <span className="block">Teléfono</span>
+              <span className="block">{t("phone.phone")}</span>
               <span className="text-xs text-muted-foreground">{cleanNumber}</span>
             </div>
           </a>
@@ -115,13 +121,13 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             <Phone className="h-4 w-4 text-blue-500" />
             <div>
               <span className="block">3CX</span>
-              <span className="text-xs text-muted-foreground">Llamada VoIP</span>
+              <span className="text-xs text-muted-foreground">{t("phone.voipCall")}</span>
             </div>
           </button>
 
           <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
           <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Videollamada
+            {t("phone.videoCall")}
           </div>
           <button
             type="button"
@@ -130,7 +136,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
           >
             <Video className="h-4 w-4 text-purple-500" />
             <div>
-              <span className="block">Nueva videollamada</span>
+              <span className="block">{t("phone.newVideoCall")}</span>
               <span className="text-xs text-muted-foreground">Google Meet / Teams / 3CX</span>
             </div>
           </button>
@@ -146,7 +152,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             ) : (
               <Copy className="h-4 w-4 text-muted-foreground" />
             )}
-            <span>{copied ? "Copiado" : "Copiar número"}</span>
+            <span>{copied ? t("phone.copied") : t("phone.copyNumber")}</span>
           </button>
         </div>
       )}
@@ -157,7 +163,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
           className="absolute top-full left-0 mt-1 z-50 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1 text-sm"
         >
           <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Proveedor de videollamada
+            {t("phone.videoProvider")}
           </div>
           {integrations.google && (
             <button
@@ -207,7 +213,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
               <ExternalLink className="h-4 w-4 text-muted-foreground" />
               <div>
                 <span className="block">Google Meet</span>
-                <span className="text-xs text-muted-foreground">Sin conexión — abrir Meet</span>
+                <span className="text-xs text-muted-foreground">{t("phone.noConnection")}</span>
               </div>
             </button>
           )}
@@ -217,7 +223,7 @@ export function PhoneLink({ phone, children, className }: PhoneLinkProps) {
             onClick={() => setVideoOpen(false)}
             className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left text-muted-foreground"
           >
-            <span>Volver</span>
+            <span>{t("common.back")}</span>
           </button>
         </div>
       )}
@@ -232,14 +238,33 @@ interface IntegrationConfig {
 function getIntegrations(): Record<string, IntegrationConfig> {
   if (typeof window === "undefined") return {}
   try {
-    const raw = localStorage.getItem("integration_3cx")
     const result: Record<string, IntegrationConfig> = {}
-    if (raw) result["3cx"] = JSON.parse(raw)
+    const raw = localStorage.getItem("integration_3cx")
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw)
+      // Validate shape: only an object with an http(s) serverUrl is honored.
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const serverUrl = (parsed as Record<string, unknown>).serverUrl
+        if (typeof serverUrl === "string" && /^(https?:\/\/[^/]+)/.test(serverUrl)) {
+          result["3cx"] = { serverUrl }
+        } else if (serverUrl === undefined) {
+          result["3cx"] = {}
+        }
+      }
+    }
     const listRaw = localStorage.getItem("integrations_list")
     if (listRaw) {
-      const list = JSON.parse(listRaw) as { provider: string }[]
-      for (const item of list) {
-        result[item.provider] = {}
+      const list: unknown = JSON.parse(listRaw)
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof (item as Record<string, unknown>).provider === "string"
+          ) {
+            result[(item as { provider: string }).provider] = {}
+          }
+        }
       }
     }
     return result

@@ -9,6 +9,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { useI18n } from "./i18n-context";
 
 type ToastType = "success" | "error" | "warning" | "info";
 
@@ -75,6 +76,7 @@ const icons: Record<ToastType, string> = {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const { t } = useI18n();
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -181,7 +183,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => removeToast(toast.id)}
                 className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                aria-label="Close"
+                aria-label={t("common.close")}
               >
                 ✕
               </button>

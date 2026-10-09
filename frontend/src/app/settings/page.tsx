@@ -70,6 +70,20 @@ export default function SettingsPage() {
   const handleConnect = async (provider: string) => {
     try {
       const res = await integrationsApi.connect(provider)
+      // Never navigate blindly to a backend-provided URL: only https or the
+      // configured API origin (open-redirect guard if the backend is abused).
+      let safe = false
+      try {
+        const target = new URL(res.auth_url)
+        const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").origin
+        safe = target.protocol === "https:" || target.origin === apiOrigin
+      } catch {
+        safe = false
+      }
+      if (!safe) {
+        error(t("settings.invalidAuthUrl", "Invalid authorization URL received."))
+        return
+      }
       window.location.href = res.auth_url
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t("toast.error", { action: "connect", entity: provider })

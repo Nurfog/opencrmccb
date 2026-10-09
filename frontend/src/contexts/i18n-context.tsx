@@ -71,18 +71,28 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setLocale = useCallback(
-    (l: Locale) => {
-      setLocaleState(l);
+  // Note: no direct loadTranslations() call here — the [locale] effect below
+  // is the single loader (avoids a double fetch + last-writer-wins race).
+  const setLocale = useCallback((l: Locale) => {
+    setLocaleState(l);
+    try {
       localStorage.setItem(STORAGE_KEY, l);
-      loadTranslations(l);
-    },
-    [loadTranslations]
-  );
+    } catch {
+      // storage unavailable (private mode): locale still applies in-memory
+    }
+  }, []);
 
   useEffect(() => {
     loadTranslations(locale);
   }, [locale, loadTranslations]);
+
+  // Keep <html lang> in sync for screen readers/SEO after a language switch
+  // (initial value is set pre-hydration in app/layout.tsx).
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = locale;
+    }
+  }, [locale]);
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number> | string): string => {

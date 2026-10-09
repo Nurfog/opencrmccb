@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AdvancedFilters, ActiveFilters, type FilterField } from "@/components/ui/advanced-filters"
 import Link from "next/link"
-import { formatDate, getInitials, cn } from "@/lib/utils"
+import { formatDate, getInitials, cn, downloadBlob } from "@/lib/utils"
 
 type SortField = "first_name" | "last_name" | "email" | "phone" | "position"
 type SortDir = "asc" | "desc"
@@ -175,13 +175,10 @@ export default function ContactsPage() {
   const handleCsvExport = async () => {
     try {
       const res = await contactsApi.exportCsv()
-      const blob = new Blob([res as unknown as string], { type: "text/csv;charset=utf-8;" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "contacts.csv"
-      a.click()
-      URL.revokeObjectURL(url)
+      const blob = res instanceof Blob
+        ? res
+        : new Blob([res], { type: "text/csv;charset=utf-8;" })
+      downloadBlob(blob, "contacts.csv")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t("toast.error", { action: "export", entity: t("contacts.title") })
       error(msg)

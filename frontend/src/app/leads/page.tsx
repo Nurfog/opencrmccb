@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Plus, Search, ChevronUp, ChevronDown, Edit, Trash2, ArrowRightLeft, Filter, X, Target, BarChart3 } from "lucide-react"
+import { Plus, Search, ChevronUp, ChevronDown, Edit, Trash2, ArrowRightLeft, Filter, X, Target } from "lucide-react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useI18n } from "@/contexts/i18n-context"
 import { useToast } from "@/contexts/toast-context"
@@ -174,7 +174,7 @@ export default function LeadsPage() {
       <div className="p-6 space-y-6">
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
               <div className="text-sm text-gray-500 dark:text-gray-400">{t("leads.stats.total")}</div>
               <div className="text-2xl font-bold">{stats.total}</div>
@@ -322,11 +322,13 @@ export default function LeadsPage() {
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                       <th
-                        onClick={() => handleSort("first_name")}
+                        aria-sort={sortField === "first_name" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                      >
-                        {t("leads.name")} <SortIcon field="first_name" />
-                      </th>
+                        >
+                          <button type="button" onClick={() => handleSort("first_name")} className="inline-flex items-center gap-1 uppercase tracking-wider">
+                            {t("leads.name")} <SortIcon field="first_name" />
+                          </button>
+                        </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         {t("leads.company")}
                       </th>
@@ -334,23 +336,29 @@ export default function LeadsPage() {
                         {t("leads.status")}
                       </th>
                       <th
-                        onClick={() => handleSort("score")}
+                        aria-sort={sortField === "score" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                      >
-                        {t("leads.score")} <SortIcon field="score" />
-                      </th>
+                        >
+                          <button type="button" onClick={() => handleSort("score")} className="inline-flex items-center gap-1 uppercase tracking-wider">
+                            {t("leads.score")} <SortIcon field="score" />
+                          </button>
+                        </th>
                       <th
-                        onClick={() => handleSort("lead_source")}
+                        aria-sort={sortField === "lead_source" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                      >
-                        {t("leads.source")} <SortIcon field="lead_source" />
-                      </th>
+                        >
+                          <button type="button" onClick={() => handleSort("lead_source")} className="inline-flex items-center gap-1 uppercase tracking-wider">
+                            {t("leads.source")} <SortIcon field="lead_source" />
+                          </button>
+                        </th>
                       <th
-                        onClick={() => handleSort("created_at")}
+                        aria-sort={sortField === "created_at" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                      >
-                        {t("leads.created")} <SortIcon field="created_at" />
-                      </th>
+                        >
+                          <button type="button" onClick={() => handleSort("created_at")} className="inline-flex items-center gap-1 uppercase tracking-wider">
+                            {t("leads.created")} <SortIcon field="created_at" />
+                          </button>
+                        </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         {t("common.actions")}
                       </th>

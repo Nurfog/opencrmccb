@@ -50,7 +50,7 @@ jobs:
         run: cargo clippy -- -D warnings
       - name: Security audit
         run: |
-          cargo install cargo-audit --version 0.21.2 --locked
+          cargo install cargo-audit --version 0.22.2 --locked
           cargo audit
       - name: Test
         run: cargo test -- --test-threads=1

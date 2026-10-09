@@ -103,7 +103,7 @@ pub async fn export_contacts(
         .map_err(|_| AppError::Forbidden)?;
 
     let svc = ContactService::new(&state.contact_repo);
-    let csv = svc.export(params.search.as_deref()).await?;
+    let (csv, count) = svc.export(params.search.as_deref()).await?;
 
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -114,6 +114,7 @@ pub async fn export_contacts(
         "Content-Disposition",
         HeaderValue::from_static("attachment; filename=\"contacts.csv\""),
     );
+    crate::models::set_export_truncated(&mut headers, count);
 
     Ok((headers, csv))
 }

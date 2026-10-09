@@ -7,7 +7,7 @@ use validator::Validate;
 
 use crate::AppState;
 use crate::error::AppError;
-use crate::middleware::auth::Claims;
+use crate::middleware::auth::{Claims, invalidate_all_permissions};
 
 // ─── Pipeline ────────────────────────────────────────────────────
 
@@ -364,6 +364,9 @@ pub async fn update_profile(
             .execute(&state.db)
             .await;
         }
+        // Every user with this profile is affected: clear the cache so the
+        // new permission set applies on the next request.
+        invalidate_all_permissions().await;
     }
 
     Ok(Json(serde_json::json!({

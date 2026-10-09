@@ -7,7 +7,7 @@ use axum::{
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -18,15 +18,17 @@ use crate::AppState;
 // (and twice on admin routes). Short TTL keeps RBAC changes visible
 // within seconds while drastically cutting DB round-trips.
 const PERM_TTL: Duration = Duration::from_secs(60);
+/// Upper bound so the cache cannot grow without limit.
+const PERM_CACHE_MAX: usize = 10_000;
 
 struct PermCacheEntry {
     perms: Vec<String>,
     fetched_at: Instant,
 }
 
-fn perm_cache() -> &'static Mutex<HashMap<Uuid, PermCacheEntry>> {
-    static CACHE: OnceLock<Mutex<HashMap<Uuid, PermCacheEntry>>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+fn perm_cache() -> &'static tokio::sync::RwLock<HashMap<Uuid, PermCacheEntry>> {
+    static CACHE: OnceLock<tokio::sync::RwLock<HashMap<Uuid, PermCacheEntry>>> = OnceLock::new();
+    CACHE.get_or_init(|| tokio::sync::RwLock::new(HashMap::new()))
 }
 
 /// Load a user's permissions from the DB, using a short-lived in-memory cache.
@@ -34,8 +36,7 @@ pub(crate) async fn load_permissions(
     state: &AppState,
     user_id: Uuid,
 ) -> Result<Vec<String>, StatusCode> {
-    if let Ok(guard) = perm_cache().lock()
-        && let Some(entry) = guard.get(&user_id)
+    if let Some(entry) = perm_cache().read().await.get(&user_id)
         && entry.fetched_at.elapsed() < PERM_TTL
     {
         return Ok(entry.perms.clone());
@@ -51,7 +52,16 @@ pub(crate) async fn load_permissions(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Ok(mut guard) = perm_cache().lock() {
+    {
+        let mut guard = perm_cache().write().await;
+        if guard.len() >= PERM_CACHE_MAX {
+            // Evict expired entries; if still full, drop everything (rare,
+            // self-healing: entries are re-fetched on next request).
+            guard.retain(|_, e| e.fetched_at.elapsed() < PERM_TTL);
+            if guard.len() >= PERM_CACHE_MAX {
+                guard.clear();
+            }
+        }
         guard.insert(
             user_id,
             PermCacheEntry {
@@ -62,6 +72,17 @@ pub(crate) async fn load_permissions(
     }
 
     Ok(perms)
+}
+
+/// Drop one user's cached permissions (call after changing their profile).
+pub(crate) async fn invalidate_user_permissions(user_id: &Uuid) {
+    perm_cache().write().await.remove(user_id);
+}
+
+/// Drop the whole permissions cache (call after changing a profile's
+/// permission set, which affects every user with that profile).
+pub(crate) async fn invalidate_all_permissions() {
+    perm_cache().write().await.clear();
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,26 +96,60 @@ pub struct Claims {
 
 // ─── Cookie Helpers ──────────────────────────────────────────────
 
+/// `SameSite`/`Secure` attributes shared by all auth cookies.
+/// Defaults: `SameSite=Lax` (Strict breaks cross-site frontend/API setups)
+/// and `Secure` when the backend is served over HTTPS.
+/// Override with `COOKIE_SAMESITE=Lax|Strict|None` and `COOKIE_SECURE=1|true`.
+fn cookie_attrs() -> String {
+    let samesite = std::env::var("COOKIE_SAMESITE").unwrap_or_else(|_| "Lax".into());
+    let samesite = match samesite.as_str() {
+        "Strict" | "None" => samesite,
+        _ => "Lax".to_string(),
+    };
+    let secure_default = std::env::var("BACKEND_PUBLIC_URL")
+        .map(|u| u.starts_with("https://"))
+        .unwrap_or(false);
+    let mut secure = std::env::var("COOKIE_SECURE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(secure_default);
+    if samesite == "None" {
+        // Browsers reject SameSite=None without Secure.
+        secure = true;
+    }
+    if secure {
+        format!("SameSite={samesite}; Secure")
+    } else {
+        format!("SameSite={samesite}")
+    }
+}
+
 pub fn access_token_cookie(value: &str, max_age_secs: i64) -> String {
-    format!("access_token={value}; Path=/; HttpOnly; SameSite=Strict; Max-Age={max_age_secs}")
+    format!(
+        "access_token={value}; Path=/; HttpOnly; {}; Max-Age={max_age_secs}",
+        cookie_attrs()
+    )
 }
 
 pub fn refresh_token_cookie(value: &str, max_age_secs: i64) -> String {
     format!(
-        "refresh_token={value}; Path=/api/v1/auth/refresh; HttpOnly; SameSite=Strict; Max-Age={max_age_secs}"
+        "refresh_token={value}; Path=/api/v1/auth/refresh; HttpOnly; {}; Max-Age={max_age_secs}",
+        cookie_attrs()
     )
 }
 
 pub fn csrf_cookie(value: &str, max_age_secs: i64) -> String {
-    format!("csrf_token={value}; Path=/; SameSite=Strict; Max-Age={max_age_secs}")
+    format!(
+        "csrf_token={value}; Path=/; {}; Max-Age={max_age_secs}",
+        cookie_attrs()
+    )
 }
 
 pub fn clear_auth_cookies() -> Vec<String> {
+    let attrs = cookie_attrs();
     vec![
-        "access_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".to_string(),
-        "refresh_token=; Path=/api/v1/auth/refresh; HttpOnly; SameSite=Strict; Max-Age=0"
-            .to_string(),
-        "csrf_token=; Path=/; SameSite=Strict; Max-Age=0".to_string(),
+        format!("access_token=; Path=/; HttpOnly; {attrs}; Max-Age=0"),
+        format!("refresh_token=; Path=/api/v1/auth/refresh; HttpOnly; {attrs}; Max-Age=0"),
+        format!("csrf_token=; Path=/; {attrs}; Max-Age=0"),
     ]
 }
 
@@ -178,6 +233,28 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, S
         || path.starts_with("/api/v1/integrations/whatsapp/webhook")
         || path.starts_with("/api/v1/integrations/") && path.ends_with("/callback")
     {
+        return Ok(next.run(request).await);
+    }
+
+    // Bearer-only clients (mobile/CLI) carry no cookies, so CSRF — a
+    // cookie-abuse defense — does not apply to them. If both are present,
+    // enforce CSRF since the browser may fall back to the cookie.
+    let has_bearer = request
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .is_some_and(|h| h.starts_with("Bearer "));
+    let cookie_header = request
+        .headers()
+        .get("cookie")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let has_access_cookie = cookie_header.split(';').any(|c| {
+        let c = c.trim();
+        c.strip_prefix("access_token=")
+            .is_some_and(|v| !v.is_empty())
+    });
+    if has_bearer && !has_access_cookie {
         return Ok(next.run(request).await);
     }
 

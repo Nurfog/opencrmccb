@@ -59,9 +59,12 @@ pub async fn connect(
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     let state_val = generate_state();
+    // The provider calls back to the BACKEND (not the frontend): it must be
+    // the publicly reachable backend base URL.
     let redirect_uri = format!(
         "{}/api/v1/integrations/{}/callback",
-        state.frontend_url, provider
+        state.backend_public_url.trim_end_matches('/'),
+        provider
     );
 
     {
@@ -124,10 +127,11 @@ pub async fn callback(
         pending.user_id
     };
 
-    // Exchange code for tokens
+    // Exchange code for tokens (redirect_uri must match the authorize call)
     let redirect_uri = format!(
         "{}/api/v1/integrations/{}/callback",
-        state.frontend_url, provider
+        state.backend_public_url.trim_end_matches('/'),
+        provider
     );
 
     let token_params = [

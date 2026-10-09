@@ -28,6 +28,14 @@ async fn main() {
 
     let config = config::Config::from_env();
     let cors_origins = config.parse_cors_origins();
+    if std::env::var("METRICS_TOKEN")
+        .unwrap_or_default()
+        .is_empty()
+    {
+        tracing::warn!(
+            "METRICS_TOKEN not set: /metrics is publicly scrapable. Set a bearer token to restrict it."
+        );
+    }
     let pool = db::create_pool(&config.database.url).await;
 
     // Apply pending SQL migrations (tracked in schema_migrations, safe to
@@ -116,7 +124,6 @@ async fn main() {
             axum::http::header::AUTHORIZATION,
             axum::http::header::ACCEPT,
             axum::http::header::HeaderName::from_static("x-csrf-token"),
-            axum::http::header::HeaderName::from_static("cookie"),
         ]);
 
     let app = routes::public_routes()

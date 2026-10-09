@@ -29,7 +29,7 @@ export function WebhooksSection() {
   const fetchWebhooks = useCallback(async () => {
     try {
       const res = await webhooksApi.list()
-      setWebhooks(res)
+      setWebhooks(res.data)
     } catch { /* ignore */ }
   }, [])
 

@@ -94,7 +94,7 @@ pub async fn delete_notification(
 
 pub async fn send_test_email(
     State(state): State<AppState>,
-    _claims: axum::extract::Extension<crate::middleware::auth::Claims>,
+    claims: axum::extract::Extension<crate::middleware::auth::Claims>,
     perms: UserPermissions,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<axum::http::StatusCode, AppError> {
@@ -102,9 +102,14 @@ pub async fn send_test_email(
         .require("notifications.manage")
         .map_err(|_| AppError::Forbidden)?;
 
-    let to = payload["to"]
-        .as_str()
-        .ok_or_else(|| AppError::BadRequest("Missing 'to' field".into()))?;
+    // Test emails go to the caller only: allowing arbitrary recipients turns
+    // this endpoint into an open relay for spam/phishing via system SMTP.
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
+    let to: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
     let subject = payload["subject"].as_str().unwrap_or("Test Email");
     let body = payload["body"].as_str().unwrap_or("This is a test email.");
 
@@ -114,7 +119,7 @@ pub async fn send_test_email(
         &state.smtp.user,
         &state.smtp.password,
         &state.smtp.from,
-        to,
+        &to,
         subject,
         body,
     )

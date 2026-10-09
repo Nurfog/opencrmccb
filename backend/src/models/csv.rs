@@ -10,6 +10,40 @@ pub struct ImportResult {
     pub errors: Vec<String>,
 }
 
+/// DoS guard: CSV imports run N sequential INSERTs; cap the rows per request
+/// (Axum's default 2 MB body limit bounds bytes, this bounds statements).
+pub const MAX_IMPORT_ROWS: usize = 2000;
+/// Cap the per-row error list so a hostile file can't bloat the response.
+pub const MAX_IMPORT_ERRORS: usize = 50;
+/// Cap export queries: full-table CSV materialization is OOM-prone.
+pub const EXPORT_ROW_CAP: i64 = 10_000;
+
+/// Signal a capped export so clients know the CSV may be incomplete.
+pub fn set_export_truncated(headers: &mut axum::http::HeaderMap, rows: usize) {
+    if rows as i64 >= EXPORT_ROW_CAP
+        && let Ok(v) = axum::http::HeaderValue::from_str("true")
+    {
+        headers.insert("X-Export-Truncated", v);
+    }
+}
+
+pub fn check_import_row_count(rows: usize) -> Result<(), crate::error::AppError> {
+    if rows > MAX_IMPORT_ROWS {
+        return Err(crate::error::AppError::BadRequest(format!(
+            "Too many rows (max {MAX_IMPORT_ROWS})"
+        )));
+    }
+    Ok(())
+}
+
+pub fn push_import_error(errors: &mut Vec<String>, message: String) {
+    if errors.len() < MAX_IMPORT_ERRORS {
+        errors.push(message);
+    } else if errors.len() == MAX_IMPORT_ERRORS {
+        errors.push(format!("… and more (showing first {MAX_IMPORT_ERRORS})"));
+    }
+}
+
 #[derive(Debug)]
 pub struct DealImportRow {
     pub title: String,

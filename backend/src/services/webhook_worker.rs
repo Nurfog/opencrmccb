@@ -14,6 +14,86 @@ type HmacSha256 = Hmac<Sha256>;
 
 const MAX_ATTEMPTS: i32 = 3;
 
+/// Buckets of IPs that must never receive webhook deliveries unless
+/// WEBHOOK_ALLOW_PRIVATE=true (dev convenience for localhost targets).
+fn ip_is_public(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            let o = v4.octets();
+            // Documentation ranges (stable-only std has no helper for these).
+            let documentation = (o[0] == 192 && o[1] == 0 && o[2] == 2)
+                || (o[0] == 198 && o[1] == 51 && o[2] == 100)
+                || (o[0] == 203 && o[1] == 0 && o[2] == 113);
+            // Reserved 240.0.0.0/4.
+            let reserved = o[0] >= 240;
+            !(v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_broadcast()
+                || v4.is_unspecified()
+                || v4.is_multicast()
+                || documentation
+                || reserved)
+        }
+        std::net::IpAddr::V6(v6) => {
+            !(v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_multicast()
+                // Unique local addresses fc00::/7
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                // Link-local fe80::/10
+                || (v6.segments()[0] & 0xffc0) == 0xfe80)
+        }
+    }
+}
+
+fn webhook_allow_private() -> bool {
+    std::env::var("WEBHOOK_ALLOW_PRIVATE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
+/// SSRF guard: only http(s) URLs whose resolved IPs are all public.
+/// Called before every delivery (targets are admin-configured, but a
+/// compromised admin DB row must not reach instance metadata / intranet).
+async fn url_allowed(url: &str) -> bool {
+    let parsed = match reqwest::Url::parse(url) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return false;
+    }
+    let host = match parsed.host_str() {
+        Some(h) => h.to_string(),
+        None => return false,
+    };
+    if webhook_allow_private() {
+        return true;
+    }
+    // Literal IP: check directly.
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        return ip_is_public(ip);
+    }
+    if host.eq_ignore_ascii_case("localhost") {
+        return false;
+    }
+    // Hostname: every resolved address must be public.
+    match tokio::net::lookup_host((host.as_str(), 443)).await {
+        Ok(addrs) => {
+            let mut any = false;
+            for addr in addrs {
+                any = true;
+                if !ip_is_public(addr.ip()) {
+                    return false;
+                }
+            }
+            any
+        }
+        Err(_) => false,
+    }
+}
+
 /// Helper function to enqueue a webhook event
 pub async fn enqueue_event(
     pool: &PgPool,
@@ -81,21 +161,36 @@ async fn process_pending_deliveries(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use sqlx::Row;
 
-    // Select up to 50 pending deliveries that are due
+    // Claim due deliveries atomically: rows stuck in 'processing' for more
+    // than 5 minutes (e.g. crash between claim and update) become eligible
+    // again, and SKIP LOCKED keeps concurrent workers from double-sending.
+    let mut tx = pool.begin().await?;
     let rows = sqlx::query(
-        "SELECT d.id, d.webhook_id, d.payload, d.attempts, w.url, w.secret 
+        "SELECT d.id, d.webhook_id, d.payload, d.attempts, w.url, w.secret
          FROM webhook_deliveries d
          JOIN webhooks w ON d.webhook_id = w.id
-         WHERE d.status = 'pending' AND d.next_attempt_at <= NOW()
+         WHERE ((d.status = 'pending')
+             OR (d.status = 'processing'
+                 AND d.updated_at < NOW() - INTERVAL '5 minutes'))
+           AND d.next_attempt_at <= NOW()
          ORDER BY d.next_attempt_at ASC
-         LIMIT 50",
+         LIMIT 50
+         FOR UPDATE SKIP LOCKED",
     )
-    .fetch_all(pool)
+    .fetch_all(&mut *tx)
     .await?;
 
     if rows.is_empty() {
+        tx.rollback().await?;
         return Ok(());
     }
+
+    let ids: Vec<uuid::Uuid> = rows.iter().map(|r| r.get("id")).collect();
+    sqlx::query("UPDATE webhook_deliveries SET status = 'processing', updated_at = NOW() WHERE id = ANY($1)")
+        .bind(&ids)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
 
     for row in rows {
         let delivery_id: uuid::Uuid = row.get("id");
@@ -105,13 +200,19 @@ async fn process_pending_deliveries(
         let url: String = row.get("url");
         let secret: Option<String> = row.get("secret");
 
-        // Mark as processing
-        sqlx::query(
-            "UPDATE webhook_deliveries SET status = 'processing', updated_at = NOW() WHERE id = $1",
-        )
-        .bind(delivery_id)
-        .execute(pool)
-        .await?;
+        // SSRF guard runs per delivery: the URL comes from an admin-owned
+        // row, but must never reach intranet/metadata endpoints.
+        if !url_allowed(&url).await {
+            warn!("Webhook delivery {} blocked: non-public URL", delivery_id);
+            sqlx::query(
+                "UPDATE webhook_deliveries SET status = 'failed', attempts = $2, response_body = 'blocked: non-public URL', updated_at = NOW() WHERE id = $1",
+            )
+            .bind(delivery_id)
+            .bind(attempts + 1)
+            .execute(pool)
+            .await?;
+            continue;
+        }
 
         // Prepare request
         let payload_str = payload.to_string();
@@ -152,7 +253,12 @@ async fn process_pending_deliveries(
                 if status.is_success() {
                     new_status = WebhookStatus::Success;
                 } else {
-                    response_body = res.text().await.ok();
+                    // Truncate: upstream bodies are unbounded, the column is not.
+                    response_body = res.text().await.ok().map(|b| {
+                        let mut b = b;
+                        b.truncate(4000);
+                        b
+                    });
                     if attempts < MAX_ATTEMPTS {
                         new_status = WebhookStatus::Pending;
                         next_attempt_at = calculate_backoff(attempts);
@@ -160,7 +266,9 @@ async fn process_pending_deliveries(
                 }
             }
             Err(e) => {
-                response_body = Some(e.to_string());
+                let mut msg = e.to_string();
+                msg.truncate(1000);
+                response_body = Some(msg);
                 if attempts < MAX_ATTEMPTS {
                     new_status = WebhookStatus::Pending;
                     next_attempt_at = calculate_backoff(attempts);

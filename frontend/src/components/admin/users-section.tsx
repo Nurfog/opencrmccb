@@ -20,7 +20,7 @@ export function UsersSection() {
   const fetchUsers = useCallback(async () => {
     try {
       const res = await usersApi.list()
-      setUsers(res)
+      setUsers(res.data)
     } catch { /* ignore */ }
   }, [])
 

@@ -11,6 +11,28 @@ use crate::models::{
     UpdateEmailTemplate,
 };
 
+/// Resolve the envelope sender: a client-supplied `from` is honored only when
+/// its domain matches the configured sender domain (verified identities).
+/// Anything else falls back to the server address so the system SMTP cannot
+/// be used as an arbitrary spoofing relay.
+fn resolve_sender(configured: &str, from: Option<&str>) -> String {
+    fn domain_of(addr: &str) -> Option<&str> {
+        addr.rsplit('@').next()
+    }
+    match from {
+        Some(custom) if domain_of(custom) == domain_of(configured) => custom.to_string(),
+        Some(custom) => {
+            tracing::warn!(
+                "Rejecting spoofed sender {} (configured domain: {})",
+                custom,
+                configured
+            );
+            configured.to_string()
+        }
+        None => configured.to_string(),
+    }
+}
+
 // Send email
 pub async fn send_email(
     State(state): State<AppState>,
@@ -23,11 +45,8 @@ pub async fn send_email(
         .map_err(|_| StatusCode::FORBIDDEN)?;
     input.validate().map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    // Use SMTP config from AppState
-    let from_email = input
-        .from
-        .clone()
-        .unwrap_or_else(|| state.smtp.from.clone());
+    // Use SMTP config from AppState (spoof-guarded, see resolve_sender)
+    let from_email = resolve_sender(&state.smtp.from, input.from.as_deref());
 
     // Send via SMTP
     let send_result = crate::services::email::send_email(
@@ -257,11 +276,8 @@ pub async fn send_from_template(
     let subject = template.subject.replace("{{to}}", &input.to);
     let body = template.body.replace("{{to}}", &input.to);
 
-    // Use SMTP config from AppState
-    let from_email = input
-        .from
-        .clone()
-        .unwrap_or_else(|| state.smtp.from.clone());
+    // Use SMTP config from AppState (spoof-guarded, see resolve_sender)
+    let from_email = resolve_sender(&state.smtp.from, input.from.as_deref());
 
     let send_result = crate::services::email::send_email(
         &state.smtp.host,

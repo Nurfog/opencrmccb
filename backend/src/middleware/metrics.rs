@@ -60,7 +60,22 @@ impl Metrics {
 
 pub async fn metrics_handler(
     axum::extract::Extension(metrics): axum::extract::Extension<Arc<Metrics>>,
+    req: Request<Body>,
 ) -> Response {
+    // Optional bearer gate: set METRICS_TOKEN to stop exposing traffic
+    // shapes publicly. Unset = open (warned at startup), Prometheus default.
+    if let Ok(expected) = std::env::var("METRICS_TOKEN")
+        && !expected.is_empty()
+    {
+        let authed = req
+            .headers()
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|h| h.to_str().ok())
+            .is_some_and(|h| h == format!("Bearer {expected}"));
+        if !authed {
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    }
     let body = metrics.render();
     (
         StatusCode::OK,
@@ -70,13 +85,32 @@ pub async fn metrics_handler(
         .into_response()
 }
 
+/// Collapse high-cardinality path segments (UUIDs, numeric IDs) so
+/// `/contacts/{uuid}` doesn't create one series per entity.
+fn normalize_path(path: &str) -> String {
+    path.split('/')
+        .map(|seg| {
+            if seg.is_empty() {
+                String::new()
+            } else if seg.parse::<uuid::Uuid>().is_ok()
+                || (!seg.is_empty() && seg.bytes().all(|b| b.is_ascii_digit()))
+            {
+                "{id}".to_string()
+            } else {
+                seg.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 pub async fn track_metrics(
     axum::extract::Extension(metrics): axum::extract::Extension<Arc<Metrics>>,
     req: Request<Body>,
     next: axum::middleware::Next,
 ) -> Response {
     let method = req.method().to_string();
-    let path = req.uri().path().to_string();
+    let path = normalize_path(req.uri().path());
     let start = Instant::now();
 
     let response = next.run(req).await;

@@ -233,8 +233,11 @@ pub async fn update_lead(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Validate status progression
-    if let Some(ref new_status) = input.status {
+    // Validate status progression (same-state updates are no-ops, not errors,
+    // so full-object PUTs from the frontend don't fail).
+    if let Some(ref new_status) = input.status
+        && &existing.status != new_status
+    {
         let allowed = match (&existing.status, new_status) {
             // Forward progression
             (LeadStatus::New, LeadStatus::Contacted) => true,
@@ -383,14 +386,24 @@ pub async fn convert_lead(
     #[allow(unused_assignments)]
     let mut deal_id: Option<Uuid> = None;
 
-    // Create company if persona jurídica
+    // Create company if persona jurídica (company name is required: never
+    // silently store placeholder junk like "Unknown").
     if is_company {
+        let company_name = lead
+            .company_name
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| {
+                AppError::BadRequest(
+                    "company_name is required to convert into a company deal".into(),
+                )
+            })?;
         let company = sqlx::query_as::<_, crate::models::Company>(
             "INSERT INTO companies (name, industry, website, phone, email)
              VALUES ($1, $2, $3, $4, $5)
              RETURNING id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at",
         )
-        .bind(lead.company_name.as_deref().unwrap_or("Unknown"))
+        .bind(company_name)
         .bind(&lead.industry)
         .bind(&lead.website)
         .bind(&lead.phone)
@@ -401,17 +414,14 @@ pub async fn convert_lead(
         company_id = Some(company.id);
     }
 
-    // Create contact (always)
-    let parts: Vec<&str> = lead.last_name.split_whitespace().collect();
-    let last_name = parts.first().copied().unwrap_or(&lead.last_name);
-
+    // Create contact (always) — copy the surname in full, never truncated.
     let contact = sqlx::query_as::<_, Contact>(
         "INSERT INTO contacts (first_name, last_name, email, phone, company_id, position)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id, first_name, last_name, email, phone, company_id, position, notes, created_at, updated_at",
     )
     .bind(&lead.first_name)
-    .bind(last_name)
+    .bind(&lead.last_name)
     .bind(&lead.email)
     .bind(&lead.phone)
     .bind(company_id)
@@ -605,28 +615,19 @@ pub async fn lead_stats(
     perms
         .require("leads.view")
         .map_err(|_| AppError::Forbidden)?;
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads")
-        .fetch_one(&state.db)
-        .await?;
+    let (total, new, contacted, qualified, converted): (i64, i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT COUNT(*),
+                    COUNT(*) FILTER (WHERE status = 'new'),
+                    COUNT(*) FILTER (WHERE status = 'contacted'),
+                    COUNT(*) FILTER (WHERE status = 'qualified'),
+                    COUNT(*) FILTER (WHERE status = 'converted')
+             FROM leads",
+    )
+    .fetch_one(&state.db)
+    .await?;
 
-    let new: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'new'")
-        .fetch_one(&state.db)
-        .await?;
-
-    let contacted: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'contacted'")
-        .fetch_one(&state.db)
-        .await?;
-
-    let qualified: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'qualified'")
-        .fetch_one(&state.db)
-        .await?;
-
-    let converted: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM leads WHERE status = 'converted'")
-        .fetch_one(&state.db)
-        .await?;
-
-    let conversion_rate = if total.0 > 0 {
-        (converted.0 as f64 / total.0 as f64) * 100.0
+    let conversion_rate = if total > 0 {
+        (converted as f64 / total as f64) * 100.0
     } else {
         0.0
     };
@@ -641,11 +642,11 @@ pub async fn lead_stats(
     .collect();
 
     Ok(Json(LeadStats {
-        total: total.0,
-        new: new.0,
-        contacted: contacted.0,
-        qualified: qualified.0,
-        converted: converted.0,
+        total,
+        new,
+        contacted,
+        qualified,
+        converted,
         conversion_rate,
         by_source,
     }))

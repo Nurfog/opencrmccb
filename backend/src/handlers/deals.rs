@@ -13,6 +13,7 @@ use crate::models::{
     WebhookEvent,
 };
 use crate::models::{ImportResult, escape_csv, parse_csv_rows, parse_deal_import_row};
+use crate::models::{check_import_row_count, push_import_error, set_export_truncated};
 use crate::services::webhook_worker::enqueue_event;
 
 pub async fn list_deals(
@@ -287,6 +288,7 @@ pub async fn export_deals(
         "Content-Disposition",
         HeaderValue::from_static("attachment; filename=\"deals.csv\""),
     );
+    set_export_truncated(&mut headers, deals.len());
 
     Ok((headers, csv))
 }
@@ -300,6 +302,7 @@ pub async fn import_deals(
         .require("deals.create")
         .map_err(|_| AppError::Forbidden)?;
     let rows = parse_csv_rows(&body);
+    check_import_row_count(rows.len())?;
 
     let mut imported = 0;
     let mut errors = Vec::new();
@@ -308,7 +311,7 @@ pub async fn import_deals(
         let row = match parse_deal_import_row(fields) {
             Ok(row) => row,
             Err(message) => {
-                errors.push(format!("Línea {}: {}", row_num + 2, message));
+                push_import_error(&mut errors, format!("Línea {}: {}", row_num + 2, message));
                 continue;
             }
         };
@@ -328,7 +331,7 @@ pub async fn import_deals(
             .await
         {
             Ok(_) => imported += 1,
-            Err(e) => errors.push(format!("Línea {}: {}", row_num + 2, e)),
+            Err(e) => push_import_error(&mut errors, format!("Línea {}: {}", row_num + 2, e)),
         }
     }
 

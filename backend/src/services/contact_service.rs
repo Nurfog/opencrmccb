@@ -7,6 +7,7 @@ use crate::models::{
     Contact, CreateContact, PaginatedResponse, PaginationParams, UpdateContact, WebhookEvent,
 };
 use crate::models::{ImportResult, escape_csv, parse_csv_rows};
+use crate::models::{check_import_row_count, push_import_error};
 use crate::repositories::contact_repo::PgContactRepo;
 use crate::services::webhook_worker::enqueue_event;
 
@@ -140,8 +141,9 @@ impl<'a> ContactService<'a> {
         self.repo.bulk_delete(ids).await
     }
 
-    pub async fn export(&self, search: Option<&str>) -> Result<String, AppError> {
+    pub async fn export(&self, search: Option<&str>) -> Result<(String, usize), AppError> {
         let contacts = self.repo.find_all_for_export(search).await?;
+        let count = contacts.len();
 
         let mut csv = String::from("first_name,last_name,email,phone,position,company_id,notes\n");
         for c in &contacts {
@@ -157,18 +159,22 @@ impl<'a> ContactService<'a> {
             ));
         }
 
-        Ok(csv)
+        Ok((csv, count))
     }
 
     pub async fn import(&self, body: &str) -> Result<ImportResult, AppError> {
         let rows = parse_csv_rows(body);
+        check_import_row_count(rows.len())?;
 
         let mut imported = 0u32;
         let mut errors = Vec::new();
 
         for (row_num, fields) in rows.iter().enumerate() {
             if fields.len() < 2 {
-                errors.push(format!("Línea {}: formato inválido", row_num + 2));
+                push_import_error(
+                    &mut errors,
+                    format!("Línea {}: formato inválido", row_num + 2),
+                );
                 continue;
             }
 
@@ -199,7 +205,7 @@ impl<'a> ContactService<'a> {
                 .await
             {
                 Ok(_) => imported += 1,
-                Err(e) => errors.push(format!("Línea {}: {}", row_num + 2, e)),
+                Err(e) => push_import_error(&mut errors, format!("Línea {}: {}", row_num + 2, e)),
             }
         }
 

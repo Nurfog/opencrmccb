@@ -1,8 +1,8 @@
 import { request } from "../api-client";
-import type { User } from "../types";
+import type { PaginatedResponse, User } from "../types";
 
 export const usersApi = {
-  list: () => request<User[]>("/api/v1/users"),
+  list: () => request<PaginatedResponse<User>>("/api/v1/users"),
 
   delete: (id: string) =>
     request<void>(`/api/v1/users/${id}`, { method: "DELETE" }),

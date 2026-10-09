@@ -10,6 +10,7 @@ use crate::handlers::audit::insert_audit_log;
 use crate::middleware::auth::{Claims, UserPermissions};
 use crate::models::{Company, CreateCompany, PaginatedResponse, PaginationParams, UpdateCompany};
 use crate::models::{ImportResult, escape_csv, escape_like, parse_csv_rows};
+use crate::models::{check_import_row_count, push_import_error, set_export_truncated};
 
 pub async fn list_companies(
     State(state): State<AppState>,
@@ -275,14 +276,14 @@ pub async fn export_companies(
 
     let companies = if let Some(ref search) = search_filter {
         sqlx::query_as::<_, Company>(
-            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies WHERE name ILIKE $1 ESCAPE '\\' OR industry ILIKE $1 ESCAPE '\\' OR city ILIKE $1 ESCAPE '\\' OR country ILIKE $1 ESCAPE '\\' ORDER BY created_at DESC LIMIT 100000"
+            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies WHERE name ILIKE $1 ESCAPE '\\' OR industry ILIKE $1 ESCAPE '\\' OR city ILIKE $1 ESCAPE '\\' OR country ILIKE $1 ESCAPE '\\' ORDER BY created_at DESC LIMIT 10000"
         )
         .bind(search)
         .fetch_all(&state.db)
         .await?
     } else {
         sqlx::query_as::<_, Company>(
-            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies ORDER BY created_at DESC LIMIT 100000"
+            "SELECT id, name, industry, website, phone, email, address, city, country, notes, created_at, updated_at FROM companies ORDER BY created_at DESC LIMIT 10000"
         )
         .fetch_all(&state.db)
         .await?
@@ -313,6 +314,7 @@ pub async fn export_companies(
         "Content-Disposition",
         HeaderValue::from_static("attachment; filename=\"companies.csv\""),
     );
+    set_export_truncated(&mut headers, companies.len());
 
     Ok((headers, csv))
 }
@@ -326,13 +328,17 @@ pub async fn import_companies(
         .require("companies.create")
         .map_err(|_| AppError::Forbidden)?;
     let rows = parse_csv_rows(&body);
+    check_import_row_count(rows.len())?;
 
     let mut imported = 0;
     let mut errors = Vec::new();
 
     for (row_num, fields) in rows.iter().enumerate() {
         if fields.is_empty() {
-            errors.push(format!("Línea {}: formato inválido", row_num + 2));
+            push_import_error(
+                &mut errors,
+                format!("Línea {}: formato inválido", row_num + 2),
+            );
             continue;
         }
 
@@ -391,7 +397,7 @@ pub async fn import_companies(
 
         match result {
             Ok(_) => imported += 1,
-            Err(e) => errors.push(format!("Línea {}: {}", row_num + 2, e)),
+            Err(e) => push_import_error(&mut errors, format!("Línea {}: {}", row_num + 2, e)),
         }
     }
 

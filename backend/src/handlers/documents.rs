@@ -38,7 +38,7 @@ pub async fn upload_document(
     let mut file_data = Vec::new();
     let mut folder = Some("general".to_string());
 
-    while let Some(field) = multipart
+    while let Some(mut field) = multipart
         .next_field()
         .await
         .map_err(|e| AppError::BadRequest(format!("Multipart error: {e}")))?
@@ -49,12 +49,23 @@ pub async fn upload_document(
                 original_name = field.file_name().unwrap_or("unknown").to_string();
                 mime_type = field.content_type().map(|m| m.to_string());
 
-                let data = field
-                    .bytes()
+                // Stream chunks with a running cap: abort as soon as the
+                // limit is exceeded instead of buffering an unbounded body.
+                let max_size = (state.upload.max_file_size_mb as i64) * 1024 * 1024;
+                while let Some(chunk) = field
+                    .chunk()
                     .await
-                    .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?;
-                file_size = data.len() as i64;
-                file_data = data.to_vec();
+                    .map_err(|e| AppError::BadRequest(format!("Failed to read file: {e}")))?
+                {
+                    file_size += chunk.len() as i64;
+                    if file_size > max_size {
+                        return Err(AppError::BadRequest(format!(
+                            "File too large (max {} MB)",
+                            state.upload.max_file_size_mb
+                        )));
+                    }
+                    file_data.extend_from_slice(&chunk);
+                }
             }
             "folder" => {
                 let val = field
@@ -71,11 +82,6 @@ pub async fn upload_document(
 
     if file_data.is_empty() {
         return Err(AppError::BadRequest("No file provided".into()));
-    }
-
-    let max_size = (state.upload.max_file_size_mb as i64) * 1024 * 1024;
-    if file_size > max_size {
-        return Err(AppError::BadRequest("File too large".into()));
     }
 
     let file_id = Uuid::new_v4();
@@ -156,14 +162,22 @@ pub async fn list_documents(
     if let Some(ref mime) = params.mime_type {
         query.push_str(&format!(" AND mime_type ILIKE ${}", param_idx));
         bind_values.push(format!("{}%", mime));
+        param_idx += 1;
     }
 
     query.push_str(" ORDER BY created_at DESC");
+
+    let page = params.page.unwrap_or(1).clamp(1, 10000);
+    let per_page = params.per_page.unwrap_or(20).clamp(1, 200);
+    query.push_str(&format!(" LIMIT ${} OFFSET ${}", param_idx, param_idx + 1));
 
     let mut q = sqlx::query_as::<_, Document>(&query);
     for val in &bind_values {
         q = q.bind(val);
     }
+    let limit = per_page;
+    let offset = (page - 1) * per_page;
+    let q = q.bind(limit).bind(offset);
 
     let documents = q.fetch_all(&state.db).await?;
 
@@ -187,6 +201,15 @@ pub async fn download_document(
     .ok_or(AppError::NotFound)?;
 
     let file_path = std::path::Path::new(&state.upload.dir).join(&doc.filename);
+    // Bound per-request memory: files are capped at upload time, but legacy
+    // rows may predate the cap — refuse instead of buffering unbounded data.
+    let max_size = (state.upload.max_file_size_mb as i64) * 1024 * 1024;
+    if doc.file_size > max_size {
+        return Err(AppError::BadRequest(format!(
+            "File exceeds the {} MB download limit",
+            state.upload.max_file_size_mb
+        )));
+    }
     let data = fs::read(&file_path).await?;
 
     let mut headers = HeaderMap::new();

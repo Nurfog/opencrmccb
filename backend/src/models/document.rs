@@ -30,4 +30,6 @@ pub struct DocumentFilter {
     pub folder: Option<String>,
     pub search: Option<String>,
     pub mime_type: Option<String>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
 }

@@ -1,6 +1,6 @@
 use axum::Json;
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{StatusCode, header::SET_COOKIE};
 use axum::response::Response;
 use bcrypt::{DEFAULT_COST, hash, verify};
@@ -12,11 +12,12 @@ use validator::Validate;
 use crate::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::{
-    access_token_cookie, clear_auth_cookies, csrf_cookie, generate_csrf_token, refresh_token_cookie,
+    access_token_cookie, clear_auth_cookies, csrf_cookie, generate_csrf_token,
+    invalidate_user_permissions, refresh_token_cookie,
 };
 use crate::models::{
-    AuthResponse, ChangePassword, CreateUser, LoginRequest, RefreshToken, RefreshTokenRequest,
-    UpdateProfile, User, UserResponse, UserSafe,
+    AuthResponse, ChangePassword, CreateUser, LoginRequest, PaginatedResponse, PaginationParams,
+    RefreshToken, RefreshTokenRequest, UpdateProfile, User, UserResponse, UserSafe,
 };
 
 // ─── Token Helpers ────────────────────────────────────────────────
@@ -25,6 +26,24 @@ fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+/// bcrypt at DEFAULT_COST (~hundreds of ms) must not block async workers.
+async fn hash_password(password: &str) -> Result<String, AppError> {
+    let password = password.to_owned();
+    tokio::task::spawn_blocking(move || hash(&password, DEFAULT_COST))
+        .await
+        .map_err(|_| AppError::Internal("Password hashing failed".into()))?
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+async fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
+    let password = password.to_owned();
+    let hash = hash.to_owned();
+    tokio::task::spawn_blocking(move || verify(&password, &hash))
+        .await
+        .map_err(|_| AppError::Internal("Password verification failed".into()))?
+        .map_err(|_| AppError::Unauthorized)
 }
 
 pub fn create_access_token(
@@ -139,8 +158,7 @@ pub async fn register(
             .fetch_optional(&mut *tx)
             .await?;
 
-    let password_hash =
-        hash(&input.password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let password_hash = hash_password(&input.password).await?;
 
     let user = sqlx::query_as::<_, User>(
         r#"
@@ -251,7 +269,7 @@ pub async fn login(
         }
     };
 
-    let valid = verify(&input.password, &user.password_hash).map_err(|_| AppError::Unauthorized)?;
+    let valid = verify_password(&input.password, &user.password_hash).await?;
 
     if !valid {
         tracing::warn!("Failed login attempt (invalid password)");
@@ -600,15 +618,13 @@ pub async fn change_password(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let valid =
-        verify(&input.current_password, &user.password_hash).map_err(|_| AppError::Unauthorized)?;
+    let valid = verify_password(&input.current_password, &user.password_hash).await?;
 
     if !valid {
         return Err(AppError::Unauthorized);
     }
 
-    let new_hash =
-        hash(&input.new_password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let new_hash = hash_password(&input.new_password).await?;
 
     sqlx::query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1")
         .bind(user_id)
@@ -651,8 +667,7 @@ pub async fn create_user(
 ) -> Result<(StatusCode, Json<UserResponse>), AppError> {
     input.validate()?;
 
-    let password_hash =
-        hash(&input.password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let password_hash = hash_password(&input.password).await?;
 
     // Default new users to Vendedor profile
     let default_profile_id: Option<Uuid> =
@@ -723,7 +738,11 @@ struct UserWithPermissionsRow {
 
 pub async fn list_users(
     State(state): State<AppState>,
-) -> Result<Json<Vec<UserResponse>>, AppError> {
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<UserResponse>>, AppError> {
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&state.db)
+        .await?;
     let rows = sqlx::query_as::<_, UserWithPermissionsRow>(
         r#"
         SELECT u.id, u.email, u.first_name, u.last_name, u.profile_id, u.created_at, u.updated_at,
@@ -732,8 +751,11 @@ pub async fn list_users(
         LEFT JOIN profile_permissions pp ON pp.profile_id = u.profile_id
         GROUP BY u.id
         ORDER BY u.created_at DESC
+        LIMIT $1 OFFSET $2
         "#,
     )
+    .bind(params.per_page())
+    .bind(params.offset())
     .fetch_all(&state.db)
     .await?;
 
@@ -749,7 +771,12 @@ pub async fn list_users(
         })
         .collect();
 
-    Ok(Json(result))
+    Ok(Json(PaginatedResponse::new(
+        result,
+        total,
+        params.page(),
+        params.per_page(),
+    )))
 }
 
 pub async fn delete_user(
@@ -807,6 +834,10 @@ pub async fn update_user_profile(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // The user's permission set just changed: drop the cached entry so the
+    // next request re-reads it immediately instead of within ~60s.
+    invalidate_user_permissions(&id).await;
+
     let permissions: Vec<String> = sqlx::query_scalar(
         "SELECT pp.permission FROM profile_permissions pp \
          JOIN users u ON u.profile_id = pp.profile_id \
@@ -834,9 +865,10 @@ pub struct ForgotPasswordRequest {
     pub email: String,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Validate)]
 pub struct ResetPasswordRequest {
     pub token: String,
+    #[validate(length(min = 6, message = "Password must be at least 6 characters"))]
     pub password: String,
 }
 
@@ -894,6 +926,9 @@ pub async fn reset_password(
     State(state): State<AppState>,
     Json(input): Json<ResetPasswordRequest>,
 ) -> Result<StatusCode, AppError> {
+    input
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let token_hash = hash_token(&input.token);
 
     let reset_token: Option<ResetTokenRow> = sqlx::query_as(
@@ -916,8 +951,7 @@ pub async fn reset_password(
         return Err(AppError::BadRequest("Token expired".into()));
     }
 
-    let new_hash =
-        hash(&input.password, DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
+    let new_hash = hash_password(&input.password).await?;
 
     let mut tx = state
         .db

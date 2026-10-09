@@ -30,6 +30,8 @@ pub struct WhatsAppConfigInput {
     pub business_account_id: String,
     pub api_token: String,
     pub phone_number: Option<String>,
+    /// Rotate the webhook verification token. If omitted, the current one is kept.
+    pub webhook_verify_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -201,12 +203,25 @@ pub async fn update_whatsapp_config(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Rotate the webhook verification token only when explicitly provided;
+    // otherwise the existing one (or the DB default for new rows) is kept.
+    let mut verify_token = config.webhook_verify_token.clone();
+    if let Some(provided) = &input.webhook_verify_token {
+        sqlx::query("UPDATE whatsapp_config SET webhook_verify_token = $2, updated_at = NOW() WHERE id = $1")
+            .bind(singleton_id)
+            .bind(provided)
+            .execute(&state.db)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        verify_token = Some(provided.clone());
+    }
+
     Ok(Json(WhatsAppConfigResponse {
         phone_number_id: config.phone_number_id,
         business_account_id: config.business_account_id,
         phone_number: config.phone_number,
         is_active: config.is_active,
-        webhook_verify_token: config.webhook_verify_token,
+        webhook_verify_token: verify_token,
     }))
 }
 
@@ -255,17 +270,25 @@ pub async fn send_whatsapp_message(
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
-        .await;
+        .await
+        .map_err(|e| {
+            tracing::error!("WhatsApp send request failed: {e}");
+            StatusCode::BAD_GATEWAY
+        })?;
 
-    let wa_message_id: Option<String> = if let Ok(r) = resp {
-        if let Ok(json) = r.json::<serde_json::Value>().await {
-            json["messages"][0]["id"].as_str().map(|s| s.to_string())
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    let status = resp.status();
+    let json: serde_json::Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let wa_message_id = json["messages"][0]["id"].as_str().map(|s| s.to_string());
+
+    // Persist the attempt either way (audit trail), but surface upstream
+    // failures to the caller instead of a misleading 200 "sent".
+    let failed = !status.is_success() || wa_message_id.is_none();
+    if failed {
+        tracing::warn!(
+            "Meta API rejected WhatsApp message (status {status}): {}",
+            json["error"]
+        );
+    }
 
     let msg = sqlx::query_as::<_, (Uuid, String, String, String, String, String, chrono::DateTime<chrono::Utc>)>(
         r#"
@@ -280,10 +303,14 @@ pub async fn send_whatsapp_message(
     .bind(&wa_message_id)
     .bind(input.contact_id)
     .bind(agent_id)
-    .bind(if wa_message_id.is_some() { "sent" } else { "failed" })
+    .bind(if failed { "failed" } else { "sent" })
     .fetch_one(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if failed {
+        return Err(StatusCode::BAD_GATEWAY);
+    }
 
     Ok(Json(MessageResponse {
         id: msg.0,
@@ -360,7 +387,7 @@ pub async fn webhook_verify(
     match (query.mode, query.verify_token, query.challenge) {
         (Some(mode), Some(token), Some(challenge))
             if mode == "subscribe"
-                && token == config.webhook_verify_token.as_deref().unwrap_or("") =>
+                && config.webhook_verify_token.as_deref() == Some(token.as_str()) =>
         {
             Ok(challenge)
         }
@@ -414,6 +441,14 @@ pub async fn webhook_receive(
     .ok_or(StatusCode::NOT_FOUND)?;
 
     if let Some(entries) = body.entry {
+        // Flatten all incoming messages first so contact/assignment lookups
+        // below run batched instead of once per message (N+1).
+        let mut incoming: Vec<(
+            String,
+            String,
+            String,
+            Option<chrono::DateTime<chrono::Utc>>,
+        )> = Vec::new();
         for entry in entries {
             if let Some(changes) = entry.changes {
                 for change in changes {
@@ -421,66 +456,104 @@ pub async fn webhook_receive(
                         && let Some(messages) = value.messages
                     {
                         for msg in messages {
-                            let from = msg.from;
                             let content = msg
                                 .text
                                 .as_ref()
                                 .map(|t| t.body.clone())
                                 .unwrap_or_default();
-                            let msg_id = msg.id;
                             let wa_ts = msg
                                 .timestamp
                                 .and_then(|ts| ts.parse::<i64>().ok())
                                 .and_then(|secs| chrono::DateTime::from_timestamp(secs, 0));
-
-                            // Find contact by phone
-                            let contact_id: Option<Uuid> = sqlx::query_scalar(
-                                    "SELECT id FROM contacts WHERE phone ILIKE $1 OR phone ILIKE $2 LIMIT 1"
-                                )
-                                .bind(format!("%{}", from))
-                                .bind(format!("%{}", from.trim_start_matches('+')))
-                                .fetch_optional(&state.db)
-                                .await
-                                .unwrap_or(None);
-
-                            // Auto-assign lead if no agent assigned
-                            let agent_id = if let Some(cid) = contact_id {
-                                let assigned = sqlx::query_scalar::<_, Uuid>(
-                                        "SELECT agent_id FROM agent_lead_assignments WHERE lead_id = $1 AND lead_type = 'contact' AND status = 'active' LIMIT 1"
-                                    )
-                                    .bind(cid)
-                                    .fetch_optional(&state.db)
-                                    .await
-                                    .unwrap_or(None);
-
-                                if assigned.is_none() {
-                                    assign_lead_to_agent(&state, "contact", cid, "whatsapp").await
-                                } else {
-                                    assigned
-                                }
-                            } else {
-                                None
-                            };
-
-                            let _ = sqlx::query(
-                                    r#"
-                                    INSERT INTO whatsapp_messages (direction, from_number, to_number, content, message_id, contact_id, agent_id, status, wa_timestamp)
-                                    VALUES ('inbound', $1, $2, $3, $4, $5, $6, 'received', $7)
-                                    ON CONFLICT (message_id) DO NOTHING
-                                    "#
-                                )
-                                .bind(&from)
-                                .bind(config.phone_number.as_deref().unwrap_or(""))
-                                .bind(&content)
-                                .bind(&msg_id)
-                                .bind(contact_id)
-                                .bind(agent_id)
-                                .bind(wa_ts)
-                                .execute(&state.db)
-                                .await;
+                            incoming.push((msg.from, content, msg.id, wa_ts));
                         }
                     }
                 }
+            }
+        }
+
+        // Resolve each unique sender to a contact. Numbers are compared on
+        // digits only, preferring an exact digit match over a trailing-suffix
+        // match (a plain substring search would collide '123' with '1234').
+        let mut contact_by_sender: std::collections::HashMap<String, Option<Uuid>> =
+            std::collections::HashMap::new();
+        for (from, _, _, _) in &incoming {
+            if contact_by_sender.contains_key(from) {
+                continue;
+            }
+            let digits: String = from.chars().filter(|c| c.is_ascii_digit()).collect();
+            let contact_id: Option<Uuid> = if digits.is_empty() {
+                None
+            } else {
+                let suffix = if digits.len() > 9 {
+                    digits[digits.len() - 9..].to_string()
+                } else {
+                    digits.clone()
+                };
+                sqlx::query_scalar(
+                    "SELECT id FROM contacts
+                     WHERE regexp_replace(phone, '\\D', '', 'g') LIKE '%' || $1
+                     ORDER BY (regexp_replace(phone, '\\D', '', 'g') = $2) DESC
+                     LIMIT 1",
+                )
+                .bind(&suffix)
+                .bind(&digits)
+                .fetch_optional(&state.db)
+                .await
+                .unwrap_or(None)
+            };
+            contact_by_sender.insert(from.clone(), contact_id);
+        }
+
+        // Batch-fetch existing assignments for all resolved contacts.
+        let contact_ids: Vec<Uuid> = contact_by_sender.values().filter_map(|c| *c).collect();
+        let mut agent_by_contact: std::collections::HashMap<Uuid, Uuid> =
+            std::collections::HashMap::new();
+        if !contact_ids.is_empty() {
+            let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
+                "SELECT lead_id, agent_id FROM agent_lead_assignments
+                 WHERE lead_id = ANY($1) AND lead_type = 'contact' AND status = 'active'",
+            )
+            .bind(&contact_ids)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
+            agent_by_contact.extend(rows);
+            for cid in &contact_ids {
+                if !agent_by_contact.contains_key(cid)
+                    && let Some(agent) =
+                        assign_lead_to_agent(&state, "contact", *cid, "whatsapp").await
+                {
+                    agent_by_contact.insert(*cid, agent);
+                }
+            }
+        }
+
+        for (from, content, msg_id, wa_ts) in &incoming {
+            let contact_id = contact_by_sender.get(from).copied().flatten();
+            let agent_id = contact_id.and_then(|c| agent_by_contact.get(&c).copied());
+
+            // NOTE: the arbiter predicate must match the partial unique index
+            // from migration 027; a bare ON CONFLICT (message_id) errors out
+            // (no matching non-partial constraint) and drops every message.
+            if let Err(e) = sqlx::query(
+                    r#"
+                    INSERT INTO whatsapp_messages (direction, from_number, to_number, content, message_id, contact_id, agent_id, status, wa_timestamp)
+                    VALUES ('inbound', $1, $2, $3, $4, $5, $6, 'received', $7)
+                    ON CONFLICT (message_id) WHERE message_id IS NOT NULL DO NOTHING
+                    "#,
+                )
+                .bind(from)
+                .bind(config.phone_number.as_deref().unwrap_or(""))
+                .bind(content)
+                .bind(msg_id)
+                .bind(contact_id)
+                .bind(agent_id)
+                .bind(wa_ts)
+                .execute(&state.db)
+                .await
+            {
+                tracing::error!("Failed to store inbound WhatsApp message: {e}");
             }
         }
     }

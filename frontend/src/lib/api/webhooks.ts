@@ -1,8 +1,8 @@
 import { request } from "../api-client";
-import type { Webhook, WebhookDelivery } from "../types";
+import type { PaginatedResponse, Webhook, WebhookDelivery } from "../types";
 
 export const webhooksApi = {
-  list: () => request<Webhook[]>("/api/v1/webhooks"),
+  list: () => request<PaginatedResponse<Webhook>>("/api/v1/webhooks"),
 
   create: (data: { url: string; event: string; secret?: string }) =>
     request<Webhook>("/api/v1/webhooks", {

@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use uuid::Uuid;
 use validator::Validate;
@@ -7,22 +7,40 @@ use validator::Validate;
 use crate::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::UserPermissions;
-use crate::models::{CreateWebhook, UpdateWebhook, Webhook, WebhookDelivery};
+use crate::models::{
+    CreateWebhook, PaginatedResponse, PaginationParams, UpdateWebhook, Webhook, WebhookDelivery,
+};
 
 pub async fn list_webhooks(
     State(state): State<AppState>,
     perms: UserPermissions,
-) -> Result<Json<Vec<Webhook>>, AppError> {
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<Webhook>>, AppError> {
     perms
         .require("webhooks.view")
         .map_err(|_| AppError::Forbidden)?;
-    let webhooks = sqlx::query_as::<_, Webhook>(
-        "SELECT id, url, event as \"event: WebhookEvent\", secret, active, created_at, updated_at FROM webhooks ORDER BY created_at DESC",
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM webhooks")
+        .fetch_one(&state.db)
+        .await?;
+    let mut webhooks = sqlx::query_as::<_, Webhook>(
+        "SELECT id, url, event as \"event: WebhookEvent\", secret, active, created_at, updated_at FROM webhooks ORDER BY created_at DESC LIMIT $1 OFFSET $2",
     )
+    .bind(params.per_page())
+    .bind(params.offset())
     .fetch_all(&state.db)
     .await?;
 
-    Ok(Json(webhooks))
+    // Never expose signing secrets in listings; rotation happens via update.
+    for w in &mut webhooks {
+        w.secret = None;
+    }
+
+    Ok(Json(PaginatedResponse::new(
+        webhooks,
+        total,
+        params.page(),
+        params.per_page(),
+    )))
 }
 
 pub async fn create_webhook(
@@ -97,6 +115,12 @@ pub async fn update_webhook(
     .bind(id)
     .fetch_one(&state.db)
     .await?;
+
+    // Echo the secret only when the caller just set it; otherwise mask it.
+    let mut webhook = webhook;
+    if input.secret.is_none() {
+        webhook.secret = None;
+    }
 
     Ok(Json(webhook))
 }

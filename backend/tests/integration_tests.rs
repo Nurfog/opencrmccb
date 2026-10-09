@@ -49,6 +49,7 @@ async fn test_health_check() {
             max_file_size_mb: 10,
         },
         frontend_url: "http://localhost:3000".into(),
+        backend_public_url: "http://localhost:8000".into(),
         oauth: crm_backend::OAuthConfig {
             google: None,
             microsoft: None,
@@ -120,6 +121,7 @@ async fn test_register_first_user() {
             max_file_size_mb: 10,
         },
         frontend_url: "http://localhost:3000".into(),
+        backend_public_url: "http://localhost:8000".into(),
         oauth: crm_backend::OAuthConfig {
             google: None,
             microsoft: None,
@@ -214,6 +216,7 @@ async fn test_register_second_user_forbidden() {
             max_file_size_mb: 10,
         },
         frontend_url: "http://localhost:3000".into(),
+        backend_public_url: "http://localhost:8000".into(),
         oauth: crm_backend::OAuthConfig {
             google: None,
             microsoft: None,

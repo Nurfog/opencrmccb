@@ -10,6 +10,7 @@ fn make_config(cors: &str) -> Config {
             port: 8000,
             cors_origins: cors.into(),
             frontend_url: "http://localhost:3000".into(),
+            backend_public_url: "http://localhost:8000".into(),
         },
         auth: crm_backend::config::AuthConfig {
             jwt_secret: "a".repeat(32),
